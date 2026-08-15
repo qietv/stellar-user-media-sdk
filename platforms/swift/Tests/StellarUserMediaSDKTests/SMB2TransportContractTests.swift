@@ -35,6 +35,10 @@ struct SMB2TransportContractTests {
     #expect(throws: SDKError.self) {
       _ = try SMB2Endpoint(server: "smb://alice:secret@nas.example.test", share: "Media")
     }
+    #expect(throws: SDKError.self) {
+      _ = try SMB2Endpoint(server: "nas.example.test:1445", share: "Media")
+    }
+    #expect(try SMB2Endpoint(server: "[2001:db8::1]", port: 1445, share: "Media").port == 1445)
   }
 
   @Test("Dialect values preserve future negotiations and reject unknown exact requirements")
@@ -53,6 +57,45 @@ struct SMB2TransportContractTests {
         versionPolicy: .exact(future)
       )
     }
+    #expect(throws: SDKError.self) {
+      _ = try SMB2ConnectionRequest(
+        endpoint: endpoint,
+        credential: credential,
+        versionPolicy: .smb2Only,
+        encryptionPolicy: .required
+      )
+    }
+  }
+
+  @Test("POSIX failures map to stable, path-free SDK errors")
+  func errorMapping() {
+    let authentication = SMB2POSIXErrorMapper.map(
+      status: -Int32(POSIXErrorCode.EACCES.rawValue),
+      operation: .connect
+    )
+    let permission = SMB2POSIXErrorMapper.map(
+      status: -Int32(POSIXErrorCode.EACCES.rawValue),
+      operation: .listDirectory
+    )
+    let missing = SMB2POSIXErrorMapper.map(
+      status: -Int32(POSIXErrorCode.ENOENT.rawValue),
+      operation: .stat
+    )
+    let missingShare = SMB2POSIXErrorMapper.map(
+      status: -Int32(POSIXErrorCode.ENOENT.rawValue),
+      operation: .connect
+    )
+    let timeout = SMB2POSIXErrorMapper.map(
+      status: -Int32(POSIXErrorCode.ETIMEDOUT.rawValue),
+      operation: .read
+    )
+
+    #expect(authentication.code == .unauthorized)
+    #expect(permission.code == .forbidden)
+    #expect(missing.code == .metadataNotFound)
+    #expect(missingShare.code == .remoteUnavailable)
+    #expect(timeout.code == .remoteUnavailable)
+    #expect(authentication.message.contains("nas") == false)
   }
 
   @Test("A fake transport exercises list, stat, range read, and disconnect without a server")

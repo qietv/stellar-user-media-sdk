@@ -19,11 +19,14 @@ REQUIRE_SYMBOL(smb2_connect_share);
 REQUIRE_SYMBOL(smb2_disconnect_share);
 REQUIRE_SYMBOL(smb2_get_dialect);
 REQUIRE_SYMBOL(smb2_get_error);
+REQUIRE_SYMBOL(smb2_get_nterror);
+REQUIRE_SYMBOL(nterror_to_errno);
 REQUIRE_SYMBOL(smb2_opendir);
 REQUIRE_SYMBOL(smb2_readdir);
 REQUIRE_SYMBOL(smb2_closedir);
 REQUIRE_SYMBOL(smb2_stat);
 REQUIRE_SYMBOL(smb2_open);
+REQUIRE_SYMBOL(smb2_get_max_read_size);
 REQUIRE_SYMBOL(smb2_pread);
 REQUIRE_SYMBOL(smb2_close);
 

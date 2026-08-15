@@ -65,18 +65,20 @@ v1 不包含：
 - 公共错误模型、`EncryptedCredentialEnvelope` wire model；
 - 最小电影/剧集文件名 parser；
 - repository-wide parser fixture；
-- 25 个 Swift Testing 测试，macOS debug/release 构建已通过；
+- 26 个 Swift Testing 测试，macOS debug/release 构建已通过；
 - GitHub Actions 已在 macOS 26 与 Ubuntu 24.04 首次实际通过对等验证，并固定第三方 Action SHA；
 - SwiftPM exact/revision 依赖锁定门禁，以及 5 个公开模块、287 个 symbol 的 API compatibility 基线；
 - libsmb2 来源/ABI/私有静态链接 ADR、机器可读 lock、全符号前缀和 C ABI smoke guard；
 - 不依赖真实服务器的 `SMB2Transport` / `SMB2Session` seam、只读值模型和 fake transport 合同测试；
+- allowlisted C wrapper、Linux `LinuxSMB2Transport`、有界 blocking executor，以及连接、枚举、`stat`、range read 和确定性释放实现；
+- Linux CLI 的 `smb check`、`smb list`、`smb scan`，密码只从 stdin 读取；
 - Credential Vault 规范和 E2EE 同步 ADR。
 
 尚未完成：
 
 - 尚未产生真实代码的 Storage、Auth、Sync 与平台 backend targets；
 - Windows compile check；
-- allowlisted libsmb2 C wrapper、真实 SMB transport、SMB connector 和 SMB CLI；
+- 真实 SMB connector、Linux/Samba 集成验收与 in-flight cancellation；
 - 可执行 SQLite DDL、GRDB repository 和 scanner；
 - OAuth、配置同步、Vault 密码学实现和服务端 transport；
 - StellarPlayer iOS 正式集成。
@@ -182,12 +184,14 @@ flowchart TD
 - [x] 完成 libsmb2 ADR，固定 C ABI 基线与许可证交付方式；
 - [x] 建立 `CStellarLibsmb2Private` module map、私有 shim、固定静态构建、全符号前缀和 C ABI smoke 检查；
 - [x] 建立 `SMB2Transport` seam，使单元测试不需要真实服务器；
-- [ ] 封装 context、URL、directory/file handle 的唯一所有权和确定性释放；
-- [ ] 实现连接、认证、目录枚举、`stat` 和 range read；
-- [ ] 映射取消、超时、认证、权限、网络、远端不可用和协议错误；
-- [ ] 支持 SMB 2.1、3.0、3.1.1 协商信息记录，以及可配置 signing/encryption 要求；
-- [ ] 所有 connector 方法保持 `async throws`。若首个实现使用同步 C API，必须在专用阻塞执行器运行，不占用 actor 或 cooperative executor；完成前补齐取消和 timeout；
-- [ ] CLI 新增以下命令：
+- [x] 建立项目自有 allowlisted C wrapper，公开 header 不暴露任何 libsmb2 类型；
+- [x] 封装 context、directory/file handle 的唯一所有权和确定性释放；
+- [x] 实现连接、NTLMSSP 认证、目录枚举、`stat` 和分块 range read；
+- [x] 映射取消、超时、认证、权限、网络、远端不可用和协议错误；
+- [x] 支持 SMB 2.1、3.0、3.1.1 协商信息记录，以及可配置 signing/encryption 要求；
+- [x] 所有 transport 方法保持 `async throws`，同步 C API 只在最多 4 个 worker 的专用 blocking executor 运行，并在调用前后检查取消；
+- [ ] 将当前 timeout 有界的取消升级为可主动终止 in-flight C 调用，并加入确定性释放测试；
+- [x] CLI 新增以下命令：
 
 ```text
 stellar-media smb check
@@ -195,8 +199,8 @@ stellar-media smb list
 stellar-media smb scan
 ```
 
-- [ ] 密码只允许从 stdin、Credential Vault 或进程外 secret provider 输入；禁止 `--password <value>` 和带密码的 SMB URL；
-- [ ] `smb scan` 输出 JSONL 条目与单独 summary，包含 schema、source、范围、开始/结束时间、结果、错误分类和 libsmb2 版本，不包含完整主机、用户名、密码或敏感路径；
+- [x] 当前 CLI 密码只允许从 stdin 输入；明确拒绝 `--password <value>` 和带密码的 SMB URL，Vault/进程外 secret provider 留待 Sync 集成；
+- [x] `smb scan` 输出不带路径的 JSONL 条目与单独 summary，包含 schema、source、范围、开始/结束时间、结果、错误分类和 libsmb2 版本，不包含完整主机、用户名、密码或敏感路径；
 - [ ] CI 使用临时 Samba 服务执行隔离集成测试；真实 NAS 验收使用仓库外配置或明确批准的隔离资源；
 - [ ] 记录 LGPL 许可证文本、对应源码、可重新链接 object/relink kit 和 symbol-prefix 重建验证。
 
@@ -210,6 +214,8 @@ stellar-media smb scan
 - 密码不会出现在 argv、stdout/stderr、JSONL、日志、core dump 测试字符串或 CI artifact。
 
 完成定义：Ubuntu release binary 能针对隔离 Samba 和至少一个真实 SMB2/3 来源完成只读扫描；取消/失败不会生成“完整成功”标记；报告可用于后续 scanner fixture。
+
+当前验证状态：macOS 已通过 C wrapper 对固定 libsmb2 6.1.0 源码的 `-Wall -Wextra -Werror` 编译/静态链接烟测、Linux Swift target 手工 module typecheck、26 个 Swift 测试、API/依赖/secret/import guards 和 release CLI 构建。Linux 私有前缀 archive 的最终 Swift 链接、临时 Samba 集成矩阵和真实 NAS 验收仍待 Ubuntu CI/隔离环境执行，因此 S2 仍为进行中。
 
 ### S3 — Scanner 状态机与公共扫描 fixture ⬜
 

@@ -2,6 +2,21 @@
 
 import PackageDescription
 
+var cliDependencies: [Target.Dependency] = ["StellarUserMediaSDK"]
+var testDependencies: [Target.Dependency] = [
+  "StellarCore",
+  "StellarRemoteMedia",
+  "StellarMediaLibrary",
+  "StellarSMB2Core",
+  "StellarUserMediaSDK",
+]
+
+#if os(Linux)
+  cliDependencies.append("StellarSMB2Core")
+  cliDependencies.append("StellarSMB2Linux")
+  testDependencies.append("StellarSMB2Linux")
+#endif
+
 var packageTargets: [Target] = [
   .target(
     name: "StellarCore"
@@ -24,27 +39,31 @@ var packageTargets: [Target] = [
   ),
   .executableTarget(
     name: "StellarMediaCLI",
-    dependencies: ["StellarUserMediaSDK"]
+    dependencies: cliDependencies
   ),
   .testTarget(
     name: "StellarUserMediaSDKTests",
-    dependencies: [
-      "StellarCore",
-      "StellarRemoteMedia",
-      "StellarMediaLibrary",
-      "StellarSMB2Core",
-      "StellarUserMediaSDK",
-    ]
+    dependencies: testDependencies
   ),
 ]
 
 #if os(Linux)
-  packageTargets.append(
+  packageTargets.append(contentsOf: [
     .systemLibrary(
       name: "CStellarLibsmb2Private",
       path: "Sources/CStellarLibsmb2Private",
       pkgConfig: "stellar-libsmb2-private"
-    ))
+    ),
+    .target(
+      name: "CStellarSMB2Wrapper",
+      dependencies: ["CStellarLibsmb2Private"],
+      publicHeadersPath: "include"
+    ),
+    .target(
+      name: "StellarSMB2Linux",
+      dependencies: ["StellarCore", "StellarSMB2Core", "CStellarSMB2Wrapper"]
+    ),
+  ])
 #endif
 
 let package = Package(

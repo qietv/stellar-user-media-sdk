@@ -21,6 +21,8 @@ Sources/StellarCore/
 Sources/StellarRemoteMedia/
 Sources/StellarMediaLibrary/
 Sources/StellarSMB2Core/            # libsmb2-independent seam and values
+Sources/CStellarSMB2Wrapper/        # 不暴露上游类型的 allowlisted C API
+Sources/StellarSMB2Linux/           # Linux 真正的只读 libsmb2 transport
 Sources/StellarUserMediaSDK/       # umbrella facade
 Sources/StellarMediaCLI/
 Tests/StellarUserMediaSDKTests/
@@ -28,7 +30,7 @@ Tests/StellarUserMediaSDKTests/
 
 当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、加密凭据 envelope、最小文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。Core、RemoteMedia、MediaLibrary 和 SMB2Core 已是独立 target；其余 target 在第一次产生真实代码时加入。
 
-`StellarSMB2Core` 提供不泄漏 C pointer 的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。`CStellarLibsmb2Private` 只在 Linux Package graph 中存在，解析项目私有静态 archive；archive 中所有已定义全局 symbol 均添加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀并从动态导出表隐藏，Swift target 不得直接 import，真实 binding 将通过 allowlisted C wrapper 接入。
+`StellarSMB2Core` 提供不泄漏 C pointer 的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。`CStellarLibsmb2Private` 只在 Linux Package graph 中存在，解析项目私有静态 archive；archive 中所有已定义全局 symbol 均添加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀并从动态导出表隐藏。`CStellarSMB2Wrapper` 是唯一可调用该私有 module 的 target，对 Swift 只暴露项目自有 opaque client 和值记录；`StellarSMB2Linux` 在有界 blocking executor 上实现连接、枚举、`stat` 和 range read。
 
 `StellarCore` 当前公开：
 
@@ -48,6 +50,16 @@ swift run stellar-media parse "The.Matrix.1999.2160p.mkv"
 python3 ../../tools/ci/check_swift_dependencies.py --package-root .
 python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
 ```
+
+Linux 构建完成后可用只读 SMB 命令。密码只能通过 stdin 提供，不支持密码参数或带 userinfo 的 SMB URL：
+
+```bash
+your-secret-provider read stellar/smb/alice | \
+  swift run stellar-media smb check \
+  --server nas.example.test --share Media --username alice --password-stdin
+```
+
+`your-secret-provider` 代表不会把秘密放进 argv 的进程外凭据工具；不要把真实密码写入脚本、环境变量、shell history 或仓库。
 
 GitHub Actions 在 `macos-26` 和 `ubuntu-24.04` 上执行相同的 Swift 6.3 format lint、依赖锁定检查、公共 API compatibility 检查、debug/fixture tests、release build 和 CLI smoke tests；仓库守卫同时执行高置信度 secret scan 与 portable target Apple-import 检查。
 

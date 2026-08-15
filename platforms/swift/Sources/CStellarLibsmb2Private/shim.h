@@ -1,6 +1,8 @@
 #ifndef STELLAR_LIBSMB2_PRIVATE_SHIM_H
 #define STELLAR_LIBSMB2_PRIVATE_SHIM_H
 
+#include <time.h>
+
 #define smb2_init_context stellar_user_media_sdk_libsmb2_smb2_init_context
 #define smb2_close_context stellar_user_media_sdk_libsmb2_smb2_close_context
 #define smb2_destroy_context stellar_user_media_sdk_libsmb2_smb2_destroy_context
@@ -17,14 +19,18 @@
 #define smb2_disconnect_share stellar_user_media_sdk_libsmb2_smb2_disconnect_share
 #define smb2_get_dialect stellar_user_media_sdk_libsmb2_smb2_get_dialect
 #define smb2_get_error stellar_user_media_sdk_libsmb2_smb2_get_error
+#define smb2_get_nterror stellar_user_media_sdk_libsmb2_smb2_get_nterror
+#define nterror_to_errno stellar_user_media_sdk_libsmb2_nterror_to_errno
 #define smb2_opendir stellar_user_media_sdk_libsmb2_smb2_opendir
 #define smb2_readdir stellar_user_media_sdk_libsmb2_smb2_readdir
 #define smb2_closedir stellar_user_media_sdk_libsmb2_smb2_closedir
 #define smb2_stat stellar_user_media_sdk_libsmb2_smb2_stat
 #define smb2_open stellar_user_media_sdk_libsmb2_smb2_open
+#define smb2_get_max_read_size stellar_user_media_sdk_libsmb2_smb2_get_max_read_size
 #define smb2_pread stellar_user_media_sdk_libsmb2_smb2_pread
 #define smb2_close stellar_user_media_sdk_libsmb2_smb2_close
 
+#include <smb2/smb2.h>
 #include <smb2/libsmb2.h>
 
 #endif

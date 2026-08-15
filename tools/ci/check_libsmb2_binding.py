@@ -38,11 +38,14 @@ ALLOWED_SYMBOLS = (
     "smb2_disconnect_share",
     "smb2_get_dialect",
     "smb2_get_error",
+    "smb2_get_nterror",
+    "nterror_to_errno",
     "smb2_opendir",
     "smb2_readdir",
     "smb2_closedir",
     "smb2_stat",
     "smb2_open",
+    "smb2_get_max_read_size",
     "smb2_pread",
     "smb2_close",
 )
@@ -136,13 +139,39 @@ def validate_binding_boundary(root: Path) -> list[str]:
         findings.append("libsmb2 C ABI smoke source is required")
     else:
         smoke_symbols = set(
-            re.findall(r"REQUIRE_SYMBOL\((smb2_[A-Za-z0-9_]+)\)", smoke.read_text(encoding="utf-8"))
+            re.findall(
+                r"^REQUIRE_SYMBOL\(([A-Za-z][A-Za-z0-9_]+)\);$",
+                smoke.read_text(encoding="utf-8"),
+                flags=re.MULTILINE,
+            )
         )
         if smoke_symbols != set(ALLOWED_SYMBOLS):
             findings.append("C ABI smoke symbols must exactly match the reviewed allowlist")
+    wrapper_root = root / "platforms/swift/Sources/CStellarSMB2Wrapper"
+    wrapper_header = wrapper_root / "include/stellar_smb2_wrapper.h"
+    wrapper_source = wrapper_root / "stellar_smb2_wrapper.c"
+    if not wrapper_header.is_file() or not wrapper_source.is_file():
+        findings.append("the project-owned C SMB2 wrapper is required")
+    else:
+        wrapper_header_text = wrapper_header.read_text(encoding="utf-8")
+        if re.search(r"(?:<smb2/|struct\s+smb2_|\bsmb2_context\b)", wrapper_header_text):
+            findings.append("the public C wrapper header exposes private libsmb2 types")
+        wrapper_source_text = wrapper_source.read_text(encoding="utf-8")
+        if "CStellarLibsmb2Private/shim.h" not in wrapper_source_text:
+            findings.append("the C wrapper must consume libsmb2 only through the private shim")
+        if "libsmb2-raw.h" in wrapper_source_text:
+            findings.append("the C wrapper must not consume the raw libsmb2 API")
+    wrapper_smoke = root / "tools/ci/stellar_smb2_wrapper_smoke.c"
+    if not wrapper_smoke.is_file():
+        findings.append("the project-owned C SMB2 wrapper smoke source is required")
     for path in (root / "platforms/swift/Sources").rglob("*.swift"):
-        if FORBIDDEN_SWIFT_IMPORT.search(path.read_text(encoding="utf-8")):
+        source_text = path.read_text(encoding="utf-8")
+        if FORBIDDEN_SWIFT_IMPORT.search(source_text):
             findings.append(f"{path.relative_to(root)} imports the private libsmb2 C module directly")
+        if "import CStellarSMB2Wrapper" in source_text and "StellarSMB2Linux" not in path.parts:
+            findings.append(
+                f"{path.relative_to(root)} imports the C wrapper outside StellarSMB2Linux"
+            )
     return findings
 
 
@@ -199,7 +228,8 @@ def verify_installed(root: Path, payload: dict[str, Any]) -> None:
     source = root / "tools/ci/libsmb2_binding_smoke.c"
     shim_include = root / "platforms/swift/Sources/CStellarLibsmb2Private"
     with tempfile.TemporaryDirectory(prefix="stellar-libsmb2-smoke-") as temporary:
-        binary = Path(temporary) / "libsmb2-binding-smoke"
+        temporary_path = Path(temporary)
+        binary = temporary_path / "libsmb2-binding-smoke"
         run(
             [
                 compiler,
@@ -231,6 +261,45 @@ def verify_installed(root: Path, payload: dict[str, Any]) -> None:
             linked = run([dynamic_dependencies, str(binary)])
             if "libsmb2" in linked.lower():
                 raise RuntimeError("smoke binary unexpectedly depends on a shared libsmb2")
+        wrapper_binary = temporary_path / "stellar-smb2-wrapper-smoke"
+        wrapper_source = root / "platforms/swift/Sources/CStellarSMB2Wrapper/stellar_smb2_wrapper.c"
+        wrapper_include = root / "platforms/swift/Sources/CStellarSMB2Wrapper/include"
+        wrapper_smoke = root / "tools/ci/stellar_smb2_wrapper_smoke.c"
+        run(
+            [
+                compiler,
+                "-std=c11",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-I",
+                str(wrapper_include),
+                str(wrapper_source),
+                str(wrapper_smoke),
+                "-Wl,--export-dynamic",
+                "-o",
+                str(wrapper_binary),
+                *flags,
+            ]
+        )
+        run([str(wrapper_binary)])
+        wrapper_dynamic_symbols = defined_symbols(
+            run([symbol_tool, "-D", "-g", "--defined-only", "-P", str(wrapper_binary)])
+        )
+        wrapper_leaks = sorted(
+            symbol
+            for symbol in wrapper_dynamic_symbols
+            if symbol.startswith(str(payload["symbol_prefix"]))
+        )
+        if wrapper_leaks:
+            raise RuntimeError(
+                "private libsmb2 symbols leaked through the C wrapper: "
+                + ", ".join(wrapper_leaks[:10])
+            )
+        if dynamic_dependencies:
+            linked = run([dynamic_dependencies, str(wrapper_binary)])
+            if "libsmb2" in linked.lower():
+                raise RuntimeError("C wrapper unexpectedly depends on a shared libsmb2")
     print(f"isolated static libsmb2 C binding smoke passed: pkg-config {version}")
 
 

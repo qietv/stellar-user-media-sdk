@@ -10,7 +10,7 @@ import StellarUserMediaSDK
 private enum StellarMediaCLI {
   private static let redactor = SensitiveDataRedactor()
 
-  static func run(arguments: [String]) -> Int32 {
+  static func run(arguments: [String]) async -> Int32 {
     guard let command = arguments.first else {
       printUsage()
       return 0
@@ -31,6 +31,14 @@ private enum StellarMediaCLI {
         return 2
       }
       return printParseResult(for: arguments[1])
+
+    case "smb":
+      #if canImport(StellarSMB2Linux)
+        return await SMBCLICommand.run(arguments: Array(arguments.dropFirst()))
+      #else
+        writeError("SMB commands are currently available only in the Linux CLI")
+        return 2
+      #endif
 
     default:
       writeError("unknown command: \(redactor.redact(commandLineArgument: command))")
@@ -64,6 +72,9 @@ private enum StellarMediaCLI {
 
       Usage:
         stellar-media parse <file-path>
+        stellar-media smb check <options>
+        stellar-media smb list <options> [--path <relative-path>]
+        stellar-media smb scan <options>
         stellar-media version
         stellar-media help
       """
@@ -81,7 +92,7 @@ private enum StellarMediaCLI {
   }
 }
 
-let exitCode = StellarMediaCLI.run(arguments: Array(CommandLine.arguments.dropFirst()))
+let exitCode = await StellarMediaCLI.run(arguments: Array(CommandLine.arguments.dropFirst()))
 if exitCode != 0 {
   exit(exitCode)
 }

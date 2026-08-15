@@ -1,7 +1,7 @@
 import Foundation
 import StellarCore
 
-/// A normalized path relative to an SMB share.
+/// A normalized path relative to the configured root inside an SMB share.
 public struct SMB2Path: Equatable, Hashable, Sendable, CustomStringConvertible {
   /// The normalized slash-separated path. Treat this value as sensitive in diagnostics.
   public let relativePath: String
@@ -71,6 +71,14 @@ public struct SMB2Endpoint: Equatable, Sendable, CustomStringConvertible,
       throw SDKError(
         code: .invalidConfiguration,
         message: "SMB server must not contain URL credentials or path data"
+      )
+    }
+    if normalizedServer.contains(":"),
+      !(normalizedServer.hasPrefix("[") && normalizedServer.hasSuffix("]"))
+    {
+      throw SDKError(
+        code: .invalidConfiguration,
+        message: "IPv6 SMB servers must use brackets and ports must use the port field"
       )
     }
     guard !normalizedShare.contains("/"), !normalizedShare.contains("\\"),
@@ -210,6 +218,17 @@ public struct SMB2ConnectionRequest: Sendable, CustomStringConvertible, CustomDe
     if case .exact(.unknown) = versionPolicy {
       throw SDKError(code: .invalidConfiguration, message: "unknown SMB dialect cannot be required")
     }
+    if encryptionPolicy == .required {
+      switch versionPolicy {
+      case .smb2Only, .exact(.smb202), .exact(.smb210):
+        throw SDKError(
+          code: .invalidConfiguration,
+          message: "SMB encryption requires an SMB 3 dialect"
+        )
+      default:
+        break
+      }
+    }
     self.endpoint = endpoint
     self.credential = credential
     self.versionPolicy = versionPolicy
@@ -317,4 +336,52 @@ public protocol SMB2Session: Sendable {
 /// Injectable transport boundary used by the SMB connector and server-free contract tests.
 public protocol SMB2Transport: Sendable {
   func connect(_ request: SMB2ConnectionRequest) async throws -> any SMB2Session
+}
+
+package enum SMB2Operation: Equatable, Sendable {
+  case connect
+  case listDirectory
+  case stat
+  case read
+}
+
+package enum SMB2POSIXErrorMapper {
+  package static func map(status: Int32, operation: SMB2Operation) -> SDKError {
+    let magnitude = status < 0 ? -Int64(status) : Int64(status)
+    guard magnitude <= Int64(Int32.max),
+      let posixCode = POSIXErrorCode(rawValue: Int32(magnitude))
+    else {
+      return SDKError(code: .unknown, message: "SMB operation failed")
+    }
+
+    switch posixCode {
+    case .ECANCELED:
+      return SDKError(code: .cancelled, message: "SMB operation cancelled")
+    case .EACCES, .EPERM:
+      if operation == .connect {
+        return SDKError(code: .unauthorized, message: "SMB authentication failed")
+      }
+      return SDKError(code: .forbidden, message: "SMB permission denied")
+    case .ENOENT, .ENOTDIR:
+      if operation == .connect {
+        return SDKError(code: .remoteUnavailable, message: "SMB share is unavailable")
+      }
+      return SDKError(code: .metadataNotFound, message: "SMB entry was not found")
+    case .ENETDOWN, .ENETUNREACH:
+      return SDKError(code: .networkUnavailable, message: "network is unavailable")
+    case .EAGAIN:
+      return SDKError(code: .networkUnavailable, message: "network is temporarily unavailable")
+    case .EHOSTUNREACH, .ECONNREFUSED, .ECONNRESET, .ECONNABORTED, .ENOTCONN, .ETIMEDOUT,
+      .EPIPE:
+      return SDKError(code: .remoteUnavailable, message: "SMB server is unavailable")
+    case .EPROTO, .EBADMSG:
+      return SDKError(code: .remoteUnavailable, message: "SMB protocol operation failed")
+    case .EINVAL:
+      return SDKError(code: .invalidConfiguration, message: "SMB request is invalid")
+    case .EIO where operation == .connect:
+      return SDKError(code: .remoteUnavailable, message: "SMB server is unavailable")
+    default:
+      return SDKError(code: .unknown, message: "SMB operation failed")
+    }
+  }
 }
