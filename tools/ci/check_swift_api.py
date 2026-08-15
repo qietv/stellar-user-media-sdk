@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Compare portable Swift public symbol graphs with a reviewed baseline."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_MODULES = (
+    "StellarCore",
+    "StellarRemoteMedia",
+    "StellarMediaLibrary",
+    "StellarSMB2Core",
+    "StellarUserMediaSDK",
+)
+
+
+def emit_symbol_graphs(package_root: Path) -> Path:
+    completed = subprocess.run(
+        [
+            "swift",
+            "package",
+            "dump-symbol-graph",
+            "--minimum-access-level",
+            "public",
+            "--skip-synthesized-members",
+            "--skip-inherited-docs",
+        ],
+        cwd=package_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    output = "\n".join(part for part in (completed.stdout, completed.stderr) if part)
+    if completed.returncode != 0:
+        raise RuntimeError(output.strip() or "swift package dump-symbol-graph failed")
+    matches = re.findall(r"Files written to (.+)", output)
+    if matches:
+        return Path(matches[-1].strip()).resolve()
+    candidates = sorted(
+        package_root.glob(".build/**/symbolgraph"), key=lambda path: path.stat().st_mtime
+    )
+    if not candidates:
+        raise RuntimeError("SwiftPM did not report or create a symbol graph directory")
+    return candidates[-1].resolve()
+
+
+def declaration(symbol: dict[str, Any]) -> str:
+    fragments = symbol.get("declarationFragments", [])
+    return "".join(
+        fragment.get("spelling", "") for fragment in fragments if isinstance(fragment, dict)
+    )
+
+
+def public_symbols(graph: dict[str, Any]) -> list[dict[str, Any]]:
+    symbols: list[dict[str, Any]] = []
+    for symbol in graph.get("symbols", []):
+        if symbol.get("accessLevel") not in {"public", "open"}:
+            continue
+        identifier = symbol.get("identifier", {}).get("precise")
+        if not identifier:
+            continue
+        symbols.append(
+            {
+                "identifier": identifier,
+                "kind": symbol.get("kind", {}).get("identifier", ""),
+                "path": symbol.get("pathComponents", []),
+                "declaration": declaration(symbol),
+            }
+        )
+    return sorted(symbols, key=lambda symbol: symbol["identifier"])
+
+
+def undocumented_top_level_symbols(graph: dict[str, Any]) -> list[str]:
+    findings: list[str] = []
+    for symbol in graph.get("symbols", []):
+        path = symbol.get("pathComponents", [])
+        if (
+            symbol.get("accessLevel") in {"public", "open"}
+            and len(path) == 1
+            and symbol.get("location")
+            and not symbol.get("docComment")
+        ):
+            findings.append(path[0])
+    return sorted(findings)
+
+
+def snapshot(graph_dir: Path, modules: tuple[str, ...]) -> tuple[dict[str, Any], list[str]]:
+    module_snapshots: dict[str, Any] = {}
+    documentation_findings: list[str] = []
+    for module in modules:
+        path = graph_dir / f"{module}.symbols.json"
+        if not path.is_file():
+            raise RuntimeError(f"missing symbol graph for {module}: {path}")
+        graph = json.loads(path.read_text(encoding="utf-8"))
+        module_snapshots[module] = {"symbols": public_symbols(graph)}
+        documentation_findings.extend(
+            f"{module}.{symbol}" for symbol in undocumented_top_level_symbols(graph)
+        )
+    return {"schema_version": 1, "modules": module_snapshots}, documentation_findings
+
+
+def index_symbols(payload: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+    indexed: dict[tuple[str, str], dict[str, Any]] = {}
+    for module, module_payload in payload.get("modules", {}).items():
+        for symbol in module_payload.get("symbols", []):
+            indexed[(module, symbol["identifier"])] = symbol
+    return indexed
+
+
+def describe(module: str, symbol: dict[str, Any]) -> str:
+    path = ".".join(symbol.get("path", []))
+    return f"{module}.{path}: {symbol.get('declaration', '')}"
+
+
+def compare(expected: dict[str, Any], actual: dict[str, Any]) -> list[str]:
+    expected_symbols = index_symbols(expected)
+    actual_symbols = index_symbols(actual)
+    findings: list[str] = []
+    for key in sorted(expected_symbols.keys() - actual_symbols.keys()):
+        findings.append(f"removed {describe(key[0], expected_symbols[key])}")
+    for key in sorted(actual_symbols.keys() - expected_symbols.keys()):
+        findings.append(f"added {describe(key[0], actual_symbols[key])}")
+    for key in sorted(expected_symbols.keys() & actual_symbols.keys()):
+        if expected_symbols[key] != actual_symbols[key]:
+            findings.append(
+                f"changed {describe(key[0], expected_symbols[key])} -> "
+                f"{actual_symbols[key].get('declaration', '')}"
+            )
+    return findings
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--package-root", type=Path, required=True)
+    parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--update", action="store_true")
+    parser.add_argument("--module", action="append", dest="modules")
+    args = parser.parse_args()
+    package_root = args.package_root.resolve()
+    baseline = args.baseline
+    if not baseline.is_absolute():
+        baseline = package_root / baseline
+    modules = tuple(args.modules or DEFAULT_MODULES)
+
+    try:
+        graph_dir = emit_symbol_graphs(package_root)
+        actual, documentation_findings = snapshot(graph_dir, modules)
+    except (RuntimeError, OSError, json.JSONDecodeError) as error:
+        print(f"Swift API check failed: {error}")
+        return 1
+
+    for finding in documentation_findings:
+        print(f"Swift API check failed: missing top-level DocC comment for {finding}")
+    if documentation_findings:
+        return 1
+
+    if args.update:
+        baseline.parent.mkdir(parents=True, exist_ok=True)
+        baseline.write_text(json.dumps(actual, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        count = sum(len(module["symbols"]) for module in actual["modules"].values())
+        print(f"Swift API baseline updated: {count} public symbols in {baseline}")
+        return 0
+
+    if not baseline.is_file():
+        print(f"Swift API check failed: baseline does not exist: {baseline}")
+        print("Run this command with --update and review the generated baseline")
+        return 1
+    try:
+        expected = json.loads(baseline.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"Swift API check failed: cannot read baseline: {error}")
+        return 1
+
+    findings = compare(expected, actual)
+    for finding in findings[:50]:
+        print(f"Swift API check failed: {finding}")
+    if len(findings) > 50:
+        print(f"Swift API check failed: {len(findings) - 50} additional change(s) omitted")
+    if findings:
+        print("Regenerate with --update only after reviewing compatibility impact")
+        return 1
+    count = sum(len(module["symbols"]) for module in actual["modules"].values())
+    print(f"Swift API check passed: {count} public symbols match {baseline}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

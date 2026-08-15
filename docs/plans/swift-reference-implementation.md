@@ -1,7 +1,9 @@
 # Swift Reference Implementation Plan
 
-最后核对日期：2026-08-15  
-当前阶段：**S1 — 模块边界与跨平台构建**  
+最后核对日期：2026-08-16
+
+当前阶段：**S2 — Linux libsmb2 只读纵向切片**
+
 目标工具链：Swift 6.3.x、Swift 6 language mode  
 最低 Apple 平台：iOS/iPadOS 17、macOS 14、tvOS 17
 
@@ -63,15 +65,18 @@ v1 不包含：
 - 公共错误模型、`EncryptedCredentialEnvelope` wire model；
 - 最小电影/剧集文件名 parser；
 - repository-wide parser fixture；
-- 21 个 Swift Testing 测试，macOS debug/release 构建已通过；
-- GitHub Actions 已配置 macOS 26 与 Ubuntu 24.04 对等验证，并固定第三方 Action SHA；
+- 25 个 Swift Testing 测试，macOS debug/release 构建已通过；
+- GitHub Actions 已在 macOS 26 与 Ubuntu 24.04 首次实际通过对等验证，并固定第三方 Action SHA；
+- SwiftPM exact/revision 依赖锁定门禁，以及 5 个公开模块、287 个 symbol 的 API compatibility 基线；
+- libsmb2 来源/ABI/私有静态链接 ADR、机器可读 lock、全符号前缀和 C ABI smoke guard；
+- 不依赖真实服务器的 `SMB2Transport` / `SMB2Session` seam、只读值模型和 fake transport 合同测试；
 - Credential Vault 规范和 E2EE 同步 ADR。
 
 尚未完成：
 
 - 尚未产生真实代码的 Storage、Auth、Sync 与平台 backend targets；
-- GitHub-hosted Linux CI 的首次实际运行与 Windows compile check；
-- libsmb2 C binding、SMB connector 和 SMB CLI；
+- Windows compile check；
+- allowlisted libsmb2 C wrapper、真实 SMB transport、SMB connector 和 SMB CLI；
 - 可执行 SQLite DDL、GRDB repository 和 scanner；
 - OAuth、配置同步、Vault 密码学实现和服务端 transport；
 - StellarPlayer iOS 正式集成。
@@ -84,7 +89,7 @@ targets 在第一次产生真实代码时建立，不创建只有空目录的模
 flowchart TD
     Core["StellarCore\n模型/错误/JSON/日志/取消"]
     Remote["StellarRemoteMedia\n来源与 connector 合同"] --> Core
-    CSMB["CLibsmb2System\nLinux pkg-config C module"]
+    CSMB["CStellarLibsmb2Private\nLinux 私有静态 C module"]
     SMB["StellarSMB2Core\nSMB 公共语义"] --> Remote
     SMBLinux["StellarSMB2Linux\n直接调用 libsmb2"] --> SMB
     SMBLinux --> CSMB
@@ -114,19 +119,19 @@ flowchart TD
 - Apple framework import 只能出现在 `StellarApplePlatform` 或明确的 Apple backend target。
 - libsmb2 context、file handle 和 C callback userdata 不得声明为无条件 `Sendable`；由 actor 或单一执行器拥有。
 - CLI 只调用 SDK 公共 API，不维护另一份扫描、解析或数据库业务逻辑。
-- Linux 的 `CLibsmb2System` 通过 `pkg-config: libsmb2` 解析共享库，并通过条件 target dependency 与 Apple backend 隔离。Apple backend 的打包和 LGPL 动态链接边界单独通过 ADR 固化。
+- Linux 的 `CStellarLibsmb2Private` 通过私有 `stellar-libsmb2-private.pc` 解析全符号前缀的静态 archive，并通过条件 target dependency 与 Apple backend 隔离。不得安装或解析公共 `libsmb2.pc`；Apple backend 采用同样的私有静态隔离并由 ADR 固化 LGPL relink kit 边界。
 
 ## 5. 依赖基线与待决 ADR
 
 | 依赖 | 初始基线 | 用途 | 合入前要求 |
 | --- | --- | --- | --- |
-| libsmb2 | 以 StellarPlayer 已验证的 `aedafb2c8742c83188e27841e270fdaad6035d41` 为兼容基准 | SMB2/3 连接、枚举、stat、range read | ADR：源码固定、Linux 动态链接、Apple 包装、LGPL 交付方式 |
+| libsmb2 | 以 StellarPlayer 已验证的 `aedafb2c8742c83188e27841e270fdaad6035d41` 为兼容基准 | SMB2/3 连接、枚举、stat、range read | ADR：源码固定、私有静态 archive、全符号前缀、LGPL relink kit |
 | GRDB.swift | 精确版本 7.11.1 | SQLite 连接、迁移、事务和查询 | Linux debug/release、WAL、migration、`foreign_key_check` 全部进入 CI |
 | Swift Crypto | 候选精确版本 4.5.1 | Apple/Linux 共用 AES-GCM、KDF 和 key wrapping 基础能力 | ADR：算法套件、AAD canonical encoding、设备批准和恢复流程；不得先写自定义密码算法 |
 
 必须先完成的 ADR：
 
-1. libsmb2 获取、固定版本、动态链接和 Apple/Linux 分发方式；
+1. libsmb2 获取、固定版本、私有静态链接和 Apple/Linux 分发方式；
 2. SQLite/GRDB 采用方式、数据库文件布局和 DDL 所有权；
 3. Credential Vault key wrapping、设备批准、恢复材料和 key rotation；
 4. StellarPlayer iOS 现有媒体库向 SDK 迁移及旧数据库清理策略。
@@ -147,7 +152,7 @@ flowchart TD
 
 完成定义：当前已有的 8 个测试通过，`stellar-media parse` 输出规范化 JSON。
 
-### S1 — 模块边界与跨平台构建 🚧
+### S1 — 模块边界与跨平台构建 ✅
 
 目标：在加入 C、数据库和 Apple framework 前固定依赖方向，让 Linux 不被后续 Apple 代码破坏。
 
@@ -159,14 +164,14 @@ flowchart TD
 - [x] 明确未知枚举、缺失与 `null`、epoch 毫秒、游标分页的 Swift 编码策略；
 - [x] 建立 macOS 与 Ubuntu 的 Swift 6.3 CI；
 - [x] CI 执行 format lint、debug tests、release build、fixture tests 和 secret scan；
-- [ ] 生成并提交依赖解析记录，禁止浮动 branch；
-- [ ] 为 public API 加入最小 DocC 注释与 API compatibility 基线。
+- [x] 建立依赖解析记录门禁，禁止浮动 branch/range；当前无外部依赖，因此不伪造空 `Package.resolved`；
+- [x] 为 public API 加入最小顶层 DocC 注释与 API compatibility 基线。
 
 完成定义：同一 commit 在 macOS 和 Linux 上执行 Core/CLI tests；代码中没有未经条件隔离的 Apple import；fixture 输出语义一致。
 
-当前说明：workflow 和本地守卫已就绪，本机全部通过；仓库尚无初始 commit，因此 GitHub-hosted 的首次 macOS/Linux 运行、SwiftPM 依赖解析记录和基于 git baseline 的 API compatibility 检查仍待完成。当前 Package 没有外部 Swift 依赖，SwiftPM 不会生成有意义的 `Package.resolved`。
+完成证据：初始 commit `d1b8b2e` 已在 GitHub-hosted macOS 26、Ubuntu 24.04 和 repository guards 全部通过。当前 worktree 新增的依赖/API 门禁已在 macOS 本地通过，合入后的首轮 workflow 还需确认 Linux symbol graph 完全一致。CI 会拒绝 SwiftPM branch/range；新增外部依赖时要求 exact version 或 immutable revision 并提交 `Package.resolved`。`API/PublicAPI.json` 固定 `StellarCore`、`StellarRemoteMedia`、`StellarMediaLibrary`、`StellarSMB2Core` 和 umbrella module 的公开 symbol graph，API 有意变化必须显式更新并审阅 baseline diff。
 
-### S2 — Linux libsmb2 只读纵向切片 ⬜
+### S2 — Linux libsmb2 只读纵向切片 🚧
 
 目标：在 Linux 上用真实 SMB2/3 来源完成连接、递归枚举和验收报告，这是首个生产数据路径。
 
@@ -174,9 +179,9 @@ flowchart TD
 
 工作：
 
-- [ ] 完成 libsmb2 ADR，固定 C ABI 基线与许可证交付方式；
-- [ ] 建立 `CLibsmb2System` module map、shim header 和 pkg-config 检查；
-- [ ] 建立 `SMB2Transport` seam，使单元测试不需要真实服务器；
+- [x] 完成 libsmb2 ADR，固定 C ABI 基线与许可证交付方式；
+- [x] 建立 `CStellarLibsmb2Private` module map、私有 shim、固定静态构建、全符号前缀和 C ABI smoke 检查；
+- [x] 建立 `SMB2Transport` seam，使单元测试不需要真实服务器；
 - [ ] 封装 context、URL、directory/file handle 的唯一所有权和确定性释放；
 - [ ] 实现连接、认证、目录枚举、`stat` 和 range read；
 - [ ] 映射取消、超时、认证、权限、网络、远端不可用和协议错误；
@@ -193,7 +198,7 @@ stellar-media smb scan
 - [ ] 密码只允许从 stdin、Credential Vault 或进程外 secret provider 输入；禁止 `--password <value>` 和带密码的 SMB URL；
 - [ ] `smb scan` 输出 JSONL 条目与单独 summary，包含 schema、source、范围、开始/结束时间、结果、错误分类和 libsmb2 版本，不包含完整主机、用户名、密码或敏感路径；
 - [ ] CI 使用临时 Samba 服务执行隔离集成测试；真实 NAS 验收使用仓库外配置或明确批准的隔离资源；
-- [ ] 记录 LGPL 许可证文本、动态库版本和可替换性验证。
+- [ ] 记录 LGPL 许可证文本、对应源码、可重新链接 object/relink kit 和 symbol-prefix 重建验证。
 
 验收矩阵：
 

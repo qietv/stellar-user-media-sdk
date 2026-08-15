@@ -55,6 +55,7 @@ platforms/android/     Android/Kotlin library 预留结构
 platforms/ohos/        OHOS ArkTS HAR 预留结构
 examples/              三个平台的示例应用规划
 tools/reference/       研究和验证脚本，不属于生产 SDK
+third_party/           第三方依赖版本、许可证与来源记录（不存放凭据）
 ```
 
 ## 设计入口
@@ -68,6 +69,7 @@ tools/reference/       研究和验证脚本，不属于生产 SDK
 - [安全基线](docs/security.md)
 - [开发路线图](docs/roadmap.md)
 - [Swift Reference Implementation Plan](docs/plans/swift-reference-implementation.md)
+- [libsmb2 来源、ABI 与私有静态链接决策](docs/decisions/0003-libsmb2-distribution-and-abi.md)
 - [Infuse 研究资料索引](docs/research/infuse/README.md)
 
 ## 当前约束

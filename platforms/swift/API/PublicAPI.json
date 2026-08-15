@@ -1,0 +1,2535 @@
+{
+  "modules": {
+    "StellarCore": {
+      "symbols": [
+        {
+          "declaration": "struct CursorPage<Element> where Element : Decodable, Element : Encodable, Element : Sendable",
+          "identifier": "s:11StellarCore10CursorPageV",
+          "kind": "swift.struct",
+          "path": [
+            "CursorPage"
+          ]
+        },
+        {
+          "declaration": "let nextCursor: String?",
+          "identifier": "s:11StellarCore10CursorPageV04nextC0SSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CursorPage",
+            "nextCursor"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:11StellarCore10CursorPageV4fromACyxGs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CursorPage",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "init(items: [Element], nextCursor: String?) throws",
+          "identifier": "s:11StellarCore10CursorPageV5items04nextC0ACyxGSayxG_SSSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CursorPage",
+            "init(items:nextCursor:)"
+          ]
+        },
+        {
+          "declaration": "let items: [Element]",
+          "identifier": "s:11StellarCore10CursorPageV5itemsSayxGvp",
+          "kind": "swift.property",
+          "path": [
+            "CursorPage",
+            "items"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:11StellarCore10CursorPageV6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "CursorPage",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "protocol SDKLogging : Sendable",
+          "identifier": "s:11StellarCore10SDKLoggingP",
+          "kind": "swift.protocol",
+          "path": [
+            "SDKLogging"
+          ]
+        },
+        {
+          "declaration": "func log(_ event: SDKLogEvent)",
+          "identifier": "s:11StellarCore10SDKLoggingP3logyyAA11SDKLogEventVF",
+          "kind": "swift.method",
+          "path": [
+            "SDKLogging",
+            "log(_:)"
+          ]
+        },
+        {
+          "declaration": "struct RetryPolicy",
+          "identifier": "s:11StellarCore11RetryPolicyV",
+          "kind": "swift.struct",
+          "path": [
+            "RetryPolicy"
+          ]
+        },
+        {
+          "declaration": "let multiplier: Double",
+          "identifier": "s:11StellarCore11RetryPolicyV10multiplierSdvp",
+          "kind": "swift.property",
+          "path": [
+            "RetryPolicy",
+            "multiplier"
+          ]
+        },
+        {
+          "declaration": "init(maxAttempts: Int, initialDelayMilliseconds: Int64, multiplier: Double = 2, maximumDelayMilliseconds: Int64 = 30_000) throws",
+          "identifier": "s:11StellarCore11RetryPolicyV11maxAttempts24initialDelayMilliseconds10multiplier07maximumhI0ACSi_s5Int64VSdAItKcfc",
+          "kind": "swift.init",
+          "path": [
+            "RetryPolicy",
+            "init(maxAttempts:initialDelayMilliseconds:multiplier:maximumDelayMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "let maxAttempts: Int",
+          "identifier": "s:11StellarCore11RetryPolicyV11maxAttemptsSivp",
+          "kind": "swift.property",
+          "path": [
+            "RetryPolicy",
+            "maxAttempts"
+          ]
+        },
+        {
+          "declaration": "func delayMilliseconds(afterAttempt attempt: Int) -> Int64",
+          "identifier": "s:11StellarCore11RetryPolicyV17delayMilliseconds12afterAttempts5Int64VSi_tF",
+          "kind": "swift.method",
+          "path": [
+            "RetryPolicy",
+            "delayMilliseconds(afterAttempt:)"
+          ]
+        },
+        {
+          "declaration": "let initialDelayMilliseconds: Int64",
+          "identifier": "s:11StellarCore11RetryPolicyV24initialDelayMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "RetryPolicy",
+            "initialDelayMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let maximumDelayMilliseconds: Int64",
+          "identifier": "s:11StellarCore11RetryPolicyV24maximumDelayMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "RetryPolicy",
+            "maximumDelayMilliseconds"
+          ]
+        },
+        {
+          "declaration": "static let transient: RetryPolicy",
+          "identifier": "s:11StellarCore11RetryPolicyV9transientACvpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "RetryPolicy",
+            "transient"
+          ]
+        },
+        {
+          "declaration": "struct SDKLogEvent",
+          "identifier": "s:11StellarCore11SDKLogEventV",
+          "kind": "swift.struct",
+          "path": [
+            "SDKLogEvent"
+          ]
+        },
+        {
+          "declaration": "init(level: SDKLogLevel, category: String, message: String, metadata: [String : SDKLogMetadataValue] = [:])",
+          "identifier": "s:11StellarCore11SDKLogEventV5level8category7message8metadataAcA0C5LevelO_S2SSDySSAA0C13MetadataValueVGtcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKLogEvent",
+            "init(level:category:message:metadata:)"
+          ]
+        },
+        {
+          "declaration": "let level: SDKLogLevel",
+          "identifier": "s:11StellarCore11SDKLogEventV5levelAA0C5LevelOvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogEvent",
+            "level"
+          ]
+        },
+        {
+          "declaration": "let message: String",
+          "identifier": "s:11StellarCore11SDKLogEventV7messageSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogEvent",
+            "message"
+          ]
+        },
+        {
+          "declaration": "let category: String",
+          "identifier": "s:11StellarCore11SDKLogEventV8categorySSvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogEvent",
+            "category"
+          ]
+        },
+        {
+          "declaration": "let metadata: [String : SDKLogMetadataValue]",
+          "identifier": "s:11StellarCore11SDKLogEventV8metadataSDySSAA0C13MetadataValueVGvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogEvent",
+            "metadata"
+          ]
+        },
+        {
+          "declaration": "enum SDKLogLevel",
+          "identifier": "s:11StellarCore11SDKLogLevelO",
+          "kind": "swift.enum",
+          "path": [
+            "SDKLogLevel"
+          ]
+        },
+        {
+          "declaration": "case info",
+          "identifier": "s:11StellarCore11SDKLogLevelO4infoyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogLevel",
+            "info"
+          ]
+        },
+        {
+          "declaration": "case debug",
+          "identifier": "s:11StellarCore11SDKLogLevelO5debugyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogLevel",
+            "debug"
+          ]
+        },
+        {
+          "declaration": "case error",
+          "identifier": "s:11StellarCore11SDKLogLevelO5erroryA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogLevel",
+            "error"
+          ]
+        },
+        {
+          "declaration": "case notice",
+          "identifier": "s:11StellarCore11SDKLogLevelO6noticeyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogLevel",
+            "notice"
+          ]
+        },
+        {
+          "declaration": "case warning",
+          "identifier": "s:11StellarCore11SDKLogLevelO7warningyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogLevel",
+            "warning"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:11StellarCore11SDKLogLevelO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKLogLevel",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "enum SDKErrorCode",
+          "identifier": "s:11StellarCore12SDKErrorCodeO",
+          "kind": "swift.enum",
+          "path": [
+            "SDKErrorCode"
+          ]
+        },
+        {
+          "declaration": "case rateLimited",
+          "identifier": "s:11StellarCore12SDKErrorCodeO11rateLimitedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "rateLimited"
+          ]
+        },
+        {
+          "declaration": "case parseFailure",
+          "identifier": "s:11StellarCore12SDKErrorCodeO12parseFailureyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "parseFailure"
+          ]
+        },
+        {
+          "declaration": "case unauthorized",
+          "identifier": "s:11StellarCore12SDKErrorCodeO12unauthorizedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "unauthorized"
+          ]
+        },
+        {
+          "declaration": "case storageFailure",
+          "identifier": "s:11StellarCore12SDKErrorCodeO14storageFailureyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "storageFailure"
+          ]
+        },
+        {
+          "declaration": "case metadataNotFound",
+          "identifier": "s:11StellarCore12SDKErrorCodeO16metadataNotFoundyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "metadataNotFound"
+          ]
+        },
+        {
+          "declaration": "case remoteUnavailable",
+          "identifier": "s:11StellarCore12SDKErrorCodeO17remoteUnavailableyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "remoteUnavailable"
+          ]
+        },
+        {
+          "declaration": "case credentialRequired",
+          "identifier": "s:11StellarCore12SDKErrorCodeO18credentialRequiredyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "credentialRequired"
+          ]
+        },
+        {
+          "declaration": "case networkUnavailable",
+          "identifier": "s:11StellarCore12SDKErrorCodeO18networkUnavailableyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "networkUnavailable"
+          ]
+        },
+        {
+          "declaration": "case invalidConfiguration",
+          "identifier": "s:11StellarCore12SDKErrorCodeO20invalidConfigurationyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "invalidConfiguration"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:11StellarCore12SDKErrorCodeO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKErrorCode",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:11StellarCore12SDKErrorCodeO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "SDKErrorCode",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:11StellarCore12SDKErrorCodeO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "case conflict",
+          "identifier": "s:11StellarCore12SDKErrorCodeO8conflictyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "conflict"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:11StellarCore12SDKErrorCodeO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKErrorCode",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case cancelled",
+          "identifier": "s:11StellarCore12SDKErrorCodeO9cancelledyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "cancelled"
+          ]
+        },
+        {
+          "declaration": "case forbidden",
+          "identifier": "s:11StellarCore12SDKErrorCodeO9forbiddenyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "forbidden"
+          ]
+        },
+        {
+          "declaration": "struct SDKLogRecord",
+          "identifier": "s:11StellarCore12SDKLogRecordV",
+          "kind": "swift.struct",
+          "path": [
+            "SDKLogRecord"
+          ]
+        },
+        {
+          "declaration": "init(timestampMilliseconds: Int64, level: SDKLogLevel, category: String, message: String, metadata: [String : String])",
+          "identifier": "s:11StellarCore12SDKLogRecordV21timestampMilliseconds5level8category7message8metadataACs5Int64V_AA0C5LevelOS2SSDyS2SGtcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKLogRecord",
+            "init(timestampMilliseconds:level:category:message:metadata:)"
+          ]
+        },
+        {
+          "declaration": "let timestampMilliseconds: Int64",
+          "identifier": "s:11StellarCore12SDKLogRecordV21timestampMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogRecord",
+            "timestampMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:11StellarCore12SDKLogRecordV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKLogRecord",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let level: SDKLogLevel",
+          "identifier": "s:11StellarCore12SDKLogRecordV5levelAA0C5LevelOvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogRecord",
+            "level"
+          ]
+        },
+        {
+          "declaration": "let message: String",
+          "identifier": "s:11StellarCore12SDKLogRecordV7messageSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogRecord",
+            "message"
+          ]
+        },
+        {
+          "declaration": "let category: String",
+          "identifier": "s:11StellarCore12SDKLogRecordV8categorySSvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogRecord",
+            "category"
+          ]
+        },
+        {
+          "declaration": "let metadata: [String : String]",
+          "identifier": "s:11StellarCore12SDKLogRecordV8metadataSDyS2SGvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogRecord",
+            "metadata"
+          ]
+        },
+        {
+          "declaration": "enum FieldPresence<Value> where Value : Sendable",
+          "identifier": "s:11StellarCore13FieldPresenceO",
+          "kind": "swift.enum",
+          "path": [
+            "FieldPresence"
+          ]
+        },
+        {
+          "declaration": "case null",
+          "identifier": "s:11StellarCore13FieldPresenceO4nullyACyxGAEms8SendableRzlF",
+          "kind": "swift.enum.case",
+          "path": [
+            "FieldPresence",
+            "null"
+          ]
+        },
+        {
+          "declaration": "case value(Value)",
+          "identifier": "s:11StellarCore13FieldPresenceO5valueyACyxGxcAEms8SendableRzlF",
+          "kind": "swift.enum.case",
+          "path": [
+            "FieldPresence",
+            "value(_:)"
+          ]
+        },
+        {
+          "declaration": "case missing",
+          "identifier": "s:11StellarCore13FieldPresenceO7missingyACyxGAEms8SendableRzlF",
+          "kind": "swift.enum.case",
+          "path": [
+            "FieldPresence",
+            "missing"
+          ]
+        },
+        {
+          "declaration": "struct NoopSDKLogger",
+          "identifier": "s:11StellarCore13NoopSDKLoggerV",
+          "kind": "swift.struct",
+          "path": [
+            "NoopSDKLogger"
+          ]
+        },
+        {
+          "declaration": "func log(_: SDKLogEvent)",
+          "identifier": "s:11StellarCore13NoopSDKLoggerV3logyyAA11SDKLogEventVF",
+          "kind": "swift.method",
+          "path": [
+            "NoopSDKLogger",
+            "log(_:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:11StellarCore13NoopSDKLoggerVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "NoopSDKLogger",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "struct RetryExecutor",
+          "identifier": "s:11StellarCore13RetryExecutorV",
+          "kind": "swift.struct",
+          "path": [
+            "RetryExecutor"
+          ]
+        },
+        {
+          "declaration": "static func isTransientSDKError(_ error: any Error) -> Bool",
+          "identifier": "s:11StellarCore13RetryExecutorV19isTransientSDKErrorySbs5Error_pFZ",
+          "kind": "swift.type.method",
+          "path": [
+            "RetryExecutor",
+            "isTransientSDKError(_:)"
+          ]
+        },
+        {
+          "declaration": "func run<Value>(policy: RetryPolicy = .transient, shouldRetry: @escaping @Sendable (any Error) -> Bool = RetryExecutor.isTransientSDKError, operation: @escaping @Sendable (Int) async throws -> Value) async throws -> Value where Value : Sendable",
+          "identifier": "s:11StellarCore13RetryExecutorV3run6policy06shouldC09operationxAA0C6PolicyV_Sbs5Error_pYbcxSiYaYbKctYaKs8SendableRzlF",
+          "kind": "swift.method",
+          "path": [
+            "RetryExecutor",
+            "run(policy:shouldRetry:operation:)"
+          ]
+        },
+        {
+          "declaration": "init(clock: any SDKClock = SystemSDKClock(), cancellationChecker: any SDKCancellationChecking = TaskCancellationChecker())",
+          "identifier": "s:11StellarCore13RetryExecutorV5clock19cancellationCheckerAcA8SDKClock_p_AA23SDKCancellationChecking_ptcfc",
+          "kind": "swift.init",
+          "path": [
+            "RetryExecutor",
+            "init(clock:cancellationChecker:)"
+          ]
+        },
+        {
+          "declaration": "enum SDKLogPrivacy",
+          "identifier": "s:11StellarCore13SDKLogPrivacyO",
+          "kind": "swift.enum",
+          "path": [
+            "SDKLogPrivacy"
+          ]
+        },
+        {
+          "declaration": "case url",
+          "identifier": "s:11StellarCore13SDKLogPrivacyO3urlyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogPrivacy",
+            "url"
+          ]
+        },
+        {
+          "declaration": "case path",
+          "identifier": "s:11StellarCore13SDKLogPrivacyO4pathyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogPrivacy",
+            "path"
+          ]
+        },
+        {
+          "declaration": "case plain",
+          "identifier": "s:11StellarCore13SDKLogPrivacyO5plainyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogPrivacy",
+            "plain"
+          ]
+        },
+        {
+          "declaration": "case token",
+          "identifier": "s:11StellarCore13SDKLogPrivacyO5tokenyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogPrivacy",
+            "token"
+          ]
+        },
+        {
+          "declaration": "case header(name: String)",
+          "identifier": "s:11StellarCore13SDKLogPrivacyO6headeryACSS_tcACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogPrivacy",
+            "header(name:)"
+          ]
+        },
+        {
+          "declaration": "case password",
+          "identifier": "s:11StellarCore13SDKLogPrivacyO8passwordyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogPrivacy",
+            "password"
+          ]
+        },
+        {
+          "declaration": "case username",
+          "identifier": "s:11StellarCore13SDKLogPrivacyO8usernameyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKLogPrivacy",
+            "username"
+          ]
+        },
+        {
+          "declaration": "struct SystemSDKClock",
+          "identifier": "s:11StellarCore14SystemSDKClockV",
+          "kind": "swift.struct",
+          "path": [
+            "SystemSDKClock"
+          ]
+        },
+        {
+          "declaration": "func nowMilliseconds() -> Int64",
+          "identifier": "s:11StellarCore14SystemSDKClockV15nowMillisecondss5Int64VyF",
+          "kind": "swift.method",
+          "path": [
+            "SystemSDKClock",
+            "nowMilliseconds()"
+          ]
+        },
+        {
+          "declaration": "func sleep(forMilliseconds milliseconds: Int64) async throws",
+          "identifier": "s:11StellarCore14SystemSDKClockV5sleep15forMillisecondsys5Int64V_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SystemSDKClock",
+            "sleep(forMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:11StellarCore14SystemSDKClockVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "SystemSDKClock",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "typealias EpochMilliseconds = Int64",
+          "identifier": "s:11StellarCore17EpochMillisecondsa",
+          "kind": "swift.typealias",
+          "path": [
+            "EpochMilliseconds"
+          ]
+        },
+        {
+          "declaration": "protocol SDKUUIDGenerating : Sendable",
+          "identifier": "s:11StellarCore17SDKUUIDGeneratingP",
+          "kind": "swift.protocol",
+          "path": [
+            "SDKUUIDGenerating"
+          ]
+        },
+        {
+          "declaration": "func makeUUID() -> UUID",
+          "identifier": "s:11StellarCore17SDKUUIDGeneratingP8makeUUID10Foundation0E0VyF",
+          "kind": "swift.method",
+          "path": [
+            "SDKUUIDGenerating",
+            "makeUUID()"
+          ]
+        },
+        {
+          "declaration": "struct RedactingSDKLogger",
+          "identifier": "s:11StellarCore18RedactingSDKLoggerV",
+          "kind": "swift.struct",
+          "path": [
+            "RedactingSDKLogger"
+          ]
+        },
+        {
+          "declaration": "func log(_ event: SDKLogEvent)",
+          "identifier": "s:11StellarCore18RedactingSDKLoggerV3logyyAA11SDKLogEventVF",
+          "kind": "swift.method",
+          "path": [
+            "RedactingSDKLogger",
+            "log(_:)"
+          ]
+        },
+        {
+          "declaration": "init(clock: any SDKClock = SystemSDKClock(), redactor: SensitiveDataRedactor = SensitiveDataRedactor(), sink: @escaping @Sendable (SDKLogRecord) -> Void)",
+          "identifier": "s:11StellarCore18RedactingSDKLoggerV5clock8redactor4sinkAcA8SDKClock_p_AA21SensitiveDataRedactorVyAA12SDKLogRecordVYbctcfc",
+          "kind": "swift.init",
+          "path": [
+            "RedactingSDKLogger",
+            "init(clock:redactor:sink:)"
+          ]
+        },
+        {
+          "declaration": "struct SDKLogMetadataValue",
+          "identifier": "s:11StellarCore19SDKLogMetadataValueV",
+          "kind": "swift.struct",
+          "path": [
+            "SDKLogMetadataValue"
+          ]
+        },
+        {
+          "declaration": "let value: String",
+          "identifier": "s:11StellarCore19SDKLogMetadataValueV5valueSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogMetadataValue",
+            "value"
+          ]
+        },
+        {
+          "declaration": "let privacy: SDKLogPrivacy",
+          "identifier": "s:11StellarCore19SDKLogMetadataValueV7privacyAA0C7PrivacyOvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKLogMetadataValue",
+            "privacy"
+          ]
+        },
+        {
+          "declaration": "init(_ value: String, privacy: SDKLogPrivacy = .plain)",
+          "identifier": "s:11StellarCore19SDKLogMetadataValueV_7privacyACSS_AA0C7PrivacyOtcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKLogMetadataValue",
+            "init(_:privacy:)"
+          ]
+        },
+        {
+          "declaration": "struct NeverCancelledChecker",
+          "identifier": "s:11StellarCore21NeverCancelledCheckerV",
+          "kind": "swift.struct",
+          "path": [
+            "NeverCancelledChecker"
+          ]
+        },
+        {
+          "declaration": "var isCancelled: Bool { get }",
+          "identifier": "s:11StellarCore21NeverCancelledCheckerV02isD0Sbvp",
+          "kind": "swift.property",
+          "path": [
+            "NeverCancelledChecker",
+            "isCancelled"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:11StellarCore21NeverCancelledCheckerVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "NeverCancelledChecker",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "struct SensitiveDataRedactor",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV",
+          "kind": "swift.struct",
+          "path": [
+            "SensitiveDataRedactor"
+          ]
+        },
+        {
+          "declaration": "static let placeholder: String",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV11placeholderSSvpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "SensitiveDataRedactor",
+            "placeholder"
+          ]
+        },
+        {
+          "declaration": "static let pathPlaceholder: String",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV15pathPlaceholderSSvpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "SensitiveDataRedactor",
+            "pathPlaceholder"
+          ]
+        },
+        {
+          "declaration": "func redact(headerValue value: String, named name: String) -> String",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV6redact11headerValue5namedS2S_SStF",
+          "kind": "swift.method",
+          "path": [
+            "SensitiveDataRedactor",
+            "redact(headerValue:named:)"
+          ]
+        },
+        {
+          "declaration": "func redact(commandLineArgument argument: String) -> String",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV6redact19commandLineArgumentS2S_tF",
+          "kind": "swift.method",
+          "path": [
+            "SensitiveDataRedactor",
+            "redact(commandLineArgument:)"
+          ]
+        },
+        {
+          "declaration": "func redact(url: String) -> String",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV6redact3urlS2S_tF",
+          "kind": "swift.method",
+          "path": [
+            "SensitiveDataRedactor",
+            "redact(url:)"
+          ]
+        },
+        {
+          "declaration": "func redact(path _: String) -> String",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV6redact4pathS2S_tF",
+          "kind": "swift.method",
+          "path": [
+            "SensitiveDataRedactor",
+            "redact(path:)"
+          ]
+        },
+        {
+          "declaration": "func redact(headers: [String : String]) -> [String : String]",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV6redact7headersSDyS2SGAF_tF",
+          "kind": "swift.method",
+          "path": [
+            "SensitiveDataRedactor",
+            "redact(headers:)"
+          ]
+        },
+        {
+          "declaration": "func redact(message: String) -> String",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV6redact7messageS2S_tF",
+          "kind": "swift.method",
+          "path": [
+            "SensitiveDataRedactor",
+            "redact(message:)"
+          ]
+        },
+        {
+          "declaration": "func redact(_ value: String, as privacy: SDKLogPrivacy) -> String",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorV6redact_2asS2S_AA13SDKLogPrivacyOtF",
+          "kind": "swift.method",
+          "path": [
+            "SensitiveDataRedactor",
+            "redact(_:as:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:11StellarCore21SensitiveDataRedactorVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "SensitiveDataRedactor",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "struct SDKRuntimeDependencies",
+          "identifier": "s:11StellarCore22SDKRuntimeDependenciesV",
+          "kind": "swift.struct",
+          "path": [
+            "SDKRuntimeDependencies"
+          ]
+        },
+        {
+          "declaration": "let uuidGenerator: any SDKUUIDGenerating",
+          "identifier": "s:11StellarCore22SDKRuntimeDependenciesV13uuidGeneratorAA17SDKUUIDGenerating_pvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKRuntimeDependencies",
+            "uuidGenerator"
+          ]
+        },
+        {
+          "declaration": "let cancellationChecker: any SDKCancellationChecking",
+          "identifier": "s:11StellarCore22SDKRuntimeDependenciesV19cancellationCheckerAA23SDKCancellationChecking_pvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKRuntimeDependencies",
+            "cancellationChecker"
+          ]
+        },
+        {
+          "declaration": "static var live: SDKRuntimeDependencies { get }",
+          "identifier": "s:11StellarCore22SDKRuntimeDependenciesV4liveACvpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "SDKRuntimeDependencies",
+            "live"
+          ]
+        },
+        {
+          "declaration": "init(clock: any SDKClock, uuidGenerator: any SDKUUIDGenerating, logger: any SDKLogging, cancellationChecker: any SDKCancellationChecking)",
+          "identifier": "s:11StellarCore22SDKRuntimeDependenciesV5clock13uuidGenerator6logger19cancellationCheckerAcA8SDKClock_p_AA17SDKUUIDGenerating_pAA10SDKLogging_pAA23SDKCancellationChecking_ptcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKRuntimeDependencies",
+            "init(clock:uuidGenerator:logger:cancellationChecker:)"
+          ]
+        },
+        {
+          "declaration": "let clock: any SDKClock",
+          "identifier": "s:11StellarCore22SDKRuntimeDependenciesV5clockAA8SDKClock_pvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKRuntimeDependencies",
+            "clock"
+          ]
+        },
+        {
+          "declaration": "let logger: any SDKLogging",
+          "identifier": "s:11StellarCore22SDKRuntimeDependenciesV6loggerAA10SDKLogging_pvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKRuntimeDependencies",
+            "logger"
+          ]
+        },
+        {
+          "declaration": "struct SystemSDKUUIDGenerator",
+          "identifier": "s:11StellarCore22SystemSDKUUIDGeneratorV",
+          "kind": "swift.struct",
+          "path": [
+            "SystemSDKUUIDGenerator"
+          ]
+        },
+        {
+          "declaration": "func makeUUID() -> UUID",
+          "identifier": "s:11StellarCore22SystemSDKUUIDGeneratorV8makeUUID10Foundation0F0VyF",
+          "kind": "swift.method",
+          "path": [
+            "SystemSDKUUIDGenerator",
+            "makeUUID()"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:11StellarCore22SystemSDKUUIDGeneratorVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "SystemSDKUUIDGenerator",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "protocol SDKCancellationChecking : Sendable",
+          "identifier": "s:11StellarCore23SDKCancellationCheckingP",
+          "kind": "swift.protocol",
+          "path": [
+            "SDKCancellationChecking"
+          ]
+        },
+        {
+          "declaration": "var isCancelled: Bool { get }",
+          "identifier": "s:11StellarCore23SDKCancellationCheckingP11isCancelledSbvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKCancellationChecking",
+            "isCancelled"
+          ]
+        },
+        {
+          "declaration": "func checkCancellation() throws",
+          "identifier": "s:11StellarCore23SDKCancellationCheckingP17checkCancellationyyKF",
+          "kind": "swift.method",
+          "path": [
+            "SDKCancellationChecking",
+            "checkCancellation()"
+          ]
+        },
+        {
+          "declaration": "func checkCancellation() throws",
+          "identifier": "s:11StellarCore23SDKCancellationCheckingPAAE17checkCancellationyyKF",
+          "kind": "swift.method",
+          "path": [
+            "SDKCancellationChecking",
+            "checkCancellation()"
+          ]
+        },
+        {
+          "declaration": "struct TaskCancellationChecker",
+          "identifier": "s:11StellarCore23TaskCancellationCheckerV",
+          "kind": "swift.struct",
+          "path": [
+            "TaskCancellationChecker"
+          ]
+        },
+        {
+          "declaration": "var isCancelled: Bool { get }",
+          "identifier": "s:11StellarCore23TaskCancellationCheckerV11isCancelledSbvp",
+          "kind": "swift.property",
+          "path": [
+            "TaskCancellationChecker",
+            "isCancelled"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:11StellarCore23TaskCancellationCheckerVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "TaskCancellationChecker",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "protocol SDKClock : Sendable",
+          "identifier": "s:11StellarCore8SDKClockP",
+          "kind": "swift.protocol",
+          "path": [
+            "SDKClock"
+          ]
+        },
+        {
+          "declaration": "func nowMilliseconds() -> Int64",
+          "identifier": "s:11StellarCore8SDKClockP15nowMillisecondss5Int64VyF",
+          "kind": "swift.method",
+          "path": [
+            "SDKClock",
+            "nowMilliseconds()"
+          ]
+        },
+        {
+          "declaration": "func sleep(forMilliseconds milliseconds: Int64) async throws",
+          "identifier": "s:11StellarCore8SDKClockP5sleep15forMillisecondsys5Int64V_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SDKClock",
+            "sleep(forMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "struct SDKError",
+          "identifier": "s:11StellarCore8SDKErrorV",
+          "kind": "swift.struct",
+          "path": [
+            "SDKError"
+          ]
+        },
+        {
+          "declaration": "let retryAfterMilliseconds: Int64?",
+          "identifier": "s:11StellarCore8SDKErrorV22retryAfterMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKError",
+            "retryAfterMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(code: SDKErrorCode, message: String, retryAfterMilliseconds: Int64? = nil, traceID: String? = nil)",
+          "identifier": "s:11StellarCore8SDKErrorV4code7message22retryAfterMilliseconds7traceIDAcA0C4CodeO_SSs5Int64VSgSSSgtcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKError",
+            "init(code:message:retryAfterMilliseconds:traceID:)"
+          ]
+        },
+        {
+          "declaration": "let code: SDKErrorCode",
+          "identifier": "s:11StellarCore8SDKErrorV4codeAA0C4CodeOvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKError",
+            "code"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:11StellarCore8SDKErrorV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SDKError",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let message: String",
+          "identifier": "s:11StellarCore8SDKErrorV7messageSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKError",
+            "message"
+          ]
+        },
+        {
+          "declaration": "let traceID: String?",
+          "identifier": "s:11StellarCore8SDKErrorV7traceIDSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "SDKError",
+            "traceID"
+          ]
+        }
+      ]
+    },
+    "StellarMediaLibrary": {
+      "symbols": [
+        {
+          "declaration": "enum ParsedMediaKind",
+          "identifier": "s:19StellarMediaLibrary06ParsedB4KindO",
+          "kind": "swift.enum",
+          "path": [
+            "ParsedMediaKind"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary06ParsedB4KindO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "ParsedMediaKind",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case movie",
+          "identifier": "s:19StellarMediaLibrary06ParsedB4KindO5movieyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "ParsedMediaKind",
+            "movie"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:19StellarMediaLibrary06ParsedB4KindO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "ParsedMediaKind",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case episode",
+          "identifier": "s:19StellarMediaLibrary06ParsedB4KindO7episodeyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "ParsedMediaKind",
+            "episode"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:19StellarMediaLibrary06ParsedB4KindO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "ParsedMediaKind",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaLibrary06ParsedB4KindO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "ParsedMediaKind",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "struct ParsedMediaFilename",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV",
+          "kind": "swift.struct",
+          "path": [
+            "ParsedMediaFilename"
+          ]
+        },
+        {
+          "declaration": "let sourceName: String",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV10sourceNameSSvp",
+          "kind": "swift.property",
+          "path": [
+            "ParsedMediaFilename",
+            "sourceName"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "ParsedMediaFilename",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "init(kind: ParsedMediaKind, title: String, year: Int? = nil, season: Int? = nil, episode: Int? = nil, sourceName: String)",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV4kind5title4year6season7episode10sourceNameAcA0dB4KindO_SSSiSgA2LSStcfc",
+          "kind": "swift.init",
+          "path": [
+            "ParsedMediaFilename",
+            "init(kind:title:year:season:episode:sourceName:)"
+          ]
+        },
+        {
+          "declaration": "let kind: ParsedMediaKind",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV4kindAA0dB4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "ParsedMediaFilename",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let year: Int?",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV4yearSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "ParsedMediaFilename",
+            "year"
+          ]
+        },
+        {
+          "declaration": "let title: String",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV5titleSSvp",
+          "kind": "swift.property",
+          "path": [
+            "ParsedMediaFilename",
+            "title"
+          ]
+        },
+        {
+          "declaration": "let season: Int?",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV6seasonSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "ParsedMediaFilename",
+            "season"
+          ]
+        },
+        {
+          "declaration": "let episode: Int?",
+          "identifier": "s:19StellarMediaLibrary06ParsedB8FilenameV7episodeSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "ParsedMediaFilename",
+            "episode"
+          ]
+        },
+        {
+          "declaration": "struct MediaFilenameParser",
+          "identifier": "s:19StellarMediaLibrary0B14FilenameParserV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaFilenameParser"
+          ]
+        },
+        {
+          "declaration": "func parse(_ path: String) -> ParsedMediaFilename",
+          "identifier": "s:19StellarMediaLibrary0B14FilenameParserV5parseyAA06ParsedbD0VSSF",
+          "kind": "swift.method",
+          "path": [
+            "MediaFilenameParser",
+            "parse(_:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaLibrary0B14FilenameParserVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaFilenameParser",
+            "init()"
+          ]
+        }
+      ]
+    },
+    "StellarRemoteMedia": {
+      "symbols": [
+        {
+          "declaration": "enum CredentialKind",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO",
+          "kind": "swift.enum",
+          "path": [
+            "CredentialKind"
+          ]
+        },
+        {
+          "declaration": "case oauthToken",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO10oauthTokenyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialKind",
+            "oauthToken"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CredentialKind",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case cookie",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO6cookieyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialKind",
+            "cookie"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "CredentialKind",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case keyPair",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO7keyPairyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialKind",
+            "keyPair"
+          ]
+        },
+        {
+          "declaration": "case unknown(String)",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO7unknownyACSScACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialKind",
+            "unknown(_:)"
+          ]
+        },
+        {
+          "declaration": "case apiToken",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO8apiTokenyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialKind",
+            "apiToken"
+          ]
+        },
+        {
+          "declaration": "case password",
+          "identifier": "s:18StellarRemoteMedia14CredentialKindO8passwordyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialKind",
+            "password"
+          ]
+        },
+        {
+          "declaration": "struct EncryptedCredentialEnvelope",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV",
+          "kind": "swift.struct",
+          "path": [
+            "EncryptedCredentialEnvelope"
+          ]
+        },
+        {
+          "declaration": "let accountUID: String",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV10accountUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "accountUID"
+          ]
+        },
+        {
+          "declaration": "let keyVersion: Int",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV10keyVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "keyVersion"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "description"
+          ]
+        },
+        {
+          "declaration": "let nonceBase64: String",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV11nonceBase64SSvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "nonceBase64"
+          ]
+        },
+        {
+          "declaration": "init(credentialUID: String, accountUID: String, sourceUID: String, kind: CredentialKind, algorithm: String = \"aes_256_gcm\", keyVersion: Int, nonceBase64: String, ciphertextBase64: String, authenticatedDataVersion: Int = 1, revision: Int64, updatedAtMilliseconds: Int64, deletedAtMilliseconds: Int64? = nil, schemaVersion: Int = 1)",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV13credentialUID07accountH006sourceH04kind9algorithm10keyVersion11nonceBase64010ciphertextP0017authenticatedDataN08revision21updatedAtMilliseconds07deletedvW006schemaN0ACSS_S2SAA0E4KindOSSSiS2SSis5Int64VA2TSgSitcfc",
+          "kind": "swift.init",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "init(credentialUID:accountUID:sourceUID:kind:algorithm:keyVersion:nonceBase64:ciphertextBase64:authenticatedDataVersion:revision:updatedAtMilliseconds:deletedAtMilliseconds:schemaVersion:)"
+          ]
+        },
+        {
+          "declaration": "let credentialUID: String",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV13credentialUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "credentialUID"
+          ]
+        },
+        {
+          "declaration": "let schemaVersion: Int",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV13schemaVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "schemaVersion"
+          ]
+        },
+        {
+          "declaration": "let ciphertextBase64: String",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV16ciphertextBase64SSvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "ciphertextBase64"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "let deletedAtMilliseconds: Int64?",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV21deletedAtMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "deletedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let updatedAtMilliseconds: Int64",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV21updatedAtMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "updatedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let authenticatedDataVersion: Int",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV24authenticatedDataVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "authenticatedDataVersion"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let kind: CredentialKind",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV4kindAA0E4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let revision: Int64",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV8revisions5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "revision"
+          ]
+        },
+        {
+          "declaration": "let algorithm: String",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV9algorithmSSvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "algorithm"
+          ]
+        },
+        {
+          "declaration": "let sourceUID: String",
+          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV9sourceUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "EncryptedCredentialEnvelope",
+            "sourceUID"
+          ]
+        }
+      ]
+    },
+    "StellarSMB2Core": {
+      "symbols": [
+        {
+          "declaration": "struct SMB2Credential",
+          "identifier": "s:15StellarSMB2Core0B10CredentialV",
+          "kind": "swift.struct",
+          "path": [
+            "SMB2Credential"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:15StellarSMB2Core0B10CredentialV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Credential",
+            "description"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:15StellarSMB2Core0B10CredentialV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Credential",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "init(domain: String? = nil, username: String, password: String) throws",
+          "identifier": "s:15StellarSMB2Core0B10CredentialV6domain8username8passwordACSSSg_S2StKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2Credential",
+            "init(domain:username:password:)"
+          ]
+        },
+        {
+          "declaration": "enum SMB2SigningPolicy",
+          "identifier": "s:15StellarSMB2Core0B13SigningPolicyO",
+          "kind": "swift.enum",
+          "path": [
+            "SMB2SigningPolicy"
+          ]
+        },
+        {
+          "declaration": "case enabled",
+          "identifier": "s:15StellarSMB2Core0B13SigningPolicyO7enabledyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2SigningPolicy",
+            "enabled"
+          ]
+        },
+        {
+          "declaration": "case required",
+          "identifier": "s:15StellarSMB2Core0B13SigningPolicyO8requiredyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2SigningPolicy",
+            "required"
+          ]
+        },
+        {
+          "declaration": "enum SMB2VersionPolicy",
+          "identifier": "s:15StellarSMB2Core0B13VersionPolicyO",
+          "kind": "swift.enum",
+          "path": [
+            "SMB2VersionPolicy"
+          ]
+        },
+        {
+          "declaration": "case anySupported",
+          "identifier": "s:15StellarSMB2Core0B13VersionPolicyO12anySupportedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2VersionPolicy",
+            "anySupported"
+          ]
+        },
+        {
+          "declaration": "case exact(SMB2Dialect)",
+          "identifier": "s:15StellarSMB2Core0B13VersionPolicyO5exactyAcA0B7DialectOcACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2VersionPolicy",
+            "exact(_:)"
+          ]
+        },
+        {
+          "declaration": "case smb2Only",
+          "identifier": "s:15StellarSMB2Core0B13VersionPolicyO8smb2OnlyyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2VersionPolicy",
+            "smb2Only"
+          ]
+        },
+        {
+          "declaration": "case smb3Only",
+          "identifier": "s:15StellarSMB2Core0B13VersionPolicyO8smb3OnlyyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2VersionPolicy",
+            "smb3Only"
+          ]
+        },
+        {
+          "declaration": "struct SMB2ConnectionInfo",
+          "identifier": "s:15StellarSMB2Core0B14ConnectionInfoV",
+          "kind": "swift.struct",
+          "path": [
+            "SMB2ConnectionInfo"
+          ]
+        },
+        {
+          "declaration": "let signingPolicy: SMB2SigningPolicy",
+          "identifier": "s:15StellarSMB2Core0B14ConnectionInfoV13signingPolicyAA0b7SigningG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionInfo",
+            "signingPolicy"
+          ]
+        },
+        {
+          "declaration": "let encryptionPolicy: SMB2EncryptionPolicy",
+          "identifier": "s:15StellarSMB2Core0B14ConnectionInfoV16encryptionPolicyAA0b10EncryptionG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionInfo",
+            "encryptionPolicy"
+          ]
+        },
+        {
+          "declaration": "let implementationVersion: String",
+          "identifier": "s:15StellarSMB2Core0B14ConnectionInfoV21implementationVersionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionInfo",
+            "implementationVersion"
+          ]
+        },
+        {
+          "declaration": "init(dialect: SMB2Dialect, signingPolicy: SMB2SigningPolicy, encryptionPolicy: SMB2EncryptionPolicy, implementationVersion: String)",
+          "identifier": "s:15StellarSMB2Core0B14ConnectionInfoV7dialect13signingPolicy010encryptionH021implementationVersionAcA0B7DialectO_AA0b7SigningH0OAA0b10EncryptionH0OSStcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2ConnectionInfo",
+            "init(dialect:signingPolicy:encryptionPolicy:implementationVersion:)"
+          ]
+        },
+        {
+          "declaration": "let dialect: SMB2Dialect",
+          "identifier": "s:15StellarSMB2Core0B14ConnectionInfoV7dialectAA0B7DialectOvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionInfo",
+            "dialect"
+          ]
+        },
+        {
+          "declaration": "enum SMB2EncryptionPolicy",
+          "identifier": "s:15StellarSMB2Core0B16EncryptionPolicyO",
+          "kind": "swift.enum",
+          "path": [
+            "SMB2EncryptionPolicy"
+          ]
+        },
+        {
+          "declaration": "case disabled",
+          "identifier": "s:15StellarSMB2Core0B16EncryptionPolicyO8disabledyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2EncryptionPolicy",
+            "disabled"
+          ]
+        },
+        {
+          "declaration": "case required",
+          "identifier": "s:15StellarSMB2Core0B16EncryptionPolicyO8requiredyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2EncryptionPolicy",
+            "required"
+          ]
+        },
+        {
+          "declaration": "struct SMB2ConnectionRequest",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV",
+          "kind": "swift.struct",
+          "path": [
+            "SMB2ConnectionRequest"
+          ]
+        },
+        {
+          "declaration": "let credential: SMB2Credential",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV10credentialAA0B10CredentialVvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionRequest",
+            "credential"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionRequest",
+            "description"
+          ]
+        },
+        {
+          "declaration": "let signingPolicy: SMB2SigningPolicy",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV13signingPolicyAA0b7SigningG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionRequest",
+            "signingPolicy"
+          ]
+        },
+        {
+          "declaration": "let versionPolicy: SMB2VersionPolicy",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV13versionPolicyAA0b7VersionG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionRequest",
+            "versionPolicy"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionRequest",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "let encryptionPolicy: SMB2EncryptionPolicy",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV16encryptionPolicyAA0b10EncryptionG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionRequest",
+            "encryptionPolicy"
+          ]
+        },
+        {
+          "declaration": "let timeoutMilliseconds: Int64",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV19timeoutMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionRequest",
+            "timeoutMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(endpoint: SMB2Endpoint, credential: SMB2Credential, versionPolicy: SMB2VersionPolicy = .anySupported, signingPolicy: SMB2SigningPolicy = .enabled, encryptionPolicy: SMB2EncryptionPolicy = .disabled, timeoutMilliseconds: Int64 = 30_000) throws",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV8endpoint10credential13versionPolicy07signingI0010encryptionI019timeoutMillisecondsAcA0B8EndpointV_AA0B10CredentialVAA0b7VersionI0OAA0b7SigningI0OAA0b10EncryptionI0Os5Int64VtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2ConnectionRequest",
+            "init(endpoint:credential:versionPolicy:signingPolicy:encryptionPolicy:timeoutMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "let endpoint: SMB2Endpoint",
+          "identifier": "s:15StellarSMB2Core0B17ConnectionRequestV8endpointAA0B8EndpointVvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ConnectionRequest",
+            "endpoint"
+          ]
+        },
+        {
+          "declaration": "struct SMB2Path",
+          "identifier": "s:15StellarSMB2Core0B4PathV",
+          "kind": "swift.struct",
+          "path": [
+            "SMB2Path"
+          ]
+        },
+        {
+          "declaration": "let relativePath: String",
+          "identifier": "s:15StellarSMB2Core0B4PathV08relativeD0SSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Path",
+            "relativePath"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:15StellarSMB2Core0B4PathV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Path",
+            "description"
+          ]
+        },
+        {
+          "declaration": "var name: String { get }",
+          "identifier": "s:15StellarSMB2Core0B4PathV4nameSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Path",
+            "name"
+          ]
+        },
+        {
+          "declaration": "var isRoot: Bool { get }",
+          "identifier": "s:15StellarSMB2Core0B4PathV6isRootSbvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Path",
+            "isRoot"
+          ]
+        },
+        {
+          "declaration": "func appending(component: String) throws -> SMB2Path",
+          "identifier": "s:15StellarSMB2Core0B4PathV9appending9componentACSS_tKF",
+          "kind": "swift.method",
+          "path": [
+            "SMB2Path",
+            "appending(component:)"
+          ]
+        },
+        {
+          "declaration": "init(_ path: String = \"\") throws",
+          "identifier": "s:15StellarSMB2Core0B4PathVyACSSKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2Path",
+            "init(_:)"
+          ]
+        },
+        {
+          "declaration": "struct SMB2Entry",
+          "identifier": "s:15StellarSMB2Core0B5EntryV",
+          "kind": "swift.struct",
+          "path": [
+            "SMB2Entry"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:15StellarSMB2Core0B5EntryV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Entry",
+            "description"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:15StellarSMB2Core0B5EntryV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Entry",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "let modifiedAtMilliseconds: Int64?",
+          "identifier": "s:15StellarSMB2Core0B5EntryV22modifiedAtMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Entry",
+            "modifiedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let kind: SMB2EntryKind",
+          "identifier": "s:15StellarSMB2Core0B5EntryV4kindAA0bD4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Entry",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "init(path: SMB2Path, kind: SMB2EntryKind, size: Int64? = nil, modifiedAtMilliseconds: Int64? = nil, stableID: String? = nil) throws",
+          "identifier": "s:15StellarSMB2Core0B5EntryV4path4kind4size22modifiedAtMilliseconds8stableIDAcA0B4PathV_AA0bD4KindOs5Int64VSgAOSSSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2Entry",
+            "init(path:kind:size:modifiedAtMilliseconds:stableID:)"
+          ]
+        },
+        {
+          "declaration": "let path: SMB2Path",
+          "identifier": "s:15StellarSMB2Core0B5EntryV4pathAA0B4PathVvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Entry",
+            "path"
+          ]
+        },
+        {
+          "declaration": "let size: Int64?",
+          "identifier": "s:15StellarSMB2Core0B5EntryV4sizes5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Entry",
+            "size"
+          ]
+        },
+        {
+          "declaration": "let stableID: String?",
+          "identifier": "s:15StellarSMB2Core0B5EntryV8stableIDSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Entry",
+            "stableID"
+          ]
+        },
+        {
+          "declaration": "enum SMB2Dialect",
+          "identifier": "s:15StellarSMB2Core0B7DialectO",
+          "kind": "swift.enum",
+          "path": [
+            "SMB2Dialect"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:15StellarSMB2Core0B7DialectO11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Dialect",
+            "description"
+          ]
+        },
+        {
+          "declaration": "case smb202",
+          "identifier": "s:15StellarSMB2Core0B7DialectO6smb202yA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2Dialect",
+            "smb202"
+          ]
+        },
+        {
+          "declaration": "case smb210",
+          "identifier": "s:15StellarSMB2Core0B7DialectO6smb210yA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2Dialect",
+            "smb210"
+          ]
+        },
+        {
+          "declaration": "case smb300",
+          "identifier": "s:15StellarSMB2Core0B7DialectO6smb300yA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2Dialect",
+            "smb300"
+          ]
+        },
+        {
+          "declaration": "case smb302",
+          "identifier": "s:15StellarSMB2Core0B7DialectO6smb302yA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2Dialect",
+            "smb302"
+          ]
+        },
+        {
+          "declaration": "case smb311",
+          "identifier": "s:15StellarSMB2Core0B7DialectO6smb311yA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2Dialect",
+            "smb311"
+          ]
+        },
+        {
+          "declaration": "case unknown(UInt16)",
+          "identifier": "s:15StellarSMB2Core0B7DialectO7unknownyACs6UInt16VcACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2Dialect",
+            "unknown(_:)"
+          ]
+        },
+        {
+          "declaration": "init(wireValue: UInt16)",
+          "identifier": "s:15StellarSMB2Core0B7DialectO9wireValueACs6UInt16V_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2Dialect",
+            "init(wireValue:)"
+          ]
+        },
+        {
+          "declaration": "var wireValue: UInt16 { get }",
+          "identifier": "s:15StellarSMB2Core0B7DialectO9wireValues6UInt16Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Dialect",
+            "wireValue"
+          ]
+        },
+        {
+          "declaration": "protocol SMB2Session : Sendable",
+          "identifier": "s:15StellarSMB2Core0B7SessionP",
+          "kind": "swift.protocol",
+          "path": [
+            "SMB2Session"
+          ]
+        },
+        {
+          "declaration": "func disconnect() async",
+          "identifier": "s:15StellarSMB2Core0B7SessionP10disconnectyyYaF",
+          "kind": "swift.method",
+          "path": [
+            "SMB2Session",
+            "disconnect()"
+          ]
+        },
+        {
+          "declaration": "func listDirectory(at path: SMB2Path) async throws -> [SMB2Entry]",
+          "identifier": "s:15StellarSMB2Core0B7SessionP13listDirectory2atSayAA0B5EntryVGAA0B4PathV_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SMB2Session",
+            "listDirectory(at:)"
+          ]
+        },
+        {
+          "declaration": "var connectionInfo: SMB2ConnectionInfo { get async }",
+          "identifier": "s:15StellarSMB2Core0B7SessionP14connectionInfoAA0b10ConnectionF0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Session",
+            "connectionInfo"
+          ]
+        },
+        {
+          "declaration": "func read(at path: SMB2Path, range: SMB2ByteRange) async throws -> Data",
+          "identifier": "s:15StellarSMB2Core0B7SessionP4read2at5range10Foundation4DataVAA0B4PathV_AA0B9ByteRangeVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SMB2Session",
+            "read(at:range:)"
+          ]
+        },
+        {
+          "declaration": "func stat(_ path: SMB2Path) async throws -> SMB2Entry",
+          "identifier": "s:15StellarSMB2Core0B7SessionP4statyAA0B5EntryVAA0B4PathVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SMB2Session",
+            "stat(_:)"
+          ]
+        },
+        {
+          "declaration": "struct SMB2Endpoint",
+          "identifier": "s:15StellarSMB2Core0B8EndpointV",
+          "kind": "swift.struct",
+          "path": [
+            "SMB2Endpoint"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:15StellarSMB2Core0B8EndpointV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Endpoint",
+            "description"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:15StellarSMB2Core0B8EndpointV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Endpoint",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "let port: UInt16?",
+          "identifier": "s:15StellarSMB2Core0B8EndpointV4ports6UInt16VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Endpoint",
+            "port"
+          ]
+        },
+        {
+          "declaration": "let share: String",
+          "identifier": "s:15StellarSMB2Core0B8EndpointV5shareSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Endpoint",
+            "share"
+          ]
+        },
+        {
+          "declaration": "init(server: String, port: UInt16? = nil, share: String, rootPath: String = \"\") throws",
+          "identifier": "s:15StellarSMB2Core0B8EndpointV6server4port5share8rootPathACSS_s6UInt16VSgS2StKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2Endpoint",
+            "init(server:port:share:rootPath:)"
+          ]
+        },
+        {
+          "declaration": "let server: String",
+          "identifier": "s:15StellarSMB2Core0B8EndpointV6serverSSvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Endpoint",
+            "server"
+          ]
+        },
+        {
+          "declaration": "let rootPath: SMB2Path",
+          "identifier": "s:15StellarSMB2Core0B8EndpointV8rootPathAA0bF0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2Endpoint",
+            "rootPath"
+          ]
+        },
+        {
+          "declaration": "struct SMB2ByteRange",
+          "identifier": "s:15StellarSMB2Core0B9ByteRangeV",
+          "kind": "swift.struct",
+          "path": [
+            "SMB2ByteRange"
+          ]
+        },
+        {
+          "declaration": "let length: Int",
+          "identifier": "s:15StellarSMB2Core0B9ByteRangeV6lengthSivp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ByteRange",
+            "length"
+          ]
+        },
+        {
+          "declaration": "init(offset: Int64, length: Int) throws",
+          "identifier": "s:15StellarSMB2Core0B9ByteRangeV6offset6lengthACs5Int64V_SitKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2ByteRange",
+            "init(offset:length:)"
+          ]
+        },
+        {
+          "declaration": "let offset: Int64",
+          "identifier": "s:15StellarSMB2Core0B9ByteRangeV6offsets5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2ByteRange",
+            "offset"
+          ]
+        },
+        {
+          "declaration": "enum SMB2EntryKind",
+          "identifier": "s:15StellarSMB2Core0B9EntryKindO",
+          "kind": "swift.enum",
+          "path": [
+            "SMB2EntryKind"
+          ]
+        },
+        {
+          "declaration": "case symbolicLink",
+          "identifier": "s:15StellarSMB2Core0B9EntryKindO12symbolicLinkyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2EntryKind",
+            "symbolicLink"
+          ]
+        },
+        {
+          "declaration": "case file",
+          "identifier": "s:15StellarSMB2Core0B9EntryKindO4fileyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2EntryKind",
+            "file"
+          ]
+        },
+        {
+          "declaration": "case unknown(UInt32)",
+          "identifier": "s:15StellarSMB2Core0B9EntryKindO7unknownyACs6UInt32VcACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2EntryKind",
+            "unknown(_:)"
+          ]
+        },
+        {
+          "declaration": "case directory",
+          "identifier": "s:15StellarSMB2Core0B9EntryKindO9directoryyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SMB2EntryKind",
+            "directory"
+          ]
+        },
+        {
+          "declaration": "protocol SMB2Transport : Sendable",
+          "identifier": "s:15StellarSMB2Core0B9TransportP",
+          "kind": "swift.protocol",
+          "path": [
+            "SMB2Transport"
+          ]
+        },
+        {
+          "declaration": "func connect(_ request: SMB2ConnectionRequest) async throws -> any SMB2Session",
+          "identifier": "s:15StellarSMB2Core0B9TransportP7connectyAA0B7Session_pAA0B17ConnectionRequestVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SMB2Transport",
+            "connect(_:)"
+          ]
+        }
+      ]
+    },
+    "StellarUserMediaSDK": {
+      "symbols": [
+        {
+          "declaration": "typealias ParsedMediaKind = ParsedMediaKind",
+          "identifier": "s:19StellarUserMediaSDK06ParsedC4Kinda",
+          "kind": "swift.typealias",
+          "path": [
+            "ParsedMediaKind"
+          ]
+        },
+        {
+          "declaration": "typealias ParsedMediaFilename = ParsedMediaFilename",
+          "identifier": "s:19StellarUserMediaSDK06ParsedC8Filenamea",
+          "kind": "swift.typealias",
+          "path": [
+            "ParsedMediaFilename"
+          ]
+        },
+        {
+          "declaration": "typealias MediaFilenameParser = MediaFilenameParser",
+          "identifier": "s:19StellarUserMediaSDK0C14FilenameParsera",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaFilenameParser"
+          ]
+        },
+        {
+          "declaration": "typealias CursorPage<Element> = CursorPage<Element> where Element : Decodable, Element : Encodable, Element : Sendable",
+          "identifier": "s:19StellarUserMediaSDK10CursorPagea",
+          "kind": "swift.typealias",
+          "path": [
+            "CursorPage"
+          ]
+        },
+        {
+          "declaration": "typealias SDKLogging = SDKLogging",
+          "identifier": "s:19StellarUserMediaSDK10SDKLogginga",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKLogging"
+          ]
+        },
+        {
+          "declaration": "typealias RetryPolicy = RetryPolicy",
+          "identifier": "s:19StellarUserMediaSDK11RetryPolicya",
+          "kind": "swift.typealias",
+          "path": [
+            "RetryPolicy"
+          ]
+        },
+        {
+          "declaration": "typealias SDKLogEvent = SDKLogEvent",
+          "identifier": "s:19StellarUserMediaSDK11SDKLogEventa",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKLogEvent"
+          ]
+        },
+        {
+          "declaration": "typealias SDKLogLevel = SDKLogLevel",
+          "identifier": "s:19StellarUserMediaSDK11SDKLogLevela",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKLogLevel"
+          ]
+        },
+        {
+          "declaration": "typealias SDKErrorCode = SDKErrorCode",
+          "identifier": "s:19StellarUserMediaSDK12SDKErrorCodea",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKErrorCode"
+          ]
+        },
+        {
+          "declaration": "typealias SDKLogRecord = SDKLogRecord",
+          "identifier": "s:19StellarUserMediaSDK12SDKLogRecorda",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKLogRecord"
+          ]
+        },
+        {
+          "declaration": "typealias FieldPresence<Value> = FieldPresence<Value> where Value : Sendable",
+          "identifier": "s:19StellarUserMediaSDK13FieldPresencea",
+          "kind": "swift.typealias",
+          "path": [
+            "FieldPresence"
+          ]
+        },
+        {
+          "declaration": "typealias NoopSDKLogger = NoopSDKLogger",
+          "identifier": "s:19StellarUserMediaSDK13NoopSDKLoggera",
+          "kind": "swift.typealias",
+          "path": [
+            "NoopSDKLogger"
+          ]
+        },
+        {
+          "declaration": "typealias RetryExecutor = RetryExecutor",
+          "identifier": "s:19StellarUserMediaSDK13RetryExecutora",
+          "kind": "swift.typealias",
+          "path": [
+            "RetryExecutor"
+          ]
+        },
+        {
+          "declaration": "typealias SDKLogPrivacy = SDKLogPrivacy",
+          "identifier": "s:19StellarUserMediaSDK13SDKLogPrivacya",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKLogPrivacy"
+          ]
+        },
+        {
+          "declaration": "typealias CredentialKind = CredentialKind",
+          "identifier": "s:19StellarUserMediaSDK14CredentialKinda",
+          "kind": "swift.typealias",
+          "path": [
+            "CredentialKind"
+          ]
+        },
+        {
+          "declaration": "typealias SystemSDKClock = SystemSDKClock",
+          "identifier": "s:19StellarUserMediaSDK14SystemSDKClocka",
+          "kind": "swift.typealias",
+          "path": [
+            "SystemSDKClock"
+          ]
+        },
+        {
+          "declaration": "typealias EpochMilliseconds = EpochMilliseconds",
+          "identifier": "s:19StellarUserMediaSDK17EpochMillisecondsa",
+          "kind": "swift.typealias",
+          "path": [
+            "EpochMilliseconds"
+          ]
+        },
+        {
+          "declaration": "typealias SDKUUIDGenerating = SDKUUIDGenerating",
+          "identifier": "s:19StellarUserMediaSDK17SDKUUIDGeneratinga",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKUUIDGenerating"
+          ]
+        },
+        {
+          "declaration": "typealias RedactingSDKLogger = RedactingSDKLogger",
+          "identifier": "s:19StellarUserMediaSDK18RedactingSDKLoggera",
+          "kind": "swift.typealias",
+          "path": [
+            "RedactingSDKLogger"
+          ]
+        },
+        {
+          "declaration": "typealias SDKLogMetadataValue = SDKLogMetadataValue",
+          "identifier": "s:19StellarUserMediaSDK19SDKLogMetadataValuea",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKLogMetadataValue"
+          ]
+        },
+        {
+          "declaration": "typealias NeverCancelledChecker = NeverCancelledChecker",
+          "identifier": "s:19StellarUserMediaSDK21NeverCancelledCheckera",
+          "kind": "swift.typealias",
+          "path": [
+            "NeverCancelledChecker"
+          ]
+        },
+        {
+          "declaration": "typealias SensitiveDataRedactor = SensitiveDataRedactor",
+          "identifier": "s:19StellarUserMediaSDK21SensitiveDataRedactora",
+          "kind": "swift.typealias",
+          "path": [
+            "SensitiveDataRedactor"
+          ]
+        },
+        {
+          "declaration": "typealias SDKRuntimeDependencies = SDKRuntimeDependencies",
+          "identifier": "s:19StellarUserMediaSDK22SDKRuntimeDependenciesa",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKRuntimeDependencies"
+          ]
+        },
+        {
+          "declaration": "typealias SystemSDKUUIDGenerator = SystemSDKUUIDGenerator",
+          "identifier": "s:19StellarUserMediaSDK22SystemSDKUUIDGeneratora",
+          "kind": "swift.typealias",
+          "path": [
+            "SystemSDKUUIDGenerator"
+          ]
+        },
+        {
+          "declaration": "typealias SDKCancellationChecking = SDKCancellationChecking",
+          "identifier": "s:19StellarUserMediaSDK23SDKCancellationCheckinga",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKCancellationChecking"
+          ]
+        },
+        {
+          "declaration": "typealias TaskCancellationChecker = TaskCancellationChecker",
+          "identifier": "s:19StellarUserMediaSDK23TaskCancellationCheckera",
+          "kind": "swift.typealias",
+          "path": [
+            "TaskCancellationChecker"
+          ]
+        },
+        {
+          "declaration": "typealias EncryptedCredentialEnvelope = EncryptedCredentialEnvelope",
+          "identifier": "s:19StellarUserMediaSDK27EncryptedCredentialEnvelopea",
+          "kind": "swift.typealias",
+          "path": [
+            "EncryptedCredentialEnvelope"
+          ]
+        },
+        {
+          "declaration": "typealias SDKClock = SDKClock",
+          "identifier": "s:19StellarUserMediaSDK8SDKClocka",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKClock"
+          ]
+        },
+        {
+          "declaration": "typealias SDKError = SDKError",
+          "identifier": "s:19StellarUserMediaSDK8SDKErrora",
+          "kind": "swift.typealias",
+          "path": [
+            "SDKError"
+          ]
+        },
+        {
+          "declaration": "enum StellarUserMediaSDK",
+          "identifier": "s:19StellarUserMediaSDKAAO",
+          "kind": "swift.enum",
+          "path": [
+            "StellarUserMediaSDK"
+          ]
+        },
+        {
+          "declaration": "static let version: String",
+          "identifier": "s:19StellarUserMediaSDKAAO7versionSSvpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "StellarUserMediaSDK",
+            "version"
+          ]
+        }
+      ]
+    }
+  },
+  "schema_version": 1
+}

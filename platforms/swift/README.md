@@ -2,7 +2,7 @@
 
 面向 iOS、iPadOS、macOS 和 tvOS 的原生 Swift 实现。
 
-完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。当前阶段是 S1：模块边界与跨平台构建；首个真实数据里程碑是在 Linux 上通过 libsmb2 完成只读 SMB2/3 扫库验收。
+完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S1 已建立模块边界、跨平台构建和公共 API 门禁；下一阶段是在 Linux 上通过 libsmb2 完成只读 SMB2/3 扫库验收。
 
 ## 工具链与兼容基线
 
@@ -20,12 +20,15 @@ Swift 的 `Codable` 实现必须通过共享 fixture 验证 wire format。公共
 Sources/StellarCore/
 Sources/StellarRemoteMedia/
 Sources/StellarMediaLibrary/
+Sources/StellarSMB2Core/            # libsmb2-independent seam and values
 Sources/StellarUserMediaSDK/       # umbrella facade
 Sources/StellarMediaCLI/
 Tests/StellarUserMediaSDKTests/
 ```
 
-当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、加密凭据 envelope、最小文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。Core、RemoteMedia 和 MediaLibrary 已是独立 target；其余 target 在第一次产生真实代码时加入。
+当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、加密凭据 envelope、最小文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。Core、RemoteMedia、MediaLibrary 和 SMB2Core 已是独立 target；其余 target 在第一次产生真实代码时加入。
+
+`StellarSMB2Core` 提供不泄漏 C pointer 的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。`CStellarLibsmb2Private` 只在 Linux Package graph 中存在，解析项目私有静态 archive；archive 中所有已定义全局 symbol 均添加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀并从动态导出表隐藏，Swift target 不得直接 import，真实 binding 将通过 allowlisted C wrapper 接入。
 
 `StellarCore` 当前公开：
 
@@ -42,9 +45,20 @@ swift test
 swift build -c release
 swift run stellar-media version
 swift run stellar-media parse "The.Matrix.1999.2160p.mkv"
+python3 ../../tools/ci/check_swift_dependencies.py --package-root .
+python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
 ```
 
-GitHub Actions 在 `macos-26` 和 `ubuntu-24.04` 上执行相同的 Swift 6.3 format lint、debug/fixture tests、release build 和 CLI smoke tests；仓库守卫同时执行高置信度 secret scan 与 portable target Apple-import 检查。
+GitHub Actions 在 `macos-26` 和 `ubuntu-24.04` 上执行相同的 Swift 6.3 format lint、依赖锁定检查、公共 API compatibility 检查、debug/fixture tests、release build 和 CLI smoke tests；仓库守卫同时执行高置信度 secret scan 与 portable target Apple-import 检查。
+
+当前 Package 没有外部依赖，因此 SwiftPM 不生成 `Package.resolved`。新增依赖时必须使用 exact version 或 immutable revision 并提交解析记录；branch 与 version range 会被 CI 拒绝。公共 API 有意变更后，使用以下命令重新生成基线并审阅 diff：
+
+```bash
+python3 ../../tools/ci/check_swift_api.py \
+  --package-root . \
+  --baseline API/PublicAPI.json \
+  --update
+```
 
 ## 实现约定
 

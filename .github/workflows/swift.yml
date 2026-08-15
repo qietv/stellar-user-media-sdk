@@ -6,12 +6,14 @@ on:
       - ".github/workflows/swift.yml"
       - "platforms/swift/**"
       - "specs/**"
+      - "third_party/**"
       - "tools/ci/**"
   pull_request:
     paths:
       - ".github/workflows/swift.yml"
       - "platforms/swift/**"
       - "specs/**"
+      - "third_party/**"
       - "tools/ci/**"
   workflow_dispatch:
 
@@ -38,6 +40,10 @@ jobs:
       run:
         working-directory: platforms/swift
 
+    env:
+      STELLAR_LIBSMB2_PREFIX: ${{ runner.temp }}/stellar-libsmb2
+      PKG_CONFIG_PATH: ${{ runner.temp }}/stellar-libsmb2/lib/pkgconfig
+
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,8 +53,28 @@ jobs:
           swift --version
           swift --version | grep -E "Swift version 6\.3\."
 
+      - name: Verify libsmb2 provenance
+        run: python3 ../../tools/ci/check_libsmb2_binding.py --root ../..
+
+      - name: Build isolated static libsmb2
+        if: runner.os == 'Linux'
+        run: >-
+          ../../tools/ci/build_libsmb2_static_linux.sh
+          --lock ../../third_party/libsmb2.lock.json
+          --prefix "$STELLAR_LIBSMB2_PREFIX"
+
+      - name: Verify prefixed static libsmb2 C ABI
+        if: runner.os == 'Linux'
+        run: python3 ../../tools/ci/check_libsmb2_binding.py --root ../.. --require-installed
+
       - name: Lint Swift format
         run: swift format lint --recursive --strict Sources Tests Package.swift
+
+      - name: Verify reproducible Swift dependencies
+        run: python3 ../../tools/ci/check_swift_dependencies.py --package-root .
+
+      - name: Check public API compatibility baseline
+        run: python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
 
       - name: Run debug and shared fixture tests
         run: swift test -c debug
@@ -74,3 +100,6 @@ jobs:
 
       - name: Reject Apple frameworks in portable Swift targets
         run: python3 tools/ci/check_portable_swift_imports.py --root .
+
+      - name: Verify libsmb2 lock and binding boundary
+        run: python3 tools/ci/check_libsmb2_binding.py --root .

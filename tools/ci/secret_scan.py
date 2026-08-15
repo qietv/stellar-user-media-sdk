@@ -25,7 +25,16 @@ SENSITIVE_FILENAMES = {".env", ".npmrc", ".pypirc", "id_rsa", "id_ed25519"}
 
 def repository_files(root: Path) -> list[Path]:
     completed = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z"],
+        [
+            "git",
+            "-C",
+            str(root),
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ],
         check=False,
         capture_output=True,
     )

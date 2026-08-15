@@ -2,6 +2,51 @@
 
 import PackageDescription
 
+var packageTargets: [Target] = [
+  .target(
+    name: "StellarCore"
+  ),
+  .target(
+    name: "StellarRemoteMedia",
+    dependencies: ["StellarCore"]
+  ),
+  .target(
+    name: "StellarMediaLibrary",
+    dependencies: ["StellarCore", "StellarRemoteMedia"]
+  ),
+  .target(
+    name: "StellarSMB2Core",
+    dependencies: ["StellarCore", "StellarRemoteMedia"]
+  ),
+  .target(
+    name: "StellarUserMediaSDK",
+    dependencies: ["StellarCore", "StellarRemoteMedia", "StellarMediaLibrary"]
+  ),
+  .executableTarget(
+    name: "StellarMediaCLI",
+    dependencies: ["StellarUserMediaSDK"]
+  ),
+  .testTarget(
+    name: "StellarUserMediaSDKTests",
+    dependencies: [
+      "StellarCore",
+      "StellarRemoteMedia",
+      "StellarMediaLibrary",
+      "StellarSMB2Core",
+      "StellarUserMediaSDK",
+    ]
+  ),
+]
+
+#if os(Linux)
+  packageTargets.append(
+    .systemLibrary(
+      name: "CStellarLibsmb2Private",
+      path: "Sources/CStellarLibsmb2Private",
+      pkgConfig: "stellar-libsmb2-private"
+    ))
+#endif
+
 let package = Package(
   name: "StellarUserMediaSDK",
   platforms: [
@@ -19,35 +64,6 @@ let package = Package(
       targets: ["StellarMediaCLI"]
     ),
   ],
-  targets: [
-    .target(
-      name: "StellarCore"
-    ),
-    .target(
-      name: "StellarRemoteMedia",
-      dependencies: ["StellarCore"]
-    ),
-    .target(
-      name: "StellarMediaLibrary",
-      dependencies: ["StellarCore", "StellarRemoteMedia"]
-    ),
-    .target(
-      name: "StellarUserMediaSDK",
-      dependencies: ["StellarCore", "StellarRemoteMedia", "StellarMediaLibrary"]
-    ),
-    .executableTarget(
-      name: "StellarMediaCLI",
-      dependencies: ["StellarUserMediaSDK"]
-    ),
-    .testTarget(
-      name: "StellarUserMediaSDKTests",
-      dependencies: [
-        "StellarCore",
-        "StellarRemoteMedia",
-        "StellarMediaLibrary",
-        "StellarUserMediaSDK",
-      ]
-    ),
-  ],
+  targets: packageTargets,
   swiftLanguageModes: [.v6]
 )

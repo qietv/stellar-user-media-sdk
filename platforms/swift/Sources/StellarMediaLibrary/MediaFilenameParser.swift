@@ -2,6 +2,7 @@ import Foundation
 import StellarCore
 import StellarRemoteMedia
 
+/// The coarse media category inferred from a source filename.
 public enum ParsedMediaKind: String, Sendable {
   case movie
   case episode
