@@ -25,8 +25,8 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 - 所有由本项目提供的 libsmb2 构建均使用 `BUILD_SHARED_LIBS=OFF`、`CMAKE_POSITION_INDEPENDENT_CODE=ON`、`ENABLE_EXAMPLES=OFF`、`ENABLE_LIBKRB5=OFF` 和 `ENABLE_GSSAPI=OFF`。S2 只支持内建 NTLMSSP。
 - 构建只写入任务私有且原本为空的 prefix，不使用 `/usr/local`、Homebrew prefix 或其他系统目录，也不执行上游 `cmake --install`。
 - 原始 `libsmb2.a` 不进入最终链接。构建脚本枚举 archive 中全部已定义全局 symbol，并使用 GNU `objcopy --redefine-syms` 统一加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀，生成 `libstellar_libsmb2_private.a` 后删除原始 archive。
-- 私有 prefix 只接收编译所需 header、前缀化 archive 和 `stellar-libsmb2-private.pc`；不接收或暴露公共 `libsmb2.a`、`libsmb2.pc`、CMake package 元数据，也不使用 `-lsmb2`。
-- 私有 pkg-config 通过 archive 的绝对路径链接，并加入 `--exclude-libs,libstellar_libsmb2_private.a`，防止内部 symbol 进入最终 ELF 动态导出表。
+- 私有 prefix 接收编译所需 header、前缀化 archive 和 `stellar-libsmb2-private.pc`，以及 `share/stellar-libsmb2-private` 下的对应源码、许可证、symbol map 和构建元数据；不接收或暴露公共 `libsmb2.a`、`libsmb2.pc`、CMake package 元数据，也不使用 `-lsmb2`。
+- 私有 pkg-config 只提供 SwiftPM 允许的私有 `-L`/`-lstellar_libsmb2_private`；该目录不得包含同名 shared object，因此最终仍解析到私有静态 archive。Linux wrapper target 通过 linker setting 加入 `--exclude-libs=libstellar_libsmb2_private.a`，防止内部 symbol 进入最终 ELF 动态导出表。
 - `CStellarLibsmb2Private` 只在 Linux Package graph 中存在。其 shim 把允许使用的上游函数名映射到私有前缀；Swift target 禁止直接 import，后续只能 import 项目自有的 allowlisted C wrapper。
 - 最终 SDK/CLI 不得产生 `DT_NEEDED`/等价的 libsmb2 共享库依赖，也不得导出未前缀的 libsmb2 symbol。
 
@@ -42,7 +42,7 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 
 - context lifecycle：`smb2_init_context`、`smb2_close_context`、`smb2_destroy_context`；
 - policy/auth：`smb2_set_timeout`、`smb2_set_version`、`smb2_set_security_mode`、`smb2_set_sign`、`smb2_set_seal`、`smb2_set_authentication`、`smb2_set_domain`、`smb2_set_user`、`smb2_set_password`；
-- session：`smb2_connect_share`、`smb2_disconnect_share`、`smb2_get_dialect`、`smb2_get_error`；
+- session/event：`smb2_fd_event_callbacks`、`smb2_connect_share`、`smb2_disconnect_share`、`smb2_get_dialect`、`smb2_get_error`；
 - read-only I/O：`smb2_opendir`、`smb2_readdir`、`smb2_closedir`、`smb2_stat`、`smb2_open`、`smb2_pread`、`smb2_close`。
 
 任何 create、write、truncate、unlink、mkdir、rename 或其他 mutating symbol 都不得进入项目自有 C wrapper 或 Swift transport。CI 必须编译、静态链接并运行只读 ABI smoke test。
@@ -52,7 +52,7 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 - `smb2_context`、directory handle、file handle 和 callback userdata 只由一个 session actor/串行执行器拥有，不声明为无条件 `Sendable`，也不跨 executor 裸传。
 - 公共 `SMB2Transport`/`SMB2Session` seam 只暴露 Swift 值模型、`Data` 和稳定 SDK errors；C pointer、errno、NT status 与 callback 类型不能穿透模块边界。
 - 同步 C API 必须进入专用有界 blocking executor，不能在 Swift cooperative executor 或 actor isolation 上直接阻塞。
-- timeout 由 SDK deadline 与 libsmb2 command timeout 共同约束。取消前后都要检查；S2 完成前必须证明 in-flight 取消能在有界时间内结束并确定性释放资源。
+- timeout 由 SDK deadline 与 libsmb2 command timeout 共同约束。包装层在连接前登记 libsmb2 的 fd 增删 callback；Swift task 取消时对全部活动 socket 执行 `shutdown()`，使同步 API 的 `poll()` 立即返回，并在原 worker 上以 `ECANCELED` 收尾和释放 context。取消线程不得并发 destroy context。CI 使用不回复 SMB negotiation 的 loopback TCP peer 证明 in-flight 连接在 2 秒内结束并可确定性释放。
 
 ### 5. 凭据与日志
 
@@ -68,6 +68,7 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 - 分发包还必须提供适合重新链接的应用/SDK object code 或其他经审查的等效材料、重新链接说明及必要安装信息，使接收者能够用修改后的兼容 libsmb2 重新生成组合产物。
 - 商业条款不得禁止用户为调试这些修改而进行许可证允许的 reverse engineering。
 - symbol prefix 属于构建隔离步骤；relink kit 必须包含可重建相同前缀 archive 的脚本和 map 生成方式，不能只提供已经前缀化的二进制。
+- `create_linux_smb_lgpl_kit.sh` 从正式 release 的 SwiftPM `Objects.LinkFileList` 收集组合产物 object code，加入固定源码、许可、集成源码、原始私有 archive、修改后库重建脚本、重链接脚本和逐文件 SHA-256 manifest。CI 必须从交付的源码重新构建私有 archive，再用交付 object 实际生成并运行替换后的 executable。
 - Apple backend 也只能采用同样的私有静态隔离，但在 object/relink kit、代码签名、重新安装和商店分发义务完成审查前不得启用或发布。
 
 ## 后果

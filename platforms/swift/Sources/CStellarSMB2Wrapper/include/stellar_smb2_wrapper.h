@@ -54,9 +54,18 @@ typedef struct stellar_smb2_entry_list {
   size_t count;
 } stellar_smb2_entry_list;
 
-int32_t stellar_smb2_client_connect(
+int32_t stellar_smb2_client_create(
     const stellar_smb2_connection_config *config,
     stellar_smb2_client **client_out);
+
+int32_t stellar_smb2_client_connect(stellar_smb2_client *client);
+
+/*
+ * Thread-safe and idempotent. Interrupts the active synchronous call without
+ * destroying its libsmb2 context on the cancelling thread. Cancellation is
+ * sticky: destroy the client after the interrupted call has returned.
+ */
+void stellar_smb2_client_cancel(stellar_smb2_client *client);
 
 void stellar_smb2_client_destroy(stellar_smb2_client *client, int graceful);
 

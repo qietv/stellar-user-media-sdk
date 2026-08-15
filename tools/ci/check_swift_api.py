@@ -20,6 +20,11 @@ DEFAULT_MODULES = (
 )
 
 
+def portable_identifier(identifier: str) -> str:
+    """Canonicalize SDK module ownership that differs across Swift platforms."""
+    return identifier.replace("20FoundationEssentials", "10Foundation")
+
+
 def has_only_ignorable_test_bundle_failures(output: str, modules: tuple[str, ...]) -> bool:
     """Recognize SwiftPM failures for synthetic test bundles outside the reviewed API."""
     error_lines = [
@@ -90,6 +95,7 @@ def public_symbols(graph: dict[str, Any]) -> list[dict[str, Any]]:
         identifier = symbol.get("identifier", {}).get("precise")
         if not identifier:
             continue
+        identifier = portable_identifier(identifier)
         symbols.append(
             {
                 "identifier": identifier,

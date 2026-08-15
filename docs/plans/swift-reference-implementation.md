@@ -78,7 +78,7 @@ v1 不包含：
 
 - 尚未产生真实代码的 Storage、Auth、Sync 与平台 backend targets；
 - Windows compile check；
-- 真实 SMB connector、Linux/Samba 集成验收与 in-flight cancellation；
+- 支持 SMB3 encryption 的隔离服务验收；
 - 可执行 SQLite DDL、GRDB repository 和 scanner；
 - OAuth、配置同步、Vault 密码学实现和服务端 transport；
 - StellarPlayer iOS 正式集成。
@@ -190,7 +190,7 @@ flowchart TD
 - [x] 映射取消、超时、认证、权限、网络、远端不可用和协议错误；
 - [x] 支持 SMB 2.1、3.0、3.1.1 协商信息记录，以及可配置 signing/encryption 要求；
 - [x] 所有 transport 方法保持 `async throws`，同步 C API 只在最多 4 个 worker 的专用 blocking executor 运行，并在调用前后检查取消；
-- [ ] 将当前 timeout 有界的取消升级为可主动终止 in-flight C 调用，并加入确定性释放测试；
+- [x] 通过 libsmb2 fd callback 跟踪活动 socket，Swift task 取消时主动 `shutdown()` 中止 in-flight C 调用；loopback 黑洞 peer 验证连接在 2 秒内返回 `ECANCELED` 并确定性释放；
 - [x] CLI 新增以下命令：
 
 ```text
@@ -201,8 +201,8 @@ stellar-media smb scan
 
 - [x] 当前 CLI 密码只允许从 stdin 输入；明确拒绝 `--password <value>` 和带密码的 SMB URL，Vault/进程外 secret provider 留待 Sync 集成；
 - [x] `smb scan` 输出不带路径的 JSONL 条目与单独 summary，包含 schema、source、范围、开始/结束时间、结果、错误分类和 libsmb2 版本，不包含完整主机、用户名、密码或敏感路径；
-- [ ] CI 使用临时 Samba 服务执行隔离集成测试；真实 NAS 验收使用仓库外配置或明确批准的隔离资源；
-- [ ] 记录 LGPL 许可证文本、对应源码、可重新链接 object/relink kit 和 symbol-prefix 重建验证。
+- [x] CI 使用临时 Samba 服务执行隔离集成测试；真实 NAS 使用明确批准的隔离资源完成验收；
+- [x] 构建生成 LGPL 许可证、固定 commit 完整对应源码和 symbol map；release kit 加入 SwiftPM object code、集成源码、重建/重链接脚本和 SHA-256 manifest，并从交付源码实际重建替换 archive 后重链接验证。
 
 验收矩阵：
 
@@ -215,7 +215,7 @@ stellar-media smb scan
 
 完成定义：Ubuntu release binary 能针对隔离 Samba 和至少一个真实 SMB2/3 来源完成只读扫描；取消/失败不会生成“完整成功”标记；报告可用于后续 scanner fixture。
 
-当前验证状态：macOS 已通过 C wrapper 对固定 libsmb2 6.1.0 源码的 `-Wall -Wextra -Werror` 编译/静态链接烟测、Linux Swift target 手工 module typecheck、26 个 Swift 测试、API/依赖/secret/import guards 和 release CLI 构建。Linux 私有前缀 archive 的最终 Swift 链接、临时 Samba 集成矩阵和真实 NAS 验收仍待 Ubuntu CI/隔离环境执行，因此 S2 仍为进行中。
+当前验证状态：macOS 已通过 26 个 Swift 测试和 API/依赖/secret/import guards。Ubuntu 26.04 已从固定 libsmb2 6.1.0 commit 重建全符号前缀静态 archive，通过 C ABI/主动取消 smoke、28 个 Swift 测试、公共 API guard 和无额外参数的 release CLI 构建；Swift `Task.cancel()` 黑洞连接测试在 2 秒门限内返回 `.cancelled`，实际为毫秒级。最终 ELF 内含私有 archive，相关 symbol 为 local，动态导出和 `DT_NEEDED` 均不含 libsmb2。LGPL kit 已从包内完整源码重建替换 archive，并用 15 个交付 object 重链接、运行及复核静态隔离。隔离真实 NAS 已使用 kit 重链接 binary 通过 SMB 2.1、3.0、3.0.2、3.1.1、required signing、递归重复扫描、`stat`、range read、离线失败和错误凭据分类验收；该 NAS 不支持 SMB3 encryption，已用 Samba 客户端对照确认。支持 encryption 的隔离服务仍待完成，因此 S2 仍为进行中。
 
 ### S3 — Scanner 状态机与公共扫描 fixture ⬜
 

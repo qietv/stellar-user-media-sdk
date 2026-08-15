@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shlex
 import shutil
 import subprocess
+import tarfile
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -34,6 +36,7 @@ ALLOWED_SYMBOLS = (
     "smb2_set_domain",
     "smb2_set_user",
     "smb2_set_password",
+    "smb2_fd_event_callbacks",
     "smb2_connect_share",
     "smb2_disconnect_share",
     "smb2_get_dialect",
@@ -164,6 +167,9 @@ def validate_binding_boundary(root: Path) -> list[str]:
     wrapper_smoke = root / "tools/ci/stellar_smb2_wrapper_smoke.c"
     if not wrapper_smoke.is_file():
         findings.append("the project-owned C SMB2 wrapper smoke source is required")
+    cancel_smoke = root / "tools/ci/stellar_smb2_wrapper_cancel_smoke.c"
+    if not cancel_smoke.is_file():
+        findings.append("the in-flight C cancellation smoke source is required")
     for path in (root / "platforms/swift/Sources").rglob("*.swift"):
         source_text = path.read_text(encoding="utf-8")
         if FORBIDDEN_SWIFT_IMPORT.search(source_text):
@@ -201,18 +207,49 @@ def verify_installed(root: Path, payload: dict[str, Any]) -> None:
             f"pkg-config version {version!r} does not match lock {payload['upstream_version']!r}"
         )
     flags_text = run([pkg_config, "--cflags", "--libs", package_name])
-    exclude_flag = f"--exclude-libs,{payload['archive']}"
+    archive_name = str(payload["archive"])
+    link_name = archive_name.removeprefix("lib").removesuffix(".a")
+    link_flag = f"-l{link_name}"
+    flags = shlex.split(flags_text)
     if (
-        payload["archive"] not in flags_text
-        or exclude_flag not in flags_text
+        link_flag not in flags
+        or archive_name in flags_text
+        or any(flag.startswith("-Wl,") for flag in flags)
         or ".so" in flags_text
-        or "-lsmb2" in flags_text
+        or "-lsmb2" in flags
     ):
-        raise RuntimeError("pkg-config must link only the project-private static archive")
+        raise RuntimeError(
+            "pkg-config must use SwiftPM-safe -L/-l flags for only the private archive"
+        )
     libdir = Path(run([pkg_config, "--variable=libdir", package_name]))
-    archive = libdir / str(payload["archive"])
+    archive = libdir / archive_name
     if not archive.is_file():
         raise RuntimeError(f"private static archive is missing: {archive}")
+    if list(libdir.glob(f"lib{link_name}.so*")):
+        raise RuntimeError("private libsmb2 link directory must not contain a shared library")
+    prefix = Path(run([pkg_config, "--variable=prefix", package_name]))
+    compliance_root = prefix / "share/stellar-libsmb2-private"
+    compliance_metadata = compliance_root / "metadata.json"
+    if not compliance_metadata.is_file():
+        raise RuntimeError("libsmb2 LGPL build metadata is missing")
+    metadata = json.loads(compliance_metadata.read_text(encoding="utf-8"))
+    source_archive = compliance_root / str(metadata.get("source_archive", ""))
+    if (
+        metadata.get("revision") != payload["revision"]
+        or metadata.get("license") != payload["license"]
+        or not source_archive.is_file()
+        or not (compliance_root / "licenses/COPYING").is_file()
+        or not (compliance_root / "licenses/LICENCE-LGPL-2.1.txt").is_file()
+        or not (compliance_root / "build/symbol-map.txt").is_file()
+    ):
+        raise RuntimeError("libsmb2 LGPL source/license/build materials are incomplete")
+    source_hash = hashlib.sha256(source_archive.read_bytes()).hexdigest()
+    if source_hash != metadata.get("source_sha256"):
+        raise RuntimeError("libsmb2 corresponding source archive hash does not match metadata")
+    with tarfile.open(source_archive, "r:gz") as source_tar:
+        source_names = source_tar.getnames()
+    if not any(name.endswith("/LICENCE-LGPL-2.1.txt") for name in source_names):
+        raise RuntimeError("libsmb2 corresponding source archive omits the LGPL text")
     symbols = defined_symbols(run([symbol_tool, "-g", "--defined-only", "-P", str(archive)]))
     unprefixed = sorted(symbol for symbol in symbols if not symbol.startswith(payload["symbol_prefix"]))
     if unprefixed:
@@ -224,7 +261,7 @@ def verify_installed(root: Path, payload: dict[str, Any]) -> None:
     if not required.issubset(symbols):
         raise RuntimeError("private static archive is missing required prefixed ABI symbols")
 
-    flags = shlex.split(flags_text)
+    exclude_flag = f"-Wl,--exclude-libs,{archive_name}"
     source = root / "tools/ci/libsmb2_binding_smoke.c"
     shim_include = root / "platforms/swift/Sources/CStellarLibsmb2Private"
     with tempfile.TemporaryDirectory(prefix="stellar-libsmb2-smoke-") as temporary:
@@ -239,6 +276,7 @@ def verify_installed(root: Path, payload: dict[str, Any]) -> None:
                 "-Wl,--export-dynamic",
                 "-o",
                 str(binary),
+                exclude_flag,
                 *flags,
             ]
         )
@@ -279,6 +317,7 @@ def verify_installed(root: Path, payload: dict[str, Any]) -> None:
                 "-Wl,--export-dynamic",
                 "-o",
                 str(wrapper_binary),
+                exclude_flag,
                 *flags,
             ]
         )
@@ -300,6 +339,27 @@ def verify_installed(root: Path, payload: dict[str, Any]) -> None:
             linked = run([dynamic_dependencies, str(wrapper_binary)])
             if "libsmb2" in linked.lower():
                 raise RuntimeError("C wrapper unexpectedly depends on a shared libsmb2")
+        cancellation_binary = temporary_path / "stellar-smb2-wrapper-cancel-smoke"
+        cancellation_source = root / "tools/ci/stellar_smb2_wrapper_cancel_smoke.c"
+        run(
+            [
+                compiler,
+                "-std=c11",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-pthread",
+                "-I",
+                str(wrapper_include),
+                str(wrapper_source),
+                str(cancellation_source),
+                "-o",
+                str(cancellation_binary),
+                exclude_flag,
+                *flags,
+            ]
+        )
+        run([str(cancellation_binary)])
     print(f"isolated static libsmb2 C binding smoke passed: pkg-config {version}")
 
 

@@ -57,7 +57,12 @@ var packageTargets: [Target] = [
     .target(
       name: "CStellarSMB2Wrapper",
       dependencies: ["CStellarLibsmb2Private"],
-      publicHeadersPath: "include"
+      publicHeadersPath: "include",
+      linkerSettings: [
+        .unsafeFlags([
+          "-Xlinker", "--exclude-libs=libstellar_libsmb2_private.a",
+        ])
+      ]
     ),
     .target(
       name: "StellarSMB2Linux",

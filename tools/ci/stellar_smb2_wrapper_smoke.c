@@ -14,9 +14,13 @@ int main(void) {
   };
 
   stellar_smb2_entry_list_destroy(&list);
-  if (stellar_smb2_client_connect(&config, &client) >= 0 || client != 0) {
+  if (stellar_smb2_client_create(&config, &client) != 0 || client == 0) {
+    return 1;
+  }
+  if (stellar_smb2_client_connect(client) >= 0) {
     stellar_smb2_client_destroy(client, 0);
     return 1;
   }
+  stellar_smb2_client_destroy(client, 0);
   return 0;
 }

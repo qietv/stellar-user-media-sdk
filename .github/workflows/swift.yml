@@ -8,6 +8,7 @@ on:
       - "specs/**"
       - "third_party/**"
       - "tools/ci/**"
+      - "tools/release/**"
   pull_request:
     paths:
       - ".github/workflows/swift.yml"
@@ -15,6 +16,7 @@ on:
       - "specs/**"
       - "third_party/**"
       - "tools/ci/**"
+      - "tools/release/**"
   workflow_dispatch:
 
 permissions:
@@ -82,6 +84,32 @@ jobs:
 
       - name: Build release SDK and CLI
         run: swift build -c release
+
+      - name: Verify release SMB static isolation
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          binary=.build/release/stellar-media
+          nm --defined-only "$binary" |
+            grep 'stellar_user_media_sdk_libsmb2_smb2_init_context'
+          if nm -D -g --defined-only "$binary" |
+            grep 'stellar_user_media_sdk_libsmb2_'; then
+            echo "private libsmb2 symbols leaked into the release dynamic export table" >&2
+            exit 1
+          fi
+          if ldd "$binary" | grep -i 'libsmb2'; then
+            echo "release binary unexpectedly depends on shared libsmb2" >&2
+            exit 1
+          fi
+
+      - name: Build and verify LGPL source/object relink kit
+        if: runner.os == 'Linux'
+        run: >-
+          ../../tools/release/create_linux_smb_lgpl_kit.sh
+          --root ../..
+          --package-root .
+          --libsmb2-prefix "$STELLAR_LIBSMB2_PREFIX"
+          --output "$RUNNER_TEMP/stellar-linux-smb-lgpl-kit"
 
       - name: Run isolated Samba integration smoke
         if: runner.os == 'Linux'
@@ -164,6 +192,8 @@ jobs:
             echo "wrong SMB credential unexpectedly succeeded" >&2
             exit 1
           fi
+          grep -Fx 'error: SMB authentication failed' \
+            "$RUNNER_TEMP/stellar-smb-wrong.stderr"
 
           python3 - "$scan_output" <<'PY'
           import json

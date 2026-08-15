@@ -15,6 +15,7 @@ REQUIRE_SYMBOL(smb2_set_authentication);
 REQUIRE_SYMBOL(smb2_set_domain);
 REQUIRE_SYMBOL(smb2_set_user);
 REQUIRE_SYMBOL(smb2_set_password);
+REQUIRE_SYMBOL(smb2_fd_event_callbacks);
 REQUIRE_SYMBOL(smb2_connect_share);
 REQUIRE_SYMBOL(smb2_disconnect_share);
 REQUIRE_SYMBOL(smb2_get_dialect);

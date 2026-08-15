@@ -16,13 +16,18 @@ public struct LinuxSMB2Transport: SMB2Transport {
 
   public func connect(_ request: SMB2ConnectionRequest) async throws -> any SMB2Session {
     try runtime.cancellationChecker.checkCancellation()
-    let state: LinuxSMB2SessionState
+    let state = try LinuxSMB2SessionState.create(request)
     do {
-      state = try await executor.run {
-        try LinuxSMB2SessionState.connect(request)
+      try await withTaskCancellationHandler {
+        try await executor.run {
+          try state.connect()
+        }
+      } onCancel: {
+        state.cancel()
       }
       try runtime.cancellationChecker.checkCancellation()
     } catch {
+      state.disconnect(graceful: false)
       try runtime.cancellationChecker.checkCancellation()
       throw error
     }
@@ -86,6 +91,7 @@ private actor LinuxSMB2Session: SMB2Session {
       return
     }
     disconnected = true
+    state.cancelActiveOperation()
     await executor.runIgnoringFailure {
       self.state.disconnect(graceful: true)
     }
@@ -102,7 +108,11 @@ private actor LinuxSMB2Session: SMB2Session {
   ) async throws -> Value {
     try runtime.cancellationChecker.checkCancellation()
     do {
-      let value = try await executor.run(operation)
+      let value = try await withTaskCancellationHandler {
+        try await executor.run(operation)
+      } onCancel: {
+        state.cancel()
+      }
       try runtime.cancellationChecker.checkCancellation()
       return value
     } catch {
@@ -113,9 +123,11 @@ private actor LinuxSMB2Session: SMB2Session {
 }
 
 private final class LinuxSMB2SessionState: @unchecked Sendable {
-  private let lock = NSLock()
+  private let condition = NSCondition()
   private let rootPath: String
   private var client: OpaquePointer?
+  private var activeOperations = 0
+  private var negotiatedDialect: UInt16 = 0
 
   private init(client: OpaquePointer, rootPath: String) {
     self.client = client
@@ -126,13 +138,13 @@ private final class LinuxSMB2SessionState: @unchecked Sendable {
     disconnect(graceful: false)
   }
 
-  static func connect(_ request: SMB2ConnectionRequest) throws -> LinuxSMB2SessionState {
+  static func create(_ request: SMB2ConnectionRequest) throws -> LinuxSMB2SessionState {
     let server = serverAddress(for: request.endpoint)
     let timeoutSeconds = Int32((request.timeoutMilliseconds + 999) / 1_000)
     let version = versionValue(for: request.versionPolicy)
     let securityMode: UInt16 =
       request.signingPolicy == .required ? 0x0003 : 0x0001
-    var connectedClient: OpaquePointer?
+    var createdClient: OpaquePointer?
 
     let result = withOptionalCString(request.credential.domain) { domain in
       server.withCString { serverPointer in
@@ -151,35 +163,48 @@ private final class LinuxSMB2SessionState: @unchecked Sendable {
                 require_encryption: request.encryptionPolicy == .required ? 1 : 0,
                 timeout_seconds: timeoutSeconds
               )
-              return stellar_smb2_client_connect(&config, &connectedClient)
+              return stellar_smb2_client_create(&config, &createdClient)
             }
           }
         }
       }
     }
 
-    guard result == 0, let connectedClient else {
+    guard result == 0, let createdClient else {
       throw SMB2POSIXErrorMapper.map(status: result, operation: .connect)
     }
     return LinuxSMB2SessionState(
-      client: connectedClient,
+      client: createdClient,
       rootPath: request.endpoint.rootPath.relativePath
     )
+  }
+
+  func connect() throws {
+    let dialect = try withClient { client -> UInt16 in
+      let result = stellar_smb2_client_connect(client)
+      guard result == 0 else {
+        throw SMB2POSIXErrorMapper.map(status: result, operation: .connect)
+      }
+      return stellar_smb2_client_dialect(client)
+    }
+    condition.lock()
+    negotiatedDialect = dialect
+    condition.unlock()
   }
 
   func connectionInfo(
     signingPolicy: SMB2SigningPolicy,
     encryptionPolicy: SMB2EncryptionPolicy
   ) -> SMB2ConnectionInfo {
-    lock.withLock {
-      let dialect = client.map(stellar_smb2_client_dialect) ?? 0
-      return SMB2ConnectionInfo(
-        dialect: SMB2Dialect(wireValue: dialect),
-        signingPolicy: signingPolicy,
-        encryptionPolicy: encryptionPolicy,
-        implementationVersion: "libsmb2-6.1.0@aedafb2c8742"
-      )
-    }
+    condition.lock()
+    let dialect = negotiatedDialect
+    condition.unlock()
+    return SMB2ConnectionInfo(
+      dialect: SMB2Dialect(wireValue: dialect),
+      signingPolicy: signingPolicy,
+      encryptionPolicy: encryptionPolicy,
+      implementationVersion: "libsmb2-6.1.0@aedafb2c8742"
+    )
   }
 
   func listDirectory(at path: SMB2Path) throws -> [SMB2Entry] {
@@ -265,22 +290,55 @@ private final class LinuxSMB2SessionState: @unchecked Sendable {
   }
 
   func disconnect(graceful: Bool) {
-    lock.withLock {
-      guard let client else {
-        return
-      }
-      self.client = nil
-      stellar_smb2_client_destroy(client, graceful ? 1 : 0)
+    condition.lock()
+    guard let ownedClient = client else {
+      condition.unlock()
+      return
     }
+    client = nil
+    if activeOperations > 0 {
+      stellar_smb2_client_cancel(ownedClient)
+    }
+    while activeOperations > 0 {
+      condition.wait()
+    }
+    condition.unlock()
+    stellar_smb2_client_destroy(ownedClient, graceful ? 1 : 0)
+  }
+
+  func cancel() {
+    condition.lock()
+    if let client {
+      stellar_smb2_client_cancel(client)
+    }
+    condition.unlock()
+  }
+
+  func cancelActiveOperation() {
+    condition.lock()
+    if activeOperations > 0, let client {
+      stellar_smb2_client_cancel(client)
+    }
+    condition.unlock()
   }
 
   private func withClient<Value>(_ operation: (OpaquePointer) throws -> Value) throws -> Value {
-    try lock.withLock {
-      guard let client else {
-        throw SDKError(code: .remoteUnavailable, message: "SMB session is disconnected")
-      }
-      return try operation(client)
+    condition.lock()
+    guard let client else {
+      condition.unlock()
+      throw SDKError(code: .remoteUnavailable, message: "SMB session is disconnected")
     }
+    activeOperations += 1
+    condition.unlock()
+    defer {
+      condition.lock()
+      activeOperations -= 1
+      if activeOperations == 0 {
+        condition.broadcast()
+      }
+      condition.unlock()
+    }
+    return try operation(client)
   }
 
   private func remotePath(for path: SMB2Path) -> String {
