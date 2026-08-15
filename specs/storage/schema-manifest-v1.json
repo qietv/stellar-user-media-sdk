@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "databases": [
+    {
+      "name": "account",
+      "file": "sql/account-v1.sql",
+      "application_id": 1094927188,
+      "user_version": 1,
+      "business_table_count": 6,
+      "sha256": "5bd67995960a8539818cbd6817919d3122846c53e1e80cb77918411219ee1be9"
+    },
+    {
+      "name": "library",
+      "file": "sql/library-v1.sql",
+      "application_id": 1296845122,
+      "user_version": 1,
+      "business_table_count": 27,
+      "sha256": "860af5576de63d4aa64342204e27ff8a054df188fba0840f07545647bb5a1484"
+    },
+    {
+      "name": "metadata_cache",
+      "file": "sql/metadata-cache-v1.sql",
+      "application_id": 1296253251,
+      "user_version": 1,
+      "business_table_count": 3,
+      "sha256": "f87fb61ba3c89d93df90465276adf81200bd8dd86d937e242c70042709f16cab"
+    }
+  ]
+}

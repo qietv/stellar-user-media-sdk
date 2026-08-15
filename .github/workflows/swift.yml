@@ -119,6 +119,7 @@ jobs:
             ../../specs/fixtures/media-library/scanner-state-v1.json | \
             grep "stellar.scan-manifest-replay.v1"
           swift run -c release stellar-media help | grep "stellar-media smb check"
+          swift run -c release stellar-media help | grep "stellar-media db migrate"
 
   repository-guards:
     name: Repository guards
@@ -136,6 +137,16 @@ jobs:
 
       - name: Verify libsmb2 lock and binding boundary
         run: python3 tools/ci/check_libsmb2_binding.py --root .
+
+      - name: Execute cross-platform SQLite schemas
+        run: python3 tools/ci/check_sqlite_schemas.py --root .
+
+      - name: Verify generated Swift SQLite schemas
+        run: >-
+          python3 tools/storage/generate_swift_sql_schemas.py
+          --root .
+          --output platforms/swift/Sources/StellarStorage/GeneratedSchemas.swift
+          --check
 
       - name: Test repository guards
         run: python3 -m unittest discover -s tools/ci -p 'test_*.py'

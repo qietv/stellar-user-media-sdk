@@ -51,6 +51,7 @@
 - [Credential Vault 与凭据同步](security/credential-vault.md)
 - [扫描、解析与海报墙](media-library/scanning-and-poster-wall.md)
 - [SQLite、本地状态与同步](storage/sqlite-and-sync.md)
+- [SQLite v1 schema manifest](storage/schema-manifest-v1.json)
 
 详细的数据表和扫描状态机见 [Infuse 调研及自有扫描器设计](../docs/research/infuse/infuse_library_scan_rebuild_and_our_scanner_design.md)。
 

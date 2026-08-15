@@ -66,6 +66,7 @@ third_party/           第三方依赖版本、许可证与来源记录（不存
 - [远程媒体配置同步合同](specs/remote-media/source-config-sync.md)
 - [扫描与海报墙合同](specs/media-library/scanning-and-poster-wall.md)
 - [SQLite 与同步边界](specs/storage/sqlite-and-sync.md)
+- [SQLite v1 schema manifest](specs/storage/schema-manifest-v1.json)
 - [安全基线](docs/security.md)
 - [开发路线图](docs/roadmap.md)
 - [Swift Reference Implementation Plan](docs/plans/swift-reference-implementation.md)

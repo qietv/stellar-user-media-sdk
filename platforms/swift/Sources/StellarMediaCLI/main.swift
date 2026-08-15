@@ -35,6 +35,12 @@ private enum StellarMediaCLI {
     case "manifest":
       return await ManifestCLICommand.run(arguments: Array(arguments.dropFirst()))
 
+    case "db":
+      return await DatabaseCLICommand.run(arguments: Array(arguments.dropFirst()))
+
+    case "library":
+      return await LibraryCLICommand.run(arguments: Array(arguments.dropFirst()))
+
     case "smb":
       #if canImport(StellarSMB2Linux)
         return await SMBCLICommand.run(arguments: Array(arguments.dropFirst()))
@@ -76,6 +82,10 @@ private enum StellarMediaCLI {
       Usage:
         stellar-media parse <file-path>
         stellar-media manifest replay <fixture-path>
+        stellar-media db migrate <library|account|metadata-cache> <database-path>
+        stellar-media db verify <library|account|metadata-cache> <database-path>
+        stellar-media library scan <database-path> <root-directory> <source-uid>
+        stellar-media library inspect <database-path>
         stellar-media smb check <options>
         stellar-media smb list <options> [--path <relative-path>]
         stellar-media smb scan <options>

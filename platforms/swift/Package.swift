@@ -8,9 +8,11 @@ var testDependencies: [Target.Dependency] = [
   "StellarRemoteMedia",
   "StellarLocalMedia",
   "StellarWebDAV",
+  "StellarStorage",
   "StellarMediaLibrary",
   "StellarSMB2Core",
   "StellarUserMediaSDK",
+  .product(name: "GRDB", package: "GRDB.swift"),
 ]
 
 #if os(Linux)
@@ -28,8 +30,16 @@ var packageTargets: [Target] = [
     dependencies: ["StellarCore"]
   ),
   .target(
+    name: "StellarStorage",
+    dependencies: [
+      "StellarCore",
+      "StellarRemoteMedia",
+      .product(name: "GRDB", package: "GRDB.swift"),
+    ]
+  ),
+  .target(
     name: "StellarMediaLibrary",
-    dependencies: ["StellarCore", "StellarRemoteMedia"]
+    dependencies: ["StellarCore", "StellarRemoteMedia", "StellarStorage"]
   ),
   .target(
     name: "StellarLocalMedia",
@@ -47,7 +57,7 @@ var packageTargets: [Target] = [
     name: "StellarUserMediaSDK",
     dependencies: [
       "StellarCore", "StellarRemoteMedia", "StellarLocalMedia", "StellarMediaLibrary",
-      "StellarWebDAV",
+      "StellarStorage", "StellarWebDAV",
     ]
   ),
   .executableTarget(
@@ -100,6 +110,9 @@ let package = Package(
       name: "stellar-media",
       targets: ["StellarMediaCLI"]
     ),
+  ],
+  dependencies: [
+    .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1")
   ],
   targets: packageTargets,
   swiftLanguageModes: [.v6]

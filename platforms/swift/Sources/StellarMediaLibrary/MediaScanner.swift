@@ -747,7 +747,14 @@ public struct MediaScanner: Sendable {
       phase: isCancelled ? .cancelled : .failed,
       lastErrorCode: .some(failure.code)
     )
-    try await sink.commit(MediaScanBatch(entries: [], checkpoint: checkpoint))
+    let failureBatch = MediaScanBatch(entries: [], checkpoint: checkpoint)
+    if isCancelled {
+      try await Task.detached {
+        try await sink.commit(failureBatch)
+      }.value
+    } else {
+      try await sink.commit(failureBatch)
+    }
     await observer.emit(
       MediaScanEvent(
         kind: isCancelled ? .cancelled : .failed,

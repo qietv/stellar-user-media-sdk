@@ -32,6 +32,7 @@ cd "$kit_root"
 swiftc \
   @"$relink_temporary/objects.rsp" \
   "$replacement_archive" \
+  -Xlinker -lsqlite3 \
   -Xlinker --gc-sections \
   -Xlinker --defsym \
   -Xlinker main=StellarMediaCLI_main \

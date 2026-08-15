@@ -113,6 +113,7 @@ tar -C "$repository_root" -czf "$output_root/project/smb-integration-source.tar.
   tools/ci/build_libsmb2_static_linux.sh \
   tools/release/rebuild_private_libsmb2.sh \
   platforms/swift/Package.swift \
+  platforms/swift/Package.resolved \
   platforms/swift/Sources/CStellarLibsmb2Private/module.modulemap \
   platforms/swift/Sources/CStellarLibsmb2Private/shim.h \
   platforms/swift/Sources/CStellarSMB2Wrapper/include/stellar_smb2_wrapper.h \

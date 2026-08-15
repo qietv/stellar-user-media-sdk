@@ -13,6 +13,7 @@ PORTABLE_TARGETS = (
     "StellarRemoteMedia",
     "StellarLocalMedia",
     "StellarWebDAV",
+    "StellarStorage",
     "StellarMediaLibrary",
     "StellarSMB2Core",
     "StellarUserMediaSDK",

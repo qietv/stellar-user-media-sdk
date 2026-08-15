@@ -16,6 +16,7 @@ DEFAULT_MODULES = (
     "StellarRemoteMedia",
     "StellarLocalMedia",
     "StellarWebDAV",
+    "StellarStorage",
     "StellarMediaLibrary",
     "StellarSMB2Core",
     "StellarUserMediaSDK",

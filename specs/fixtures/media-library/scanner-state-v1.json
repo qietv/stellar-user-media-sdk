@@ -164,6 +164,44 @@
           "stable:file-cafe",
           "stable:file-foundation-s01e01"
         ]
+      },
+      "expected_library_snapshot": {
+        "schema_version": 1,
+        "sources": [
+          "source-scanner-fixture-1"
+        ],
+        "files": [
+          {
+            "source_uid": "source-scanner-fixture-1",
+            "stable_key": "persistent:file-arrival",
+            "relative_path": "Movies/Arrival (2016).mkv",
+            "size_bytes": 1073741824,
+            "modified_at_ms": 1700000020000,
+            "etag": "arrival-v1",
+            "availability": "present",
+            "missing_scan_count": 0
+          },
+          {
+            "source_uid": "source-scanner-fixture-1",
+            "stable_key": "persistent:file-cafe",
+            "relative_path": "Movies/Café.mkv",
+            "size_bytes": 734003200,
+            "modified_at_ms": 1700000010000,
+            "etag": "cafe-v1",
+            "availability": "present",
+            "missing_scan_count": 0
+          },
+          {
+            "source_uid": "source-scanner-fixture-1",
+            "stable_key": "persistent:file-foundation-s01e01",
+            "relative_path": "Series/Foundation.S01E01.mkv",
+            "size_bytes": 900000000,
+            "modified_at_ms": 1700000030000,
+            "etag": "foundation-s01e01-v1",
+            "availability": "present",
+            "missing_scan_count": 0
+          }
+        ]
       }
     },
     {

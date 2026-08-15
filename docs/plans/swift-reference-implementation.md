@@ -2,7 +2,7 @@
 
 最后核对日期：2026-08-16
 
-当前阶段：**S3 — Scanner 状态机与公共扫描 fixture**
+当前阶段：**S4 — SQLite v1 与扫描入库**
 
 目标工具链：Swift 6.3.x、Swift 6 language mode  
 最低 Apple 平台：iOS/iPadOS 17、macOS 14、tvOS 17
@@ -65,9 +65,9 @@ v1 不包含：
 - 公共错误模型、`EncryptedCredentialEnvelope` wire model；
 - 最小电影/剧集文件名 parser；
 - repository-wide parser fixture；
-- 47 个 Swift Testing 测试，macOS debug/release 构建已通过；
+- 57 个 Swift Testing 测试，macOS debug/release 构建已通过；
 - GitHub Actions 已在 macOS 26 与 Ubuntu 24.04 首次实际通过对等验证，并固定第三方 Action SHA；
-- SwiftPM exact/revision 依赖锁定门禁，以及 7 个公开模块、605 个 symbol 的 API compatibility 基线；
+- SwiftPM exact/revision 依赖锁定门禁，以及 8 个公开模块、717 个 symbol 的 API compatibility 基线；
 - libsmb2 来源/ABI/私有静态链接 ADR、机器可读 lock、全符号前缀和 C ABI smoke guard；
 - 不依赖真实服务器的 `SMB2Transport` / `SMB2Session` seam、只读值模型和 fake transport 合同测试；
 - allowlisted C wrapper、Linux `LinuxSMB2Transport`、有界 blocking executor，以及连接、枚举、`stat`、range read 和确定性释放实现；
@@ -79,10 +79,10 @@ v1 不包含：
 
 尚未完成：
 
-- 尚未产生真实代码的 Storage、Auth、Sync 与平台 backend targets；
+- 尚未产生真实代码的 Auth、Sync 与平台 backend targets；
 - Windows compile check；
 - SMB3 encryption 的客户端合同与 server-free 测试已经完成；当前没有可用的隔离加密服务，真实服务验收推迟到 release candidate，不阻断 S2；
-- 可执行 SQLite DDL、GRDB repository 和扫描持久化实现；
+- S4 的 Linux CI 对等验证；SQLite v1 是首个正式版本，因此没有上一正式版本迁移 fixture；
 - OAuth、配置同步、Vault 密码学实现和服务端 transport；
 - StellarPlayer iOS 正式集成。
 
@@ -169,12 +169,12 @@ flowchart TD
 - [x] 明确未知枚举、缺失与 `null`、epoch 毫秒、游标分页的 Swift 编码策略；
 - [x] 建立 macOS 与 Ubuntu 的 Swift 6.3 CI；
 - [x] CI 执行 format lint、debug tests、release build、fixture tests 和 secret scan；
-- [x] 建立依赖解析记录门禁，禁止浮动 branch/range；当前无外部依赖，因此不伪造空 `Package.resolved`；
+- [x] 建立依赖解析记录门禁，禁止浮动 branch/range；S1 完成时没有外部依赖，S4 引入 GRDB 后提交精确解析记录；
 - [x] 为 public API 加入最小顶层 DocC 注释与 API compatibility 基线。
 
 完成定义：同一 commit 在 macOS 和 Linux 上执行 Core/CLI tests；代码中没有未经条件隔离的 Apple import；fixture 输出语义一致。
 
-完成证据：初始 commit `d1b8b2e` 已在 GitHub-hosted macOS 26、Ubuntu 24.04 和 repository guards 全部通过。当前 worktree 新增的依赖/API 门禁已在 macOS 本地通过，合入后的首轮 workflow 还需确认 Linux symbol graph 完全一致。CI 会拒绝 SwiftPM branch/range；新增外部依赖时要求 exact version 或 immutable revision 并提交 `Package.resolved`。`API/PublicAPI.json` 固定 `StellarCore`、`StellarRemoteMedia`、`StellarMediaLibrary`、`StellarSMB2Core` 和 umbrella module 的公开 symbol graph，API 有意变化必须显式更新并审阅 baseline diff。
+完成证据：初始 commit `d1b8b2e` 已在 GitHub-hosted macOS 26、Ubuntu 24.04 和 repository guards 全部通过；后续 S3 run `31907420283` 继续证明两端 symbol graph 一致。CI 拒绝 SwiftPM branch/range；新增外部依赖要求 exact version 或 immutable revision 并提交 `Package.resolved`。`API/PublicAPI.json` 当前固定包括 `StellarStorage` 在内的 8 个公开模块、717 个 symbol，API 有意变化必须显式更新并审阅 baseline diff。
 
 ### S2 — Linux libsmb2 只读纵向切片 ✅
 
@@ -220,7 +220,7 @@ stellar-media smb scan
 
 完成证据：macOS 已通过 26 个 Swift 测试和 API/依赖/secret/import guards。Ubuntu 26.04 已从固定 libsmb2 6.1.0 commit 重建全符号前缀静态 archive，通过 C ABI/主动取消 smoke、28 个 Swift 测试、公共 API guard 和无额外参数的 release CLI 构建；Swift `Task.cancel()` 黑洞连接测试在 2 秒门限内返回 `.cancelled`，实际为毫秒级。最终 ELF 内含私有 archive，相关 symbol 为 local，动态导出和 `DT_NEEDED` 均不含 libsmb2。LGPL kit 已从包内完整源码重建替换 archive，并用 15 个交付 object 重链接、运行及复核静态隔离。隔离真实 NAS 已使用 kit 重链接 binary 通过 SMB 2.1、3.0、3.0.2、3.1.1、required signing、递归重复扫描、`stat`、range read、离线失败和错误凭据分类验收。该 NAS 不支持 SMB3 encryption，已用 Samba 客户端对照确认；客户端的 required-encryption 配置和失败语义由 server-free 合同测试覆盖，真实加密服务验收明确推迟到 release candidate。
 
-### S3 — Scanner 状态机与公共扫描 fixture 🚧
+### S3 — Scanner 状态机与公共扫描 fixture ✅
 
 目标：把“列目录”提升为可恢复、可判断覆盖范围的媒体扫描，不依赖具体来源实现。
 
@@ -238,26 +238,28 @@ stellar-media smb scan
 - [x] 扩展文件名 parser fixture，覆盖电影、剧集、季、集、多版本、样片和无法识别文件；
 - [x] CLI 支持扫描 manifest 的重放与规范化 snapshot 比较。
 
-当前进展：来源枚举合同 v1、scanner 状态机、Swift 公共模型、`remote-enumeration-v1.json` 与 `scanner-state-v1.json` 已建立。Scanner 对根执行 `stat` 预检，以最多 32、默认 4 个并发目录请求分页遍历；每页 entries 与 checkpoint 经 `MediaScanSink` 原子提交，只有 batch 成功后内存状态才前移，pending queue 保留其他 in-flight 请求以支持安全重放；最终 completion 是唯一 missing 授权边界。fake connector 已覆盖分页重复、顺序变化、persistent-ID 移动、删除、重复 cursor、异常路径、断线续扫、取消、存储提交失败和并发上限。本地 connector 使用目录清单指纹令分页期间的变化失败关闭，并阻止 symlink 越出配置根；SMB adapter 和 WebDAV connector 复用同一 scanner，WebDAV 另覆盖跨 origin href、鉴权和 TLS 分类。parser fixture 已扩展到 series/season、多集、edition 和 sample；release CLI 可重放 `scanner-state-v1.json` 并比较规范化 snapshot。macOS 本地 47 个测试、debug/release build、公共 API、依赖、format、secret/import/libsmb2 guards 全部通过；S3 保持进行中，等待合入后的 Ubuntu 24.04 对等 CI 结果。
+完成证据：来源枚举合同 v1、scanner 状态机、Swift 公共模型、`remote-enumeration-v1.json` 与 `scanner-state-v1.json` 已建立。Scanner 对根执行 `stat` 预检，以最多 32、默认 4 个并发目录请求分页遍历；每页 entries 与 checkpoint 经 `MediaScanSink` 原子提交，只有 batch 成功后内存状态才前移，pending queue 保留其他 in-flight 请求以支持安全重放；最终 completion 是唯一 missing 授权边界。fake connector 已覆盖分页重复、顺序变化、persistent-ID 移动、删除、重复 cursor、异常路径、断线续扫、取消、存储提交失败和并发上限。本地 connector 使用目录清单指纹令分页期间的变化失败关闭，并阻止 symlink 越出配置根；SMB adapter 和 WebDAV connector 复用同一 scanner，WebDAV 另覆盖跨 origin href、鉴权和 TLS 分类。parser fixture 已扩展到 series/season、多集、edition 和 sample；release CLI 可重放 `scanner-state-v1.json` 并比较规范化 snapshot。GitHub Actions run `31907420283` 已在 macOS 26 与 Ubuntu 24.04 通过 Swift 6.3.3 API baseline、47 个测试、debug/release build、公共 fixtures、依赖/format/secret/import/libsmb2 guards；Ubuntu 另通过私有静态 libsmb2、主动取消和 LGPL relink kit 验证。
 
 完成定义：同一 fixture 重复扫描幂等；中断后续扫不会丢失已提交工作；不完整枚举不能产生删除；本地目录、SMB、WebDAV 和 fake connector 通过同一 scanner contract tests。
 
-### S4 — SQLite v1 与扫描入库 ⬜
+### S4 — SQLite v1 与扫描入库 🚧
 
 目标：让 macOS/Linux 使用同一 DDL 把扫描结果安全物化为可查询媒体库。
 
 工作：
 
-- [ ] 从现有 27 表设计提取版本化 `library.sqlite` DDL；
-- [ ] 定义 `account.sqlite` 的来源、E2EE envelope、outbox 与 cursor 表；
-- [ ] 定义可删除的 `metadata_cache.sqlite`；
-- [ ] 完成 GRDB/SQLite ADR，并精确固定 GRDB 7.11.1；
-- [ ] 每条连接启用 foreign keys、WAL、busy timeout；写入由单一 writer actor 协调；
-- [ ] 实现空库创建、逐版本 migration、checksum、`foreign_key_check` 和失败保留原库；
-- [ ] 扫描批次使用短事务；正式快照、完成标志与 missing diff 位于同一原子边界；
-- [ ] 实现 transactional outbox，业务行清理不能级联删除未上传事件；
-- [ ] CLI 新增 `db migrate`、`db verify`、`library scan`、`library inspect`；
+- [x] 从现有 27 表设计提取版本化 `library.sqlite` DDL；
+- [x] 定义 `account.sqlite` 的来源、E2EE envelope、outbox 与 cursor 表；
+- [x] 定义可删除的 `metadata_cache.sqlite`；
+- [x] 完成 GRDB/SQLite ADR，并精确固定 GRDB 7.11.1；
+- [x] 每条连接启用 foreign keys、WAL、busy timeout；写入由单一 writer actor 协调；
+- [x] 实现空库创建、逐版本 migration、checksum、`foreign_key_check` 和失败保留原库；
+- [x] 扫描批次使用短事务；正式快照、完成标志与 missing diff 位于同一原子边界；
+- [x] 实现 transactional outbox，业务行清理不能级联删除未上传事件；
+- [x] CLI 新增 `db migrate`、`db verify`、`library scan`、`library inspect`；
 - [ ] 测试空库、上一版、中断扫描、未知枚举、大型 fixture、数据库损坏和取消。
+
+当前进展：`specs/storage/sql/` 已成为三端 SQL 唯一合同入口，manifest 固定 `library` 27 表、`account` 6 表与 `metadata_cache` 3 表的 application ID、版本、表数和 SHA-256。Swift 精确固定 GRDB 7.11.1，并新增 `StellarStorage`、事务迁移、只读 verify、`LibraryStore`、`AccountStore` 与 `SQLiteMediaScanSink`。Credential envelope 与 outbox 在同一事务提交，operation UID 幂等且业务行清理不会级联丢失 outbox。公共 scanner fixture 已产生规范化数据库 snapshot；重复 full scan 幂等，persistent stable ID 移动复用原文件事实，scoped incremental 只协调范围内 missing，分页中断或任务取消会保留 checkpoint 且不误标现有文件。macOS 本地 57 个测试、新 CLI smoke、2000 文件批次、checksum 不匹配和损坏库失败保留均已通过；v1 没有上一正式版本样本，Ubuntu 对等 CI 仍待完成。
 
 完成定义：macOS/Linux 使用同一 DDL checksum；同一 scanner fixture 产生一致的规范化数据库 snapshot；迁移失败不覆盖旧库；`foreign_key_check` 为零。
 

@@ -2,6 +2,7 @@ import StellarCore
 import StellarLocalMedia
 import StellarMediaLibrary
 import StellarRemoteMedia
+import StellarStorage
 import StellarWebDAV
 
 /// Compatibility aliases exposed by the umbrella SDK module.
@@ -136,12 +137,34 @@ public typealias MediaScannerConfiguration = StellarMediaLibrary.MediaScannerCon
 public typealias MediaScanResult = StellarMediaLibrary.MediaScanResult
 /// Compatibility alias for the source-independent scanner.
 public typealias MediaScanner = StellarMediaLibrary.MediaScanner
+/// Compatibility alias for the GRDB-backed scanner sink.
+public typealias SQLiteMediaScanSink = StellarMediaLibrary.SQLiteMediaScanSink
 /// Compatibility alias for the parsed media category.
 public typealias ParsedMediaKind = StellarMediaLibrary.ParsedMediaKind
 /// Compatibility alias for a normalized filename parse result.
 public typealias ParsedMediaFilename = StellarMediaLibrary.ParsedMediaFilename
 /// Compatibility alias for the deterministic filename parser.
 public typealias MediaFilenameParser = StellarMediaLibrary.MediaFilenameParser
+/// Compatibility alias for a versioned local database kind.
+public typealias StorageDatabaseKind = StellarStorage.StorageDatabaseKind
+/// Compatibility alias for an opened and migrated SQLite database.
+public typealias StorageDatabase = StellarStorage.StorageDatabase
+/// Compatibility alias for SQLite integrity and migration verification.
+public typealias StorageVerificationReport = StellarStorage.StorageVerificationReport
+/// Compatibility alias for the encrypted credential and account outbox repository.
+public typealias AccountStore = StellarStorage.AccountStore
+/// Compatibility alias for non-secret account outbox metadata.
+public typealias AccountOutboxRecord = StellarStorage.AccountOutboxRecord
+/// Compatibility alias for media-source kinds stored in library.sqlite.
+public typealias LibrarySourceKind = StellarStorage.LibrarySourceKind
+/// Compatibility alias for non-secret library source metadata.
+public typealias LibrarySourceDefinition = StellarStorage.LibrarySourceDefinition
+/// Compatibility alias for the scanner-oriented library repository.
+public typealias LibraryStore = StellarStorage.LibraryStore
+/// Compatibility alias for a deterministic library database projection.
+public typealias LibrarySnapshot = StellarStorage.LibrarySnapshot
+/// Compatibility alias for one normalized persisted file fact.
+public typealias LibraryFileFact = StellarStorage.LibraryFileFact
 
 /// The public namespace for SDK-wide information.
 public enum StellarUserMediaSDK: Sendable {

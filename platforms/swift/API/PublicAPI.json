@@ -1529,6 +1529,50 @@
           ]
         },
         {
+          "declaration": "struct SQLiteMediaScanSink",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV",
+          "kind": "swift.struct",
+          "path": [
+            "SQLiteMediaScanSink"
+          ]
+        },
+        {
+          "declaration": "func loadCheckpoint(runUID: String) async throws -> MediaScanCheckpoint?",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV14loadCheckpoint6runUIDAA0beH0VSgSS_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaScanSink",
+            "loadCheckpoint(runUID:)"
+          ]
+        },
+        {
+          "declaration": "let store: LibraryStore",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV5store0A7Storage0C5StoreVvp",
+          "kind": "swift.property",
+          "path": [
+            "SQLiteMediaScanSink",
+            "store"
+          ]
+        },
+        {
+          "declaration": "init(store: LibraryStore)",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV5storeAC0A7Storage0C5StoreV_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "SQLiteMediaScanSink",
+            "init(store:)"
+          ]
+        },
+        {
+          "declaration": "func commit(_ batch: MediaScanBatch) async throws",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV6commityyAA0bE5BatchVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaScanSink",
+            "commit(_:)"
+          ]
+        },
+        {
           "declaration": "struct MediaScanResult",
           "identifier": "s:19StellarMediaLibrary0B10ScanResultV",
           "kind": "swift.struct",
@@ -4379,6 +4423,863 @@
         }
       ]
     },
+    "StellarStorage": {
+      "symbols": [
+        {
+          "declaration": "enum StorageDatabaseKind",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO",
+          "kind": "swift.enum",
+          "path": [
+            "StorageDatabaseKind"
+          ]
+        },
+        {
+          "declaration": "var applicationID: Int32 { get }",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO13applicationIDs5Int32Vvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageDatabaseKind",
+            "applicationID"
+          ]
+        },
+        {
+          "declaration": "case metadataCache",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO13metadataCacheyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "StorageDatabaseKind",
+            "metadataCache"
+          ]
+        },
+        {
+          "declaration": "var currentVersion: Int { get }",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO14currentVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "StorageDatabaseKind",
+            "currentVersion"
+          ]
+        },
+        {
+          "declaration": "var schemaChecksum: String { get }",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO14schemaChecksumSSvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageDatabaseKind",
+            "schemaChecksum"
+          ]
+        },
+        {
+          "declaration": "var expectedBusinessTableCount: Int { get }",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO26expectedBusinessTableCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "StorageDatabaseKind",
+            "expectedBusinessTableCount"
+          ]
+        },
+        {
+          "declaration": "case account",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO7accountyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "StorageDatabaseKind",
+            "account"
+          ]
+        },
+        {
+          "declaration": "case library",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO7libraryyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "StorageDatabaseKind",
+            "library"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:14StellarStorage0B12DatabaseKindO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "StorageDatabaseKind",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "struct StorageVerificationReport",
+          "identifier": "s:14StellarStorage0B18VerificationReportV",
+          "kind": "swift.struct",
+          "path": [
+            "StorageVerificationReport"
+          ]
+        },
+        {
+          "declaration": "let quickCheck: [String]",
+          "identifier": "s:14StellarStorage0B18VerificationReportV10quickCheckSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "quickCheck"
+          ]
+        },
+        {
+          "declaration": "let journalMode: String",
+          "identifier": "s:14StellarStorage0B18VerificationReportV11journalModeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "journalMode"
+          ]
+        },
+        {
+          "declaration": "let userVersion: Int",
+          "identifier": "s:14StellarStorage0B18VerificationReportV11userVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "userVersion"
+          ]
+        },
+        {
+          "declaration": "let applicationID: Int32",
+          "identifier": "s:14StellarStorage0B18VerificationReportV13applicationIDs5Int32Vvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "applicationID"
+          ]
+        },
+        {
+          "declaration": "let migrationChecksum: String?",
+          "identifier": "s:14StellarStorage0B18VerificationReportV17migrationChecksumSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "migrationChecksum"
+          ]
+        },
+        {
+          "declaration": "let businessTableCount: Int",
+          "identifier": "s:14StellarStorage0B18VerificationReportV18businessTableCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "businessTableCount"
+          ]
+        },
+        {
+          "declaration": "let foreignKeysEnabled: Bool",
+          "identifier": "s:14StellarStorage0B18VerificationReportV18foreignKeysEnabledSbvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "foreignKeysEnabled"
+          ]
+        },
+        {
+          "declaration": "let foreignKeyViolationCount: Int",
+          "identifier": "s:14StellarStorage0B18VerificationReportV24foreignKeyViolationCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "foreignKeyViolationCount"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:14StellarStorage0B18VerificationReportV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "StorageVerificationReport",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let kind: StorageDatabaseKind",
+          "identifier": "s:14StellarStorage0B18VerificationReportV4kindAA0B12DatabaseKindOvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "var isValid: Bool { get }",
+          "identifier": "s:14StellarStorage0B18VerificationReportV7isValidSbvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageVerificationReport",
+            "isValid"
+          ]
+        },
+        {
+          "declaration": "actor StorageDatabase",
+          "identifier": "s:14StellarStorage0B8DatabaseC",
+          "kind": "swift.class",
+          "path": [
+            "StorageDatabase"
+          ]
+        },
+        {
+          "declaration": "static func verifyExisting(kind: StorageDatabaseKind, at url: URL) async throws -> StorageVerificationReport",
+          "identifier": "s:14StellarStorage0B8DatabaseC14verifyExisting4kind2atAA0B18VerificationReportVAA0bC4KindO_10Foundation3URLVtYaKFZ",
+          "kind": "swift.type.method",
+          "path": [
+            "StorageDatabase",
+            "verifyExisting(kind:at:)"
+          ]
+        },
+        {
+          "declaration": "nonisolated let url: URL",
+          "identifier": "s:14StellarStorage0B8DatabaseC3url10Foundation3URLVvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageDatabase",
+            "url"
+          ]
+        },
+        {
+          "declaration": "nonisolated let kind: StorageDatabaseKind",
+          "identifier": "s:14StellarStorage0B8DatabaseC4kindAA0bC4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "StorageDatabase",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "static func open(kind: StorageDatabaseKind, at url: URL, clock: any SDKClock = SystemSDKClock()) async throws -> StorageDatabase",
+          "identifier": "s:14StellarStorage0B8DatabaseC4open4kind2at5clockAcA0bC4KindO_10Foundation3URLV0A4Core8SDKClock_ptYaKFZ",
+          "kind": "swift.type.method",
+          "path": [
+            "StorageDatabase",
+            "open(kind:at:clock:)"
+          ]
+        },
+        {
+          "declaration": "func verify() async throws -> StorageVerificationReport",
+          "identifier": "s:14StellarStorage0B8DatabaseC6verifyAA0B18VerificationReportVyYaKF",
+          "kind": "swift.method",
+          "path": [
+            "StorageDatabase",
+            "verify()"
+          ]
+        },
+        {
+          "declaration": "struct AccountStore",
+          "identifier": "s:14StellarStorage12AccountStoreV",
+          "kind": "swift.struct",
+          "path": [
+            "AccountStore"
+          ]
+        },
+        {
+          "declaration": "func pendingOutbox(accountUID: String) async throws -> [AccountOutboxRecord]",
+          "identifier": "s:14StellarStorage12AccountStoreV13pendingOutbox10accountUIDSayAA0cF6RecordVGSS_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "AccountStore",
+            "pendingOutbox(accountUID:)"
+          ]
+        },
+        {
+          "declaration": "func saveCredentialEnvelope(_ envelope: EncryptedCredentialEnvelope, baseRevision: Int64, operationUID suppliedOperationUID: String? = nil) async throws",
+          "identifier": "s:14StellarStorage12AccountStoreV22saveCredentialEnvelope_12baseRevision12operationUIDy0A11RemoteMedia09EncryptedfG0V_s5Int64VSSSgtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "AccountStore",
+            "saveCredentialEnvelope(_:baseRevision:operationUID:)"
+          ]
+        },
+        {
+          "declaration": "init(database: StorageDatabase, uuidGenerator: any SDKUUIDGenerating = SystemSDKUUIDGenerator()) throws",
+          "identifier": "s:14StellarStorage12AccountStoreV8database13uuidGeneratorAcA0B8DatabaseC_0A4Core17SDKUUIDGenerating_ptKcfc",
+          "kind": "swift.init",
+          "path": [
+            "AccountStore",
+            "init(database:uuidGenerator:)"
+          ]
+        },
+        {
+          "declaration": "let database: StorageDatabase",
+          "identifier": "s:14StellarStorage12AccountStoreV8databaseAA0B8DatabaseCvp",
+          "kind": "swift.property",
+          "path": [
+            "AccountStore",
+            "database"
+          ]
+        },
+        {
+          "declaration": "struct LibraryStore",
+          "identifier": "s:14StellarStorage12LibraryStoreV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryStore"
+          ]
+        },
+        {
+          "declaration": "func checkpointJSON(runUID: String) async throws -> String?",
+          "identifier": "s:14StellarStorage12LibraryStoreV14checkpointJSON6runUIDSSSgSS_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "checkpointJSON(runUID:)"
+          ]
+        },
+        {
+          "declaration": "func registerSource(_ source: LibrarySourceDefinition) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV14registerSourceyyAA0cF10DefinitionVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "registerSource(_:)"
+          ]
+        },
+        {
+          "declaration": "func commit(_ batch: LibraryScanPersistenceBatch) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV6commityyAA0C20ScanPersistenceBatchVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "commit(_:)"
+          ]
+        },
+        {
+          "declaration": "init(database: StorageDatabase, clock: any SDKClock = SystemSDKClock(), uuidGenerator: any SDKUUIDGenerating = SystemSDKUUIDGenerator()) throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV8database5clock13uuidGeneratorAcA0B8DatabaseC_0A4Core8SDKClock_pAI17SDKUUIDGenerating_ptKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryStore",
+            "init(database:clock:uuidGenerator:)"
+          ]
+        },
+        {
+          "declaration": "let database: StorageDatabase",
+          "identifier": "s:14StellarStorage12LibraryStoreV8databaseAA0B8DatabaseCvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryStore",
+            "database"
+          ]
+        },
+        {
+          "declaration": "func snapshot() async throws -> LibrarySnapshot",
+          "identifier": "s:14StellarStorage12LibraryStoreV8snapshotAA0C8SnapshotVyYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "snapshot()"
+          ]
+        },
+        {
+          "declaration": "struct LibraryFileFact",
+          "identifier": "s:14StellarStorage15LibraryFileFactV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryFileFact"
+          ]
+        },
+        {
+          "declaration": "let availability: String",
+          "identifier": "s:14StellarStorage15LibraryFileFactV12availabilitySSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryFileFact",
+            "availability"
+          ]
+        },
+        {
+          "declaration": "let relativePath: String",
+          "identifier": "s:14StellarStorage15LibraryFileFactV12relativePathSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryFileFact",
+            "relativePath"
+          ]
+        },
+        {
+          "declaration": "let missingScanCount: Int",
+          "identifier": "s:14StellarStorage15LibraryFileFactV16missingScanCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryFileFact",
+            "missingScanCount"
+          ]
+        },
+        {
+          "declaration": "let modifiedAtMilliseconds: Int64?",
+          "identifier": "s:14StellarStorage15LibraryFileFactV22modifiedAtMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryFileFact",
+            "modifiedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:14StellarStorage15LibraryFileFactV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryFileFact",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let entityTag: String?",
+          "identifier": "s:14StellarStorage15LibraryFileFactV9entityTagSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryFileFact",
+            "entityTag"
+          ]
+        },
+        {
+          "declaration": "let sizeBytes: Int64?",
+          "identifier": "s:14StellarStorage15LibraryFileFactV9sizeBytess5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryFileFact",
+            "sizeBytes"
+          ]
+        },
+        {
+          "declaration": "let sourceUID: String",
+          "identifier": "s:14StellarStorage15LibraryFileFactV9sourceUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryFileFact",
+            "sourceUID"
+          ]
+        },
+        {
+          "declaration": "let stableKey: String",
+          "identifier": "s:14StellarStorage15LibraryFileFactV9stableKeySSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryFileFact",
+            "stableKey"
+          ]
+        },
+        {
+          "declaration": "struct LibrarySnapshot",
+          "identifier": "s:14StellarStorage15LibrarySnapshotV",
+          "kind": "swift.struct",
+          "path": [
+            "LibrarySnapshot"
+          ]
+        },
+        {
+          "declaration": "let schemaVersion: Int",
+          "identifier": "s:14StellarStorage15LibrarySnapshotV13schemaVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibrarySnapshot",
+            "schemaVersion"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:14StellarStorage15LibrarySnapshotV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibrarySnapshot",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let files: [LibraryFileFact]",
+          "identifier": "s:14StellarStorage15LibrarySnapshotV5filesSayAA0C8FileFactVGvp",
+          "kind": "swift.property",
+          "path": [
+            "LibrarySnapshot",
+            "files"
+          ]
+        },
+        {
+          "declaration": "let sources: [String]",
+          "identifier": "s:14StellarStorage15LibrarySnapshotV7sourcesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "LibrarySnapshot",
+            "sources"
+          ]
+        },
+        {
+          "declaration": "enum LibrarySourceKind",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO",
+          "kind": "swift.enum",
+          "path": [
+            "LibrarySourceKind"
+          ]
+        },
+        {
+          "declaration": "case cloudDrive",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO10cloudDriveyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "cloudDrive"
+          ]
+        },
+        {
+          "declaration": "case deviceMedia",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO11deviceMediayA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "deviceMedia"
+          ]
+        },
+        {
+          "declaration": "case localFolder",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO11localFolderyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "localFolder"
+          ]
+        },
+        {
+          "declaration": "case ftp",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO3ftpyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "ftp"
+          ]
+        },
+        {
+          "declaration": "case nfs",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO3nfsyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "nfs"
+          ]
+        },
+        {
+          "declaration": "case smb",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO3smbyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "smb"
+          ]
+        },
+        {
+          "declaration": "case emby",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO4embyyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "emby"
+          ]
+        },
+        {
+          "declaration": "case plex",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO4plexyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "plex"
+          ]
+        },
+        {
+          "declaration": "case webdav",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO6webdavyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "webdav"
+          ]
+        },
+        {
+          "declaration": "case jellyfin",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO8jellyfinyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "LibrarySourceKind",
+            "jellyfin"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:14StellarStorage17LibrarySourceKindO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibrarySourceKind",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "struct AccountOutboxRecord",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV",
+          "kind": "swift.struct",
+          "path": [
+            "AccountOutboxRecord"
+          ]
+        },
+        {
+          "declaration": "let accountUID: String",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV10accountUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "AccountOutboxRecord",
+            "accountUID"
+          ]
+        },
+        {
+          "declaration": "let entityType: String",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV10entityTypeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "AccountOutboxRecord",
+            "entityType"
+          ]
+        },
+        {
+          "declaration": "let retryCount: Int",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV10retryCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "AccountOutboxRecord",
+            "retryCount"
+          ]
+        },
+        {
+          "declaration": "let baseRevision: Int64",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV12baseRevisions5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "AccountOutboxRecord",
+            "baseRevision"
+          ]
+        },
+        {
+          "declaration": "let operationUID: String",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV12operationUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "AccountOutboxRecord",
+            "operationUID"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "AccountOutboxRecord",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let sequence: Int64",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV8sequences5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "AccountOutboxRecord",
+            "sequence"
+          ]
+        },
+        {
+          "declaration": "let entityUID: String",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV9entityUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "AccountOutboxRecord",
+            "entityUID"
+          ]
+        },
+        {
+          "declaration": "let operation: String",
+          "identifier": "s:14StellarStorage19AccountOutboxRecordV9operationSSvp",
+          "kind": "swift.property",
+          "path": [
+            "AccountOutboxRecord",
+            "operation"
+          ]
+        },
+        {
+          "declaration": "struct LibrarySourceDefinition",
+          "identifier": "s:14StellarStorage23LibrarySourceDefinitionV",
+          "kind": "swift.struct",
+          "path": [
+            "LibrarySourceDefinition"
+          ]
+        },
+        {
+          "declaration": "let displayName: String",
+          "identifier": "s:14StellarStorage23LibrarySourceDefinitionV11displayNameSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibrarySourceDefinition",
+            "displayName"
+          ]
+        },
+        {
+          "declaration": "init(uid: String, kind: LibrarySourceKind, displayName: String, rootURI: String) throws",
+          "identifier": "s:14StellarStorage23LibrarySourceDefinitionV3uid4kind11displayName7rootURIACSS_AA0cD4KindOS2StKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibrarySourceDefinition",
+            "init(uid:kind:displayName:rootURI:)"
+          ]
+        },
+        {
+          "declaration": "let uid: String",
+          "identifier": "s:14StellarStorage23LibrarySourceDefinitionV3uidSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibrarySourceDefinition",
+            "uid"
+          ]
+        },
+        {
+          "declaration": "let kind: LibrarySourceKind",
+          "identifier": "s:14StellarStorage23LibrarySourceDefinitionV4kindAA0cD4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "LibrarySourceDefinition",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let rootURI: String",
+          "identifier": "s:14StellarStorage23LibrarySourceDefinitionV7rootURISSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibrarySourceDefinition",
+            "rootURI"
+          ]
+        },
+        {
+          "declaration": "struct LibraryScanPersistenceBatch",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryScanPersistenceBatch"
+          ]
+        },
+        {
+          "declaration": "let capabilities: MediaSourceCapabilities?",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV12capabilities0A11RemoteMedia0I18SourceCapabilitiesVSgvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "capabilities"
+          ]
+        },
+        {
+          "declaration": "let coverageJSON: String",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV12coverageJSONSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "coverageJSON"
+          ]
+        },
+        {
+          "declaration": "let coveredRoots: [RemoteLocator]",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV12coveredRootsSay0A11RemoteMedia0I7LocatorVGvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "coveredRoots"
+          ]
+        },
+        {
+          "declaration": "let checkpointJSON: String",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV14checkpointJSONSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "checkpointJSON"
+          ]
+        },
+        {
+          "declaration": "let discoveredEntryCount: Int64",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV20discoveredEntryCounts5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "discoveredEntryCount"
+          ]
+        },
+        {
+          "declaration": "let reconcileMissingEligible: Bool",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV24reconcileMissingEligibleSbvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "reconcileMissingEligible"
+          ]
+        },
+        {
+          "declaration": "let mode: String",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV4modeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "mode"
+          ]
+        },
+        {
+          "declaration": "let state: String",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV5stateSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "state"
+          ]
+        },
+        {
+          "declaration": "init(runUID: String, sourceUID: String, mode: String, state: String, checkpointJSON: String, coverageJSON: String, entries: [RemoteEntry], capabilities: MediaSourceCapabilities?, coveredRoots: [RemoteLocator] = [], reconcileMissingEligible: Bool = false, discoveredEntryCount: Int64, errorCode: String? = nil) throws",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV6runUID06sourceH04mode5state14checkpointJSON08coverageM07entries12capabilities12coveredRoots24reconcileMissingEligible20discoveredEntryCount9errorCodeACSS_S5SSay0A11RemoteMedia06RemoteW0VGAP23MediaSourceCapabilitiesVSgSayAP13RemoteLocatorVGSbs5Int64VSSSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "init(runUID:sourceUID:mode:state:checkpointJSON:coverageJSON:entries:capabilities:coveredRoots:reconcileMissingEligible:discoveredEntryCount:errorCode:)"
+          ]
+        },
+        {
+          "declaration": "let runUID: String",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV6runUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "runUID"
+          ]
+        },
+        {
+          "declaration": "let entries: [RemoteEntry]",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV7entriesSay0A11RemoteMedia0H5EntryVGvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "entries"
+          ]
+        },
+        {
+          "declaration": "let errorCode: String?",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV9errorCodeSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "errorCode"
+          ]
+        },
+        {
+          "declaration": "let sourceUID: String",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV9sourceUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "sourceUID"
+          ]
+        }
+      ]
+    },
     "StellarUserMediaSDK": {
       "symbols": [
         {
@@ -4427,6 +5328,14 @@
           "kind": "swift.typealias",
           "path": [
             "ParsedMediaFilename"
+          ]
+        },
+        {
+          "declaration": "typealias SQLiteMediaScanSink = SQLiteMediaScanSink",
+          "identifier": "s:19StellarUserMediaSDK06SQLiteC8ScanSinka",
+          "kind": "swift.typealias",
+          "path": [
+            "SQLiteMediaScanSink"
           ]
         },
         {
@@ -4638,6 +5547,22 @@
           ]
         },
         {
+          "declaration": "typealias AccountStore = AccountStore",
+          "identifier": "s:19StellarUserMediaSDK12AccountStorea",
+          "kind": "swift.typealias",
+          "path": [
+            "AccountStore"
+          ]
+        },
+        {
+          "declaration": "typealias LibraryStore = LibraryStore",
+          "identifier": "s:19StellarUserMediaSDK12LibraryStorea",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryStore"
+          ]
+        },
+        {
           "declaration": "typealias SDKErrorCode = SDKErrorCode",
           "identifier": "s:19StellarUserMediaSDK12SDKErrorCodea",
           "kind": "swift.typealias",
@@ -4710,6 +5635,22 @@
           ]
         },
         {
+          "declaration": "typealias LibraryFileFact = LibraryFileFact",
+          "identifier": "s:19StellarUserMediaSDK15LibraryFileFacta",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryFileFact"
+          ]
+        },
+        {
+          "declaration": "typealias LibrarySnapshot = LibrarySnapshot",
+          "identifier": "s:19StellarUserMediaSDK15LibrarySnapshota",
+          "kind": "swift.typealias",
+          "path": [
+            "LibrarySnapshot"
+          ]
+        },
+        {
           "declaration": "typealias RemoteByteRange = RemoteByteRange",
           "identifier": "s:19StellarUserMediaSDK15RemoteByteRangea",
           "kind": "swift.typealias",
@@ -4723,6 +5664,14 @@
           "kind": "swift.typealias",
           "path": [
             "RemoteEntryKind"
+          ]
+        },
+        {
+          "declaration": "typealias StorageDatabase = StorageDatabase",
+          "identifier": "s:19StellarUserMediaSDK15StorageDatabasea",
+          "kind": "swift.typealias",
+          "path": [
+            "StorageDatabase"
           ]
         },
         {
@@ -4747,6 +5696,14 @@
           "kind": "swift.typealias",
           "path": [
             "EpochMilliseconds"
+          ]
+        },
+        {
+          "declaration": "typealias LibrarySourceKind = LibrarySourceKind",
+          "identifier": "s:19StellarUserMediaSDK17LibrarySourceKinda",
+          "kind": "swift.typealias",
+          "path": [
+            "LibrarySourceKind"
           ]
         },
         {
@@ -4782,6 +5739,14 @@
           ]
         },
         {
+          "declaration": "typealias AccountOutboxRecord = AccountOutboxRecord",
+          "identifier": "s:19StellarUserMediaSDK19AccountOutboxRecorda",
+          "kind": "swift.typealias",
+          "path": [
+            "AccountOutboxRecord"
+          ]
+        },
+        {
           "declaration": "typealias RemotePathSemantics = RemotePathSemantics",
           "identifier": "s:19StellarUserMediaSDK19RemotePathSemanticsa",
           "kind": "swift.typealias",
@@ -4803,6 +5768,14 @@
           "kind": "swift.typealias",
           "path": [
             "SDKLogMetadataValue"
+          ]
+        },
+        {
+          "declaration": "typealias StorageDatabaseKind = StorageDatabaseKind",
+          "identifier": "s:19StellarUserMediaSDK19StorageDatabaseKinda",
+          "kind": "swift.typealias",
+          "path": [
+            "StorageDatabaseKind"
           ]
         },
         {
@@ -4838,6 +5811,14 @@
           ]
         },
         {
+          "declaration": "typealias LibrarySourceDefinition = LibrarySourceDefinition",
+          "identifier": "s:19StellarUserMediaSDK23LibrarySourceDefinitiona",
+          "kind": "swift.typealias",
+          "path": [
+            "LibrarySourceDefinition"
+          ]
+        },
+        {
           "declaration": "typealias SDKCancellationChecking = SDKCancellationChecking",
           "identifier": "s:19StellarUserMediaSDK23SDKCancellationCheckinga",
           "kind": "swift.typealias",
@@ -4867,6 +5848,14 @@
           "kind": "swift.typealias",
           "path": [
             "RemotePathCaseSensitivity"
+          ]
+        },
+        {
+          "declaration": "typealias StorageVerificationReport = StorageVerificationReport",
+          "identifier": "s:19StellarUserMediaSDK25StorageVerificationReporta",
+          "kind": "swift.typealias",
+          "path": [
+            "StorageVerificationReport"
           ]
         },
         {

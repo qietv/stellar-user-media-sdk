@@ -4,10 +4,18 @@
 
 Swift、Android 与 OpenHarmony 均采用 SQLite 作为本地事实库，使用相同的逻辑 schema 和迁移编号。三端可选择不同封装层，但落盘字段、唯一约束、外键和事务边界必须兼容。
 
+可执行 v1 合同由 [`schema-manifest-v1.json`](schema-manifest-v1.json) 固定 checksum，并分别位于：
+
+- [`library-v1.sql`](sql/library-v1.sql)：27 张核心业务表；
+- [`account-v1.sql`](sql/account-v1.sql)：来源配置、加密 envelope、冲突、outbox 与 cursor；
+- [`metadata-cache-v1.sql`](sql/metadata-cache-v1.sql)：3 张可删除缓存表。
+
+研究文档中的 SQL 只保留设计推导与数据字典；若与上述可执行合同冲突，以 `specs/storage/sql/` 为准。数据库身份、GRDB 采用方式、连接参数和迁移失败策略见 [ADR-0004](../../docs/decisions/0004-sqlite-storage-and-migrations.md)。
+
 持久化分为三个逻辑域，其中媒体库域拆成核心库与缓存库：
 
 - 平台安全存储：Stellar OAuth token、设备私钥和 Credential Vault 解锁材料；不是 SQLite。
-- `account.sqlite`：账号资料、可同步媒体源配置、字段级 AEAD 加密的第三方凭据 envelope，以及各自的同步 outbox。其最终 DDL 在账号服务协议和 Vault key 协议确定后单独版本化，不计入媒体库 27 表。
+- `account.sqlite`：账号资料、可同步媒体源配置、字段级 AEAD 加密的第三方凭据 envelope，以及各自的同步 outbox。v1 DDL 不保存 Vault key、设备私钥或 Stellar OAuth token，也不计入媒体库 27 表。
 - `library.sqlite`：27 张媒体库核心表，包括扫描、文件、影视实体、用户状态和媒体库同步状态。
 - `metadata_cache.sqlite`：3 张可删除、可重建的供应商响应、匹配候选和图片文件缓存表。
 
