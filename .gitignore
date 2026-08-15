@@ -1,0 +1,41 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+secrets.*
+*.pem
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+
+# Python reference tools
+__pycache__/
+*.py[cod]
+.venv/
+
+# Swift / Xcode
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+
+# OHOS / ArkTS
+oh_modules/
+node_modules/
+.hvigor/
+
+# Editors and local artifacts
+.vscode/
+*.log
+artwork-cache/
+metadata-cache/
+

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "epoch_ms": 1700000000123,
+  "continued_page": {
+    "items": [
+      {
+        "uid": "item-1"
+      }
+    ],
+    "next_cursor": "cursor-2"
+  },
+  "terminal_page": {
+    "items": [],
+    "next_cursor": null
+  }
+}

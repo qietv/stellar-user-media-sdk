@@ -1,0 +1,76 @@
+name: Swift SDK
+
+on:
+  push:
+    paths:
+      - ".github/workflows/swift.yml"
+      - "platforms/swift/**"
+      - "specs/**"
+      - "tools/ci/**"
+  pull_request:
+    paths:
+      - ".github/workflows/swift.yml"
+      - "platforms/swift/**"
+      - "specs/**"
+      - "tools/ci/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swift-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable-swift:
+    name: Swift 6.3 / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-26
+          - ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: platforms/swift
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify Swift 6.3 toolchain
+        run: |
+          swift --version
+          swift --version | grep -E "Swift version 6\.3\."
+
+      - name: Lint Swift format
+        run: swift format lint --recursive --strict Sources Tests Package.swift
+
+      - name: Run debug and shared fixture tests
+        run: swift test -c debug
+
+      - name: Build release SDK and CLI
+        run: swift build -c release
+
+      - name: Smoke-test release CLI
+        run: |
+          swift run -c release stellar-media version
+          swift run -c release stellar-media parse "The.Matrix.1999.2160p.mkv"
+
+  repository-guards:
+    name: Repository guards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Scan tracked content for high-confidence secrets
+        run: python3 tools/ci/secret_scan.py --root .
+
+      - name: Reject Apple frameworks in portable Swift targets
+        run: python3 tools/ci/check_portable_swift_imports.py --root .

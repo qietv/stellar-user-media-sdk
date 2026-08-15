@@ -1,0 +1,69 @@
+# Swift SDK
+
+面向 iOS、iPadOS、macOS 和 tvOS 的原生 Swift 实现。
+
+完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。当前阶段是 S1：模块边界与跨平台构建；首个真实数据里程碑是在 Linux 上通过 libsmb2 完成只读 SMB2/3 扫库验收。
+
+## 工具链与兼容基线
+
+- Swift tools version：6.3；使用 Swift 6 语言模式；
+- 最低 iOS/iPadOS：17；
+- 最低 macOS：14；
+- 最低 tvOS：17；
+- 开发与 CI 使用最新稳定 Swift 6.3.x patch 版本，升级 minor/major 前先运行公共 JSON fixture 和 API compatibility 测试。
+
+Swift 的 `Codable` 实现必须通过共享 fixture 验证 wire format。公共模型显式声明 `CodingKeys`，不依赖属性名推导、系统默认日期格式或未指定的字典顺序；时间统一使用 Unix epoch 毫秒。
+
+## 目录
+
+```text
+Sources/StellarCore/
+Sources/StellarRemoteMedia/
+Sources/StellarMediaLibrary/
+Sources/StellarUserMediaSDK/       # umbrella facade
+Sources/StellarMediaCLI/
+Tests/StellarUserMediaSDKTests/
+```
+
+当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、加密凭据 envelope、最小文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。Core、RemoteMedia 和 MediaLibrary 已是独立 target；其余 target 在第一次产生真实代码时加入。
+
+`StellarCore` 当前公开：
+
+- `SDKRuntimeDependencies`：注入 clock、UUID、logger 和 cancellation checker；
+- `RetryExecutor`：使用注入时钟执行确定性指数退避，并且不重试取消；
+- `SensitiveDataRedactor` / `RedactingSDKLogger`：在数据进入应用日志 sink 前统一脱敏；
+- `FieldPresence` / `CursorPage` / `EpochMilliseconds`：实现 [`JSON Wire Format v1`](../../specs/core/wire-format.md)。
+
+## 构建与运行
+
+```bash
+cd platforms/swift
+swift test
+swift build -c release
+swift run stellar-media version
+swift run stellar-media parse "The.Matrix.1999.2160p.mkv"
+```
+
+GitHub Actions 在 `macos-26` 和 `ubuntu-24.04` 上执行相同的 Swift 6.3 format lint、debug/fixture tests、release build 和 CLI smoke tests；仓库守卫同时执行高置信度 secret scan 与 portable target Apple-import 检查。
+
+## 实现约定
+
+- 对外 API 采用 `async throws`；持续状态采用 `AsyncSequence`，按需提供 Combine 适配。
+- 会话、数据库写入和扫描协调器分别由 actor 串行化。
+- OAuth 使用 `ASWebAuthenticationSession`，令牌存入 Keychain。
+- 第三方连接凭据只以 E2EE envelope 进入 `account.sqlite`；Vault key 解锁材料存入 Keychain。
+- SQLite 封装必须支持 WAL、外键、迁移事务和取消；具体库在 ADR 中决定。
+- 远程媒体读取抽象为可取消、支持 range 的字节流，不让播放器依赖具体连接器。
+- 图片缓存与系统缓存目录集成；不把可再下载图片放入备份。
+
+## 首批公共入口
+
+- `StellarUserMediaClient`
+- `SessionManager`
+- `MediaSourceRepository`
+- `MediaSourceConnector`
+- `LibraryScanner`
+- `LibraryRepository`
+- `PosterWallRepository`
+
+`Package.swift` 同时导出 `StellarUserMediaSDK` library 和 `stellar-media` executable。CLI 是 SDK 的测试宿主，不建立另一份业务实现。

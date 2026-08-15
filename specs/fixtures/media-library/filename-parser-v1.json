@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "input": "/Movies/The.Matrix.1999.2160p.mkv",
+      "expected": {
+        "kind": "movie",
+        "title": "The Matrix",
+        "year": 1999,
+        "source_name": "The.Matrix.1999.2160p.mkv"
+      }
+    },
+    {
+      "input": "Show.Name.S02E07.1080p.mkv",
+      "expected": {
+        "kind": "episode",
+        "title": "Show Name",
+        "season": 2,
+        "episode": 7,
+        "source_name": "Show.Name.S02E07.1080p.mkv"
+      }
+    },
+    {
+      "input": "Home Video.mov",
+      "expected": {
+        "kind": "unknown",
+        "title": "Home Video",
+        "source_name": "Home Video.mov"
+      }
+    }
+  ]
+}
