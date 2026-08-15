@@ -67,7 +67,7 @@ public struct LocalMediaSourceConnector: MediaSourceConnector {
       configuration.pathSemantics
       ?? Self.detectPathSemantics(at: configuration.rootURL)
     let capabilities = try MediaSourceCapabilities(
-      stableIDScope: rootStableID == nil ? .none : .persistent,
+      stableIDScope: rootStableID == nil ? .none : .scan,
       pathSemantics: pathSemantics,
       supportsRangeReads: true,
       supportsChangeCursor: false,

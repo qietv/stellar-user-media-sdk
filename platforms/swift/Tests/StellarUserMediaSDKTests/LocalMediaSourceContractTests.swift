@@ -28,7 +28,7 @@ struct LocalMediaSourceContractTests {
     #expect(configuration.description.contains(fixture.rootURL.path) == false)
     #expect(rootEntry.kind == .directory)
     #expect(rootEntry.stableID != nil)
-    #expect(capabilities.stableIDScope == .persistent)
+    #expect(capabilities.stableIDScope == .scan)
     #expect(capabilities.supportsRangeReads)
 
     var entries: [RemoteEntry] = []

@@ -259,7 +259,7 @@ stellar-media smb scan
 - [x] CLI 新增 `db migrate`、`db verify`、`library scan`、`library inspect`；
 - [ ] 测试空库、上一版、中断扫描、未知枚举、大型 fixture、数据库损坏和取消。
 
-当前进展：`specs/storage/sql/` 已成为三端 SQL 唯一合同入口，manifest 固定 `library` 27 表、`account` 6 表与 `metadata_cache` 3 表的 application ID、版本、表数和 SHA-256。Swift 精确固定 GRDB 7.11.1，并新增 `StellarStorage`、事务迁移、只读 verify、`LibraryStore`、`AccountStore` 与 `SQLiteMediaScanSink`。Credential envelope 与 outbox 在同一事务提交，operation UID 幂等且业务行清理不会级联丢失 outbox。公共 scanner fixture 已产生规范化数据库 snapshot；重复 full scan 幂等，persistent stable ID 移动复用原文件事实，scoped incremental 只协调范围内 missing，分页中断或任务取消会保留 checkpoint 且不误标现有文件。macOS 本地 57 个测试、新 CLI smoke、2000 文件批次、checksum 不匹配和损坏库失败保留均已通过；v1 没有上一正式版本样本，Ubuntu 对等 CI 仍待完成。
+当前进展：`specs/storage/sql/` 已成为三端 SQL 唯一合同入口，manifest 固定 `library` 27 表、`account` 6 表与 `metadata_cache` 3 表的 application ID、版本、表数和 SHA-256。Swift 精确固定 GRDB 7.11.1，并新增 `StellarStorage`、事务迁移、只读 verify、`LibraryStore`、`AccountStore` 与 `SQLiteMediaScanSink`。Credential envelope 与 outbox 在同一事务提交，operation UID 幂等且业务行清理不会级联丢失 outbox。公共 scanner fixture 已产生规范化数据库 snapshot；重复 full scan 幂等，真正的 persistent stable ID 移动复用原文件事实，本地 `device:inode` 只声明为 scan scope 以避免 Linux inode 复用误判移动，scoped incremental 只协调范围内 missing，分页中断或任务取消会保留 checkpoint 且不误标现有文件。macOS 本地 57 个测试、新 CLI smoke、2000 文件批次、checksum 不匹配和损坏库失败保留均已通过；v1 没有上一正式版本样本，Ubuntu 对等 CI 仍待完成。
 
 完成定义：macOS/Linux 使用同一 DDL checksum；同一 scanner fixture 产生一致的规范化数据库 snapshot；迁移失败不覆盖旧库；`foreign_key_check` 为零。
 

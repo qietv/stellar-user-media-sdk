@@ -227,13 +227,18 @@ struct SQLiteMediaScanSinkTests {
     let renamed = try #require(
       secondSnapshot.files.first(where: { $0.relativePath == "Arrival Renamed.mkv" })
     )
+    let original = try #require(
+      secondSnapshot.files.first(where: { $0.relativePath == "Arrival.mkv" })
+    )
     let missing = try #require(
       secondSnapshot.files.first(where: { $0.relativePath == "Old.mkv" })
     )
 
-    #expect(secondSnapshot.files.count == 3)
-    #expect(renamed.stableKey == originalStableKey)
+    #expect(secondSnapshot.files.count == 4)
+    #expect(renamed.stableKey != originalStableKey)
     #expect(renamed.availability == "present")
+    #expect(original.stableKey == originalStableKey)
+    #expect(original.availability == "missing")
     #expect(missing.availability == "missing")
     #expect(missing.missingScanCount == 1)
     #expect(
