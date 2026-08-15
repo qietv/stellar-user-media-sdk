@@ -146,6 +146,49 @@ def index_symbols(payload: dict[str, Any]) -> dict[tuple[str, str], dict[str, An
     return indexed
 
 
+def portable_signature(module: str, symbol: dict[str, Any]) -> tuple[str, str, tuple[str, ...], str]:
+    """Identify the same declaration when Swift mangles imported types differently.
+
+    Swift's precise identifiers are not fully portable across Darwin and Linux. In
+    particular, Foundation overlay substitutions can give an otherwise identical
+    declaration a different mangled identifier. The human-readable declaration,
+    path, and symbol kind remain stable and together preserve overload identity.
+    """
+    return (
+        module,
+        symbol.get("kind", ""),
+        tuple(symbol.get("path", [])),
+        symbol.get("declaration", ""),
+    )
+
+
+def discard_portable_matches(
+    expected_only: set[tuple[str, str]],
+    actual_only: set[tuple[str, str]],
+    expected_symbols: dict[tuple[str, str], dict[str, Any]],
+    actual_symbols: dict[tuple[str, str], dict[str, Any]],
+) -> None:
+    """Discard unmatched precise IDs that describe the same portable API."""
+    expected_by_signature: dict[tuple[str, str, tuple[str, ...], str], list[tuple[str, str]]] = {}
+    actual_by_signature: dict[tuple[str, str, tuple[str, ...], str], list[tuple[str, str]]] = {}
+
+    for key in expected_only:
+        expected_by_signature.setdefault(
+            portable_signature(key[0], expected_symbols[key]), []
+        ).append(key)
+    for key in actual_only:
+        actual_by_signature.setdefault(
+            portable_signature(key[0], actual_symbols[key]), []
+        ).append(key)
+
+    for signature in expected_by_signature.keys() & actual_by_signature.keys():
+        expected_keys = sorted(expected_by_signature[signature])
+        actual_keys = sorted(actual_by_signature[signature])
+        for expected_key, actual_key in zip(expected_keys, actual_keys):
+            expected_only.discard(expected_key)
+            actual_only.discard(actual_key)
+
+
 def describe(module: str, symbol: dict[str, Any]) -> str:
     path = ".".join(symbol.get("path", []))
     return f"{module}.{path}: {symbol.get('declaration', '')}"
@@ -154,10 +197,14 @@ def describe(module: str, symbol: dict[str, Any]) -> str:
 def compare(expected: dict[str, Any], actual: dict[str, Any]) -> list[str]:
     expected_symbols = index_symbols(expected)
     actual_symbols = index_symbols(actual)
+    expected_only = set(expected_symbols.keys() - actual_symbols.keys())
+    actual_only = set(actual_symbols.keys() - expected_symbols.keys())
+    discard_portable_matches(expected_only, actual_only, expected_symbols, actual_symbols)
+
     findings: list[str] = []
-    for key in sorted(expected_symbols.keys() - actual_symbols.keys()):
+    for key in sorted(expected_only):
         findings.append(f"removed {describe(key[0], expected_symbols[key])}")
-    for key in sorted(actual_symbols.keys() - expected_symbols.keys()):
+    for key in sorted(actual_only):
         findings.append(f"added {describe(key[0], actual_symbols[key])}")
     for key in sorted(expected_symbols.keys() & actual_symbols.keys()):
         if expected_symbols[key] != actual_symbols[key]:

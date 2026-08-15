@@ -136,3 +136,6 @@ jobs:
 
       - name: Verify libsmb2 lock and binding boundary
         run: python3 tools/ci/check_libsmb2_binding.py --root .
+
+      - name: Test repository guards
+        run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
