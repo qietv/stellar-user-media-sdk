@@ -1,6 +1,7 @@
 #ifndef STELLAR_LIBSMB2_PRIVATE_SHIM_H
 #define STELLAR_LIBSMB2_PRIVATE_SHIM_H
 
+#include <stdint.h>
 #include <time.h>
 
 #define smb2_init_context stellar_user_media_sdk_libsmb2_smb2_init_context

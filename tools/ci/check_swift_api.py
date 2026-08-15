@@ -20,7 +20,29 @@ DEFAULT_MODULES = (
 )
 
 
-def emit_symbol_graphs(package_root: Path) -> Path:
+def has_only_ignorable_test_bundle_failures(output: str, modules: tuple[str, ...]) -> bool:
+    """Recognize SwiftPM failures for synthetic test bundles outside the reviewed API."""
+    error_lines = [
+        line.strip() for line in output.splitlines() if line.strip().startswith("error:")
+    ]
+    if not error_lines:
+        return False
+
+    pattern = re.compile(
+        r"error: Failed to emit symbol graph for '([^']+)': "
+        r"Couldn't load module '[^']+' in the current SDK and search paths\."
+    )
+    for line in error_lines:
+        match = pattern.fullmatch(line)
+        if not match:
+            return False
+        module = match.group(1)
+        if module in modules or not module.endswith(("PackageTests", "PackageDiscoveredTests")):
+            return False
+    return True
+
+
+def emit_symbol_graphs(package_root: Path, modules: tuple[str, ...]) -> Path:
     completed = subprocess.run(
         [
             "swift",
@@ -37,17 +59,20 @@ def emit_symbol_graphs(package_root: Path) -> Path:
         text=True,
     )
     output = "\n".join(part for part in (completed.stdout, completed.stderr) if part)
-    if completed.returncode != 0:
-        raise RuntimeError(output.strip() or "swift package dump-symbol-graph failed")
     matches = re.findall(r"Files written to (.+)", output)
     if matches:
-        return Path(matches[-1].strip()).resolve()
-    candidates = sorted(
-        package_root.glob(".build/**/symbolgraph"), key=lambda path: path.stat().st_mtime
-    )
-    if not candidates:
-        raise RuntimeError("SwiftPM did not report or create a symbol graph directory")
-    return candidates[-1].resolve()
+        graph_dir = Path(matches[-1].strip()).resolve()
+    else:
+        candidates = sorted(
+            package_root.glob(".build/**/symbolgraph"), key=lambda path: path.stat().st_mtime
+        )
+        if not candidates:
+            raise RuntimeError(output.strip() or "SwiftPM did not create a symbol graph directory")
+        graph_dir = candidates[-1].resolve()
+
+    if completed.returncode != 0 and not has_only_ignorable_test_bundle_failures(output, modules):
+        raise RuntimeError(output.strip() or "swift package dump-symbol-graph failed")
+    return graph_dir
 
 
 def declaration(symbol: dict[str, Any]) -> str:
@@ -149,7 +174,7 @@ def main() -> int:
     modules = tuple(args.modules or DEFAULT_MODULES)
 
     try:
-        graph_dir = emit_symbol_graphs(package_root)
+        graph_dir = emit_symbol_graphs(package_root, modules)
         actual, documentation_findings = snapshot(graph_dir, modules)
     except (RuntimeError, OSError, json.JSONDecodeError) as error:
         print(f"Swift API check failed: {error}")
