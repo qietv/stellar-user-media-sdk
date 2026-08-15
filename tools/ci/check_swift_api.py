@@ -14,6 +14,8 @@ from typing import Any
 DEFAULT_MODULES = (
     "StellarCore",
     "StellarRemoteMedia",
+    "StellarLocalMedia",
+    "StellarWebDAV",
     "StellarMediaLibrary",
     "StellarSMB2Core",
     "StellarUserMediaSDK",

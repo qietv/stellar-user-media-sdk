@@ -1,0 +1,856 @@
+import Foundation
+import StellarCore
+import StellarRemoteMedia
+
+/// The source work performed by a media scan run.
+public enum MediaScanMode: String, Codable, Sendable {
+  /// Recursively enumerates the configured source root.
+  case full
+  /// Recursively enumerates one or more explicit directory scopes.
+  case incremental
+  /// Reprocesses already indexed facts without enumerating the source.
+  case repair
+}
+
+/// Durable phases in the source-independent scanner state machine.
+public enum MediaScanPhase: String, Codable, Sendable {
+  case queued
+  case enumerating
+  case finalizing
+  case completed
+  case failed
+  case cancelled
+}
+
+/// A stable request for one resumable media scan run.
+public struct MediaScanRequest: Codable, Equatable, Sendable {
+  public let runUID: String
+  public let sourceUID: String
+  public let mode: MediaScanMode
+  public let roots: [RemoteLocator]
+
+  public init(
+    runUID: String,
+    sourceUID: String,
+    mode: MediaScanMode,
+    roots: [RemoteLocator]
+  ) throws {
+    guard !runUID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !runUID.contains("\0"),
+      !sourceUID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !sourceUID.contains("\0"),
+      roots.allSatisfy({ $0.sourceUID == sourceUID })
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "media scan request is invalid")
+    }
+
+    switch mode {
+    case .full:
+      guard roots.count == 1, roots[0].path.isRoot else {
+        throw SDKError(
+          code: .invalidConfiguration,
+          message: "full scan must cover exactly the source root"
+        )
+      }
+    case .incremental:
+      guard !roots.isEmpty else {
+        throw SDKError(
+          code: .invalidConfiguration,
+          message: "incremental scan requires an explicit scope"
+        )
+      }
+    case .repair:
+      break
+    }
+
+    self.runUID = runUID
+    self.sourceUID = sourceUID
+    self.mode = mode
+    self.roots = roots
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    do {
+      try self.init(
+        runUID: container.decode(String.self, forKey: .runUID),
+        sourceUID: container.decode(String.self, forKey: .sourceUID),
+        mode: container.decode(MediaScanMode.self, forKey: .mode),
+        roots: container.decode([RemoteLocator].self, forKey: .roots)
+      )
+    } catch let error as SDKError {
+      throw DecodingError.dataCorrupted(
+        DecodingError.Context(codingPath: decoder.codingPath, debugDescription: error.message)
+      )
+    }
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case runUID = "run_uid"
+    case sourceUID = "source_uid"
+    case mode
+    case roots
+  }
+}
+
+/// One resumable cursor position in the bounded directory work queue.
+public struct MediaScanPageCursor: Codable, Equatable, Hashable, Sendable {
+  public let directory: RemoteLocator
+  public let cursor: String?
+
+  public init(directory: RemoteLocator, cursor: String? = nil) throws {
+    guard cursor?.isEmpty != true else {
+      throw SDKError(code: .invalidConfiguration, message: "scan page cursor must not be empty")
+    }
+    self.directory = directory
+    self.cursor = cursor
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    do {
+      try self.init(
+        directory: container.decode(RemoteLocator.self, forKey: .directory),
+        cursor: container.decodeIfPresent(String.self, forKey: .cursor)
+      )
+    } catch let error as SDKError {
+      throw DecodingError.dataCorrupted(
+        DecodingError.Context(codingPath: decoder.codingPath, debugDescription: error.message)
+      )
+    }
+  }
+}
+
+/// The preflight identity of one covered directory root.
+public struct MediaScanRootIdentity: Codable, Equatable, Sendable {
+  public let locator: RemoteLocator
+  public let stableID: String?
+
+  public init(entry: RemoteEntry) throws {
+    guard entry.kind == .directory else {
+      throw SDKError(code: .invalidConfiguration, message: "scan root must be a directory")
+    }
+    locator = entry.locator
+    stableID = entry.stableID
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case locator
+    case stableID = "stable_id"
+  }
+}
+
+/// A durable checkpoint committed after every successfully validated directory page.
+public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
+  public let schemaVersion: Int
+  public let request: MediaScanRequest
+  public let phase: MediaScanPhase
+  public let capabilities: MediaSourceCapabilities?
+  public let rootIdentities: [MediaScanRootIdentity]
+  public let pendingPages: [MediaScanPageCursor]
+  public let completedPages: [MediaScanPageCursor]
+  public let seenEntryIdentityKeys: [String]
+  public let seenDirectoryIdentityKeys: [String]
+  public let discoveredEntryCount: Int64
+  public let processedPageCount: Int64
+  public let lastErrorCode: SDKErrorCode?
+
+  /// Creates the initial queued checkpoint for a scan request.
+  public init(request: MediaScanRequest) throws {
+    let pendingPages: [MediaScanPageCursor]
+    if request.mode == .repair {
+      pendingPages = []
+    } else {
+      pendingPages = try request.roots.map { try MediaScanPageCursor(directory: $0) }
+    }
+    self.init(
+      request: request,
+      phase: .queued,
+      capabilities: nil,
+      rootIdentities: [],
+      pendingPages: pendingPages,
+      completedPages: [],
+      seenEntryIdentityKeys: [],
+      seenDirectoryIdentityKeys: [],
+      discoveredEntryCount: 0,
+      processedPageCount: 0,
+      lastErrorCode: nil
+    )
+  }
+
+  private init(
+    request: MediaScanRequest,
+    phase: MediaScanPhase,
+    capabilities: MediaSourceCapabilities?,
+    rootIdentities: [MediaScanRootIdentity],
+    pendingPages: [MediaScanPageCursor],
+    completedPages: [MediaScanPageCursor],
+    seenEntryIdentityKeys: [String],
+    seenDirectoryIdentityKeys: [String],
+    discoveredEntryCount: Int64,
+    processedPageCount: Int64,
+    lastErrorCode: SDKErrorCode?
+  ) {
+    schemaVersion = 1
+    self.request = request
+    self.phase = phase
+    self.capabilities = capabilities
+    self.rootIdentities = rootIdentities
+    self.pendingPages = pendingPages
+    self.completedPages = completedPages
+    self.seenEntryIdentityKeys = seenEntryIdentityKeys
+    self.seenDirectoryIdentityKeys = seenDirectoryIdentityKeys
+    self.discoveredEntryCount = discoveredEntryCount
+    self.processedPageCount = processedPageCount
+    self.lastErrorCode = lastErrorCode
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+    let request = try container.decode(MediaScanRequest.self, forKey: .request)
+    let phase = try container.decode(MediaScanPhase.self, forKey: .phase)
+    let capabilities = try container.decodeIfPresent(
+      MediaSourceCapabilities.self,
+      forKey: .capabilities
+    )
+    let rootIdentities = try container.decode(
+      [MediaScanRootIdentity].self,
+      forKey: .rootIdentities
+    )
+    let pendingPages = try container.decode([MediaScanPageCursor].self, forKey: .pendingPages)
+    let completedPages = try container.decode([MediaScanPageCursor].self, forKey: .completedPages)
+    let seenEntryIdentityKeys = try container.decode(
+      [String].self,
+      forKey: .seenEntryIdentityKeys
+    )
+    let seenDirectoryIdentityKeys = try container.decode(
+      [String].self,
+      forKey: .seenDirectoryIdentityKeys
+    )
+    let discoveredEntryCount = try container.decode(Int64.self, forKey: .discoveredEntryCount)
+    let processedPageCount = try container.decode(Int64.self, forKey: .processedPageCount)
+    let lastErrorCode = try container.decodeIfPresent(
+      SDKErrorCode.self,
+      forKey: .lastErrorCode
+    )
+
+    guard schemaVersion == 1,
+      discoveredEntryCount >= 0,
+      processedPageCount >= 0,
+      rootIdentities.allSatisfy({ $0.locator.sourceUID == request.sourceUID }),
+      pendingPages.allSatisfy({ $0.directory.sourceUID == request.sourceUID }),
+      completedPages.allSatisfy({ $0.directory.sourceUID == request.sourceUID }),
+      Set(pendingPages).count == pendingPages.count,
+      Set(completedPages).count == completedPages.count,
+      Set(pendingPages).isDisjoint(with: completedPages),
+      Set(seenEntryIdentityKeys).count == seenEntryIdentityKeys.count,
+      Set(seenDirectoryIdentityKeys).count == seenDirectoryIdentityKeys.count,
+      Set(seenDirectoryIdentityKeys).isSubset(of: seenEntryIdentityKeys),
+      discoveredEntryCount == Int64(seenEntryIdentityKeys.count),
+      processedPageCount == Int64(completedPages.count),
+      rootIdentities.isEmpty || rootIdentities.map(\.locator) == request.roots,
+      ![MediaScanPhase.finalizing, .completed].contains(phase) || pendingPages.isEmpty,
+      ![MediaScanPhase.failed, .cancelled].contains(phase) || lastErrorCode != nil,
+      ![MediaScanPhase.finalizing, .completed].contains(phase) || lastErrorCode == nil,
+      request.mode != .repair
+        || (pendingPages.isEmpty && completedPages.isEmpty && seenEntryIdentityKeys.isEmpty),
+      request.mode == .repair || ![MediaScanPhase.finalizing, .completed].contains(phase)
+        || rootIdentities.count == request.roots.count
+    else {
+      throw DecodingError.dataCorrupted(
+        DecodingError.Context(
+          codingPath: decoder.codingPath,
+          debugDescription: "media scan checkpoint is invalid"
+        )
+      )
+    }
+
+    self.init(
+      request: request,
+      phase: phase,
+      capabilities: capabilities,
+      rootIdentities: rootIdentities,
+      pendingPages: pendingPages,
+      completedPages: completedPages,
+      seenEntryIdentityKeys: seenEntryIdentityKeys,
+      seenDirectoryIdentityKeys: seenDirectoryIdentityKeys,
+      discoveredEntryCount: discoveredEntryCount,
+      processedPageCount: processedPageCount,
+      lastErrorCode: lastErrorCode
+    )
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case schemaVersion = "schema_version"
+    case request
+    case phase
+    case capabilities
+    case rootIdentities = "root_identities"
+    case pendingPages = "pending_pages"
+    case completedPages = "completed_pages"
+    case seenEntryIdentityKeys = "seen_entry_identity_keys"
+    case seenDirectoryIdentityKeys = "seen_directory_identity_keys"
+    case discoveredEntryCount = "discovered_entry_count"
+    case processedPageCount = "processed_page_count"
+    case lastErrorCode = "last_error_code"
+  }
+
+  fileprivate func updating(
+    phase: MediaScanPhase? = nil,
+    capabilities: MediaSourceCapabilities?? = nil,
+    rootIdentities: [MediaScanRootIdentity]? = nil,
+    pendingPages: [MediaScanPageCursor]? = nil,
+    completedPages: [MediaScanPageCursor]? = nil,
+    seenEntryIdentityKeys: [String]? = nil,
+    seenDirectoryIdentityKeys: [String]? = nil,
+    discoveredEntryCount: Int64? = nil,
+    processedPageCount: Int64? = nil,
+    lastErrorCode: SDKErrorCode?? = nil
+  ) -> MediaScanCheckpoint {
+    MediaScanCheckpoint(
+      request: request,
+      phase: phase ?? self.phase,
+      capabilities: capabilities ?? self.capabilities,
+      rootIdentities: rootIdentities ?? self.rootIdentities,
+      pendingPages: pendingPages ?? self.pendingPages,
+      completedPages: completedPages ?? self.completedPages,
+      seenEntryIdentityKeys: seenEntryIdentityKeys ?? self.seenEntryIdentityKeys,
+      seenDirectoryIdentityKeys: seenDirectoryIdentityKeys ?? self.seenDirectoryIdentityKeys,
+      discoveredEntryCount: discoveredEntryCount ?? self.discoveredEntryCount,
+      processedPageCount: processedPageCount ?? self.processedPageCount,
+      lastErrorCode: lastErrorCode ?? self.lastErrorCode
+    )
+  }
+}
+
+/// The authoritative boundary exposed only when a scan is safely finalized.
+public struct MediaScanCompletion: Codable, Equatable, Sendable {
+  public let runUID: String
+  public let sourceUID: String
+  public let mode: MediaScanMode
+  public let coveredRoots: [RemoteLocator]
+  public let reconcileMissingEligible: Bool
+  public let discoveredEntryCount: Int64
+  public let processedPageCount: Int64
+
+  fileprivate init(checkpoint: MediaScanCheckpoint) {
+    runUID = checkpoint.request.runUID
+    sourceUID = checkpoint.request.sourceUID
+    mode = checkpoint.request.mode
+    coveredRoots = checkpoint.request.roots
+    reconcileMissingEligible = checkpoint.request.mode != .repair
+    discoveredEntryCount = checkpoint.discoveredEntryCount
+    processedPageCount = checkpoint.processedPageCount
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case runUID = "run_uid"
+    case sourceUID = "source_uid"
+    case mode
+    case coveredRoots = "covered_roots"
+    case reconcileMissingEligible = "reconcile_missing_eligible"
+    case discoveredEntryCount = "discovered_entry_count"
+    case processedPageCount = "processed_page_count"
+  }
+}
+
+/// One atomic scanner write: entries and the checkpoint that acknowledges their page.
+public struct MediaScanBatch: Sendable {
+  public let entries: [RemoteEntry]
+  public let checkpoint: MediaScanCheckpoint
+  public let completion: MediaScanCompletion?
+
+  public init(
+    entries: [RemoteEntry],
+    checkpoint: MediaScanCheckpoint,
+    completion: MediaScanCompletion? = nil
+  ) {
+    self.entries = entries
+    self.checkpoint = checkpoint
+    self.completion = completion
+  }
+}
+
+/// Atomic persistence seam implemented by S4 storage and by fixture-backed tests.
+public protocol MediaScanSink: Sendable {
+  func commit(_ batch: MediaScanBatch) async throws
+}
+
+/// Scanner event categories that never expose source paths or stable identifiers.
+public enum MediaScanEventKind: String, Codable, Sendable {
+  case started
+  case progress
+  case checkpointed
+  case completed
+  case failed
+  case cancelled
+}
+
+/// A path-free progress event safe for application status surfaces.
+public struct MediaScanEvent: Codable, Equatable, Sendable {
+  public let kind: MediaScanEventKind
+  public let runUID: String
+  public let phase: MediaScanPhase
+  public let discoveredEntryCount: Int64
+  public let processedPageCount: Int64
+  public let pendingPageCount: Int
+  public let errorCode: SDKErrorCode?
+
+  fileprivate init(
+    kind: MediaScanEventKind,
+    checkpoint: MediaScanCheckpoint,
+    errorCode: SDKErrorCode? = nil
+  ) {
+    self.kind = kind
+    runUID = checkpoint.request.runUID
+    phase = checkpoint.phase
+    discoveredEntryCount = checkpoint.discoveredEntryCount
+    processedPageCount = checkpoint.processedPageCount
+    pendingPageCount = checkpoint.pendingPages.count
+    self.errorCode = errorCode
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case kind
+    case runUID = "run_uid"
+    case phase
+    case discoveredEntryCount = "discovered_entry_count"
+    case processedPageCount = "processed_page_count"
+    case pendingPageCount = "pending_page_count"
+    case errorCode = "error_code"
+  }
+}
+
+/// Injectable event consumer used by apps, CLI, and tests.
+public protocol MediaScanObserver: Sendable {
+  func emit(_ event: MediaScanEvent) async
+}
+
+/// An observer for callers that do not need progress events.
+public struct NoopMediaScanObserver: MediaScanObserver {
+  public init() {}
+
+  public func emit(_: MediaScanEvent) async {}
+}
+
+/// Bounded enumeration and pagination limits for one scanner instance.
+public struct MediaScannerConfiguration: Equatable, Sendable {
+  public let pageSize: Int
+  public let maxConcurrentDirectoryRequests: Int
+
+  public init() {
+    pageSize = 500
+    maxConcurrentDirectoryRequests = 4
+  }
+
+  public init(pageSize: Int, maxConcurrentDirectoryRequests: Int) throws {
+    guard (1...10_000).contains(pageSize),
+      (1...32).contains(maxConcurrentDirectoryRequests)
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "scanner configuration is invalid")
+    }
+    self.pageSize = pageSize
+    self.maxConcurrentDirectoryRequests = maxConcurrentDirectoryRequests
+  }
+}
+
+/// A completed scanner result. Failed and cancelled runs throw and never return this value.
+public struct MediaScanResult: Equatable, Sendable {
+  public let checkpoint: MediaScanCheckpoint
+  public let completion: MediaScanCompletion
+
+  fileprivate init(checkpoint: MediaScanCheckpoint, completion: MediaScanCompletion) {
+    self.checkpoint = checkpoint
+    self.completion = completion
+  }
+}
+
+/// Source-independent, resumable, bounded-concurrency directory scanner.
+public struct MediaScanner: Sendable {
+  public let configuration: MediaScannerConfiguration
+
+  public init(configuration: MediaScannerConfiguration = MediaScannerConfiguration()) {
+    self.configuration = configuration
+  }
+
+  public func scan(
+    _ request: MediaScanRequest,
+    using connector: any MediaSourceConnector,
+    sink: any MediaScanSink,
+    resumeFrom suppliedCheckpoint: MediaScanCheckpoint? = nil,
+    observer: any MediaScanObserver = NoopMediaScanObserver()
+  ) async throws -> MediaScanResult {
+    var checkpoint: MediaScanCheckpoint
+    if let suppliedCheckpoint {
+      guard suppliedCheckpoint.request == request else {
+        throw SDKError(
+          code: .invalidConfiguration,
+          message: "scan checkpoint does not match request"
+        )
+      }
+      checkpoint = suppliedCheckpoint
+    } else {
+      checkpoint = try MediaScanCheckpoint(request: request)
+      try await sink.commit(MediaScanBatch(entries: [], checkpoint: checkpoint))
+    }
+
+    if checkpoint.phase == .completed {
+      let completion = MediaScanCompletion(checkpoint: checkpoint)
+      return MediaScanResult(checkpoint: checkpoint, completion: completion)
+    }
+
+    await observer.emit(MediaScanEvent(kind: .started, checkpoint: checkpoint))
+
+    if checkpoint.phase == .finalizing || request.mode == .repair {
+      do {
+        return try await finalize(checkpoint: checkpoint, sink: sink, observer: observer)
+      } catch {
+        let failure = normalized(error)
+        try? await recordFailure(
+          failure,
+          checkpoint: &checkpoint,
+          sink: sink,
+          observer: observer
+        )
+        throw failure
+      }
+    }
+
+    let session: any MediaSourceSession
+    do {
+      try Task.checkCancellation()
+      session = try await connector.connect()
+    } catch {
+      let failure = normalized(error)
+      try? await recordFailure(failure, checkpoint: &checkpoint, sink: sink, observer: observer)
+      throw failure
+    }
+
+    do {
+      guard session.sourceUID == request.sourceUID else {
+        throw SDKError(
+          code: .invalidConfiguration,
+          message: "connector source does not match scan request"
+        )
+      }
+      let capabilities = await session.capabilities
+      if let savedCapabilities = checkpoint.capabilities,
+        savedCapabilities != capabilities
+      {
+        throw SDKError(
+          code: .invalidConfiguration,
+          message: "connector capabilities changed during resumed scan"
+        )
+      }
+      try validateCoverage(request.roots, mode: request.mode, capabilities: capabilities)
+      let rootIdentities = try await preflightRoots(
+        request.roots,
+        session: session,
+        capabilities: capabilities,
+        saved: checkpoint.rootIdentities
+      )
+
+      checkpoint = checkpoint.updating(
+        phase: .enumerating,
+        capabilities: .some(capabilities),
+        rootIdentities: rootIdentities,
+        lastErrorCode: .some(nil)
+      )
+      try await sink.commit(MediaScanBatch(entries: [], checkpoint: checkpoint))
+      await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
+
+      do {
+        checkpoint = try await enumerate(
+          session: session,
+          checkpoint: checkpoint,
+          sink: sink,
+          observer: observer
+        )
+      } catch let interruption as EnumerationInterruption {
+        checkpoint = interruption.checkpoint
+        throw interruption.underlying
+      }
+      await session.disconnect()
+      return try await finalize(checkpoint: checkpoint, sink: sink, observer: observer)
+    } catch {
+      await session.disconnect()
+      let failure = normalized(error)
+      try? await recordFailure(failure, checkpoint: &checkpoint, sink: sink, observer: observer)
+      throw failure
+    }
+  }
+
+  private func enumerate(
+    session: any MediaSourceSession,
+    checkpoint initialCheckpoint: MediaScanCheckpoint,
+    sink: any MediaScanSink,
+    observer: any MediaScanObserver
+  ) async throws -> MediaScanCheckpoint {
+    var checkpoint = initialCheckpoint
+    guard let capabilities = checkpoint.capabilities else {
+      throw SDKError(code: .invalidConfiguration, message: "scan capabilities are missing")
+    }
+
+    do {
+      return try await withThrowingTaskGroup(of: PageResponse.self) { group in
+        var active = Set<MediaScanPageCursor>()
+
+        while !checkpoint.pendingPages.isEmpty {
+          try Task.checkCancellation()
+
+          for pageCursor in checkpoint.pendingPages
+          where active.count < configuration.maxConcurrentDirectoryRequests {
+            guard !active.contains(pageCursor) else { continue }
+            active.insert(pageCursor)
+            let pageSize = configuration.pageSize
+            group.addTask {
+              try Task.checkCancellation()
+              let request = try RemoteDirectoryPageRequest(
+                directory: pageCursor.directory,
+                cursor: pageCursor.cursor,
+                limit: pageSize
+              )
+              let page = try await session.listDirectory(request)
+              try Task.checkCancellation()
+              return PageResponse(cursor: pageCursor, page: page)
+            }
+          }
+
+          guard let response = try await group.next() else {
+            throw SDKError(code: .unknown, message: "scanner work queue ended unexpectedly")
+          }
+          active.remove(response.cursor)
+
+          let nextCheckpoint = try process(
+            response,
+            checkpoint: checkpoint,
+            capabilities: capabilities
+          )
+          try await sink.commit(
+            MediaScanBatch(entries: response.page.items, checkpoint: nextCheckpoint)
+          )
+          checkpoint = nextCheckpoint
+          await observer.emit(MediaScanEvent(kind: .progress, checkpoint: checkpoint))
+          await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
+        }
+
+        checkpoint = checkpoint.updating(phase: .finalizing, lastErrorCode: .some(nil))
+        try await sink.commit(MediaScanBatch(entries: [], checkpoint: checkpoint))
+        await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
+        return checkpoint
+      }
+    } catch {
+      throw EnumerationInterruption(checkpoint: checkpoint, underlying: error)
+    }
+  }
+
+  private func process(
+    _ response: PageResponse,
+    checkpoint: MediaScanCheckpoint,
+    capabilities: MediaSourceCapabilities
+  ) throws -> MediaScanCheckpoint {
+    guard checkpoint.pendingPages.contains(response.cursor) else {
+      throw SDKError(code: .conflict, message: "scanner received an untracked page")
+    }
+
+    let semantics = capabilities.pathSemantics
+    let parentKey = response.cursor.directory.pathComparisonKey(using: semantics)
+    for entry in response.page.items {
+      guard entry.locator.sourceUID == checkpoint.request.sourceUID,
+        entry.locator.path.parent?.comparisonKey(using: semantics) == parentKey
+      else {
+        throw SDKError(
+          code: .parseFailure,
+          message: "connector returned an entry outside the requested directory"
+        )
+      }
+    }
+
+    var pendingPages = checkpoint.pendingPages.filter { $0 != response.cursor }
+    var completedPages = checkpoint.completedPages
+    completedPages.append(response.cursor)
+
+    if let nextCursor = response.page.nextCursor {
+      let next = try MediaScanPageCursor(
+        directory: response.cursor.directory,
+        cursor: nextCursor
+      )
+      guard !completedPages.contains(next), !pendingPages.contains(next) else {
+        throw SDKError(code: .parseFailure, message: "connector repeated a page cursor")
+      }
+      pendingPages.append(next)
+    }
+
+    var seenEntryKeys = Set(checkpoint.seenEntryIdentityKeys)
+    var seenDirectoryKeys = Set(checkpoint.seenDirectoryIdentityKeys)
+    var discoveredCount = checkpoint.discoveredEntryCount
+
+    for entry in response.page.items {
+      let identityKey = identityKey(for: entry, capabilities: capabilities)
+      if seenEntryKeys.insert(identityKey).inserted {
+        discoveredCount += 1
+      }
+      guard entry.kind == .directory else { continue }
+      if seenDirectoryKeys.insert(identityKey).inserted {
+        pendingPages.append(try MediaScanPageCursor(directory: entry.locator))
+      }
+    }
+
+    pendingPages = sortedUnique(pendingPages)
+    completedPages = sortedUnique(completedPages)
+
+    return checkpoint.updating(
+      pendingPages: pendingPages,
+      completedPages: completedPages,
+      seenEntryIdentityKeys: seenEntryKeys.sorted(),
+      seenDirectoryIdentityKeys: seenDirectoryKeys.sorted(),
+      discoveredEntryCount: discoveredCount,
+      processedPageCount: checkpoint.processedPageCount + 1
+    )
+  }
+
+  private func finalize(
+    checkpoint: MediaScanCheckpoint,
+    sink: any MediaScanSink,
+    observer: any MediaScanObserver
+  ) async throws -> MediaScanResult {
+    let finalizingCheckpoint = checkpoint.updating(
+      phase: .finalizing,
+      pendingPages: [],
+      lastErrorCode: .some(nil)
+    )
+    if checkpoint.phase != .finalizing {
+      try await sink.commit(MediaScanBatch(entries: [], checkpoint: finalizingCheckpoint))
+    }
+    let completedCheckpoint = finalizingCheckpoint.updating(phase: .completed)
+    let completion = MediaScanCompletion(checkpoint: completedCheckpoint)
+    try await sink.commit(
+      MediaScanBatch(
+        entries: [],
+        checkpoint: completedCheckpoint,
+        completion: completion
+      )
+    )
+    await observer.emit(MediaScanEvent(kind: .completed, checkpoint: completedCheckpoint))
+    return MediaScanResult(checkpoint: completedCheckpoint, completion: completion)
+  }
+
+  private func recordFailure(
+    _ failure: SDKError,
+    checkpoint: inout MediaScanCheckpoint,
+    sink: any MediaScanSink,
+    observer: any MediaScanObserver
+  ) async throws {
+    let isCancelled = failure.code == .cancelled
+    checkpoint = checkpoint.updating(
+      phase: isCancelled ? .cancelled : .failed,
+      lastErrorCode: .some(failure.code)
+    )
+    try await sink.commit(MediaScanBatch(entries: [], checkpoint: checkpoint))
+    await observer.emit(
+      MediaScanEvent(
+        kind: isCancelled ? .cancelled : .failed,
+        checkpoint: checkpoint,
+        errorCode: failure.code
+      )
+    )
+  }
+
+  private func identityKey(
+    for entry: RemoteEntry,
+    capabilities: MediaSourceCapabilities
+  ) -> String {
+    if capabilities.stableIDScope == .persistent || capabilities.stableIDScope == .scan,
+      let stableID = entry.stableID
+    {
+      return "stable:\(stableID)"
+    }
+    return "path:\(entry.locator.pathComparisonKey(using: capabilities.pathSemantics))"
+  }
+
+  private func sortedUnique(_ cursors: [MediaScanPageCursor]) -> [MediaScanPageCursor] {
+    Array(Set(cursors)).sorted { left, right in
+      let leftKey = "\(left.directory.path.relativePath)\u{0}\(left.cursor ?? "")"
+      let rightKey = "\(right.directory.path.relativePath)\u{0}\(right.cursor ?? "")"
+      return leftKey < rightKey
+    }
+  }
+
+  private func validateCoverage(
+    _ roots: [RemoteLocator],
+    mode: MediaScanMode,
+    capabilities: MediaSourceCapabilities
+  ) throws {
+    guard mode == .incremental else { return }
+    let semantics = capabilities.pathSemantics
+    for (index, root) in roots.enumerated() {
+      for other in roots.dropFirst(index + 1) {
+        let rootKey = root.pathComparisonKey(using: semantics)
+        let otherKey = other.pathComparisonKey(using: semantics)
+        guard rootKey != otherKey,
+          !root.path.isDescendant(of: other.path, using: semantics),
+          !other.path.isDescendant(of: root.path, using: semantics)
+        else {
+          throw SDKError(
+            code: .invalidConfiguration,
+            message: "incremental scan scopes must not overlap"
+          )
+        }
+      }
+    }
+  }
+
+  private func preflightRoots(
+    _ roots: [RemoteLocator],
+    session: any MediaSourceSession,
+    capabilities: MediaSourceCapabilities,
+    saved: [MediaScanRootIdentity]
+  ) async throws -> [MediaScanRootIdentity] {
+    var identities: [MediaScanRootIdentity] = []
+    for root in roots {
+      try Task.checkCancellation()
+      let entry = try await session.stat(root)
+      guard entry.locator == root else {
+        throw SDKError(
+          code: .invalidConfiguration,
+          message: "connector returned the wrong scan root"
+        )
+      }
+      identities.append(try MediaScanRootIdentity(entry: entry))
+    }
+
+    guard !saved.isEmpty else { return identities }
+    guard saved.map(\.locator) == identities.map(\.locator) else {
+      throw SDKError(code: .conflict, message: "scan root changed during resumed scan")
+    }
+    if capabilities.stableIDScope == .persistent {
+      for (previous, current) in zip(saved, identities) {
+        guard previous.stableID == current.stableID else {
+          throw SDKError(code: .conflict, message: "scan root identity changed")
+        }
+      }
+    }
+    return identities
+  }
+
+  private func normalized(_ error: any Error) -> SDKError {
+    if error is CancellationError {
+      return SDKError(code: .cancelled, message: "media scan cancelled")
+    }
+    if let error = error as? SDKError {
+      return error
+    }
+    return SDKError(code: .unknown, message: "media scan failed")
+  }
+
+  private struct PageResponse: Sendable {
+    let cursor: MediaScanPageCursor
+    let page: CursorPage<RemoteEntry>
+  }
+
+  private struct EnumerationInterruption: Error {
+    let checkpoint: MediaScanCheckpoint
+    let underlying: any Error
+  }
+}

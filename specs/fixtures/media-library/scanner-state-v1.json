@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "source_uid": "source-scanner-fixture-1",
+  "capabilities": {
+    "stable_id_scope": "persistent",
+    "case_sensitivity": "insensitive",
+    "unicode_normalization": "nfc",
+    "supports_range_reads": true,
+    "supports_change_cursor": false,
+    "delta_deletions_complete": false
+  },
+  "scenarios": [
+    {
+      "name": "full_success",
+      "request": {
+        "run_uid": "scan-full-1",
+        "source_uid": "source-scanner-fixture-1",
+        "mode": "full",
+        "roots": [
+          {
+            "source_uid": "source-scanner-fixture-1",
+            "relative_path": ""
+          }
+        ]
+      },
+      "pages": [
+        {
+          "request": {
+            "directory": {
+              "source_uid": "source-scanner-fixture-1",
+              "relative_path": ""
+            },
+            "cursor": null,
+            "limit": 2
+          },
+          "response": {
+            "items": [
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Movies"
+                },
+                "kind": "directory",
+                "stable_id": "directory-movies",
+                "size": null,
+                "modified_at_ms": 1700000000000,
+                "etag": "movies-v1"
+              }
+            ],
+            "next_cursor": "root-page-2"
+          }
+        },
+        {
+          "request": {
+            "directory": {
+              "source_uid": "source-scanner-fixture-1",
+              "relative_path": ""
+            },
+            "cursor": "root-page-2",
+            "limit": 2
+          },
+          "response": {
+            "items": [
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Movies"
+                },
+                "kind": "directory",
+                "stable_id": "directory-movies",
+                "size": null,
+                "modified_at_ms": 1700000000000,
+                "etag": "movies-v1"
+              },
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Series"
+                },
+                "kind": "directory",
+                "stable_id": "directory-series",
+                "size": null,
+                "modified_at_ms": 1700000001000,
+                "etag": "series-v1"
+              }
+            ],
+            "next_cursor": null
+          }
+        },
+        {
+          "request": {
+            "directory": {
+              "source_uid": "source-scanner-fixture-1",
+              "relative_path": "Movies"
+            },
+            "cursor": null,
+            "limit": 2
+          },
+          "response": {
+            "items": [
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Movies/Arrival (2016).mkv"
+                },
+                "kind": "file",
+                "stable_id": "file-arrival",
+                "size": 1073741824,
+                "modified_at_ms": 1700000020000,
+                "etag": "arrival-v1"
+              },
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Movies/Café.mkv"
+                },
+                "kind": "file",
+                "stable_id": "file-cafe",
+                "size": 734003200,
+                "modified_at_ms": 1700000010000,
+                "etag": "cafe-v1"
+              }
+            ],
+            "next_cursor": null
+          }
+        },
+        {
+          "request": {
+            "directory": {
+              "source_uid": "source-scanner-fixture-1",
+              "relative_path": "Series"
+            },
+            "cursor": null,
+            "limit": 2
+          },
+          "response": {
+            "items": [
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Series/Foundation.S01E01.mkv"
+                },
+                "kind": "file",
+                "stable_id": "file-foundation-s01e01",
+                "size": 900000000,
+                "modified_at_ms": 1700000030000,
+                "etag": "foundation-s01e01-v1"
+              }
+            ],
+            "next_cursor": null
+          }
+        }
+      ],
+      "failure_request": null,
+      "expected": {
+        "phase": "completed",
+        "reconcile_missing_eligible": true,
+        "discovered_entry_count": 5,
+        "processed_page_count": 4,
+        "entry_identity_keys": [
+          "stable:directory-movies",
+          "stable:directory-series",
+          "stable:file-arrival",
+          "stable:file-cafe",
+          "stable:file-foundation-s01e01"
+        ]
+      }
+    },
+    {
+      "name": "interrupted_page",
+      "request": {
+        "run_uid": "scan-interrupted-1",
+        "source_uid": "source-scanner-fixture-1",
+        "mode": "full",
+        "roots": [
+          {
+            "source_uid": "source-scanner-fixture-1",
+            "relative_path": ""
+          }
+        ]
+      },
+      "pages": [
+        {
+          "request": {
+            "directory": {
+              "source_uid": "source-scanner-fixture-1",
+              "relative_path": ""
+            },
+            "cursor": null,
+            "limit": 2
+          },
+          "response": {
+            "items": [
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Movies"
+                },
+                "kind": "directory",
+                "stable_id": "directory-movies",
+                "size": null,
+                "modified_at_ms": 1700000000000,
+                "etag": "movies-v1"
+              }
+            ],
+            "next_cursor": "root-page-2"
+          }
+        },
+        {
+          "request": {
+            "directory": {
+              "source_uid": "source-scanner-fixture-1",
+              "relative_path": ""
+            },
+            "cursor": "root-page-2",
+            "limit": 2
+          },
+          "response": {
+            "items": [],
+            "next_cursor": null
+          }
+        },
+        {
+          "request": {
+            "directory": {
+              "source_uid": "source-scanner-fixture-1",
+              "relative_path": "Movies"
+            },
+            "cursor": null,
+            "limit": 2
+          },
+          "response": {
+            "items": [
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Movies/Arrival (2016).mkv"
+                },
+                "kind": "file",
+                "stable_id": "file-arrival",
+                "size": 1073741824,
+                "modified_at_ms": 1700000020000,
+                "etag": "arrival-v1"
+              }
+            ],
+            "next_cursor": null
+          }
+        }
+      ],
+      "failure_request": {
+        "directory": {
+          "source_uid": "source-scanner-fixture-1",
+          "relative_path": ""
+        },
+        "cursor": "root-page-2",
+        "limit": 2
+      },
+      "expected": {
+        "phase": "failed",
+        "reconcile_missing_eligible": false,
+        "discovered_entry_count": 1,
+        "processed_page_count": 1,
+        "entry_identity_keys": [
+          "stable:directory-movies"
+        ]
+      }
+    },
+    {
+      "name": "scoped_incremental",
+      "request": {
+        "run_uid": "scan-incremental-1",
+        "source_uid": "source-scanner-fixture-1",
+        "mode": "incremental",
+        "roots": [
+          {
+            "source_uid": "source-scanner-fixture-1",
+            "relative_path": "Movies"
+          }
+        ]
+      },
+      "pages": [
+        {
+          "request": {
+            "directory": {
+              "source_uid": "source-scanner-fixture-1",
+              "relative_path": "Movies"
+            },
+            "cursor": null,
+            "limit": 2
+          },
+          "response": {
+            "items": [
+              {
+                "locator": {
+                  "source_uid": "source-scanner-fixture-1",
+                  "relative_path": "Movies/Arrival (2016).mkv"
+                },
+                "kind": "file",
+                "stable_id": "file-arrival",
+                "size": 1073741824,
+                "modified_at_ms": 1700000020000,
+                "etag": "arrival-v1"
+              }
+            ],
+            "next_cursor": null
+          }
+        }
+      ],
+      "failure_request": null,
+      "expected": {
+        "phase": "completed",
+        "reconcile_missing_eligible": true,
+        "discovered_entry_count": 1,
+        "processed_page_count": 1,
+        "entry_identity_keys": [
+          "stable:file-arrival"
+        ]
+      }
+    },
+    {
+      "name": "repair_without_enumeration",
+      "request": {
+        "run_uid": "scan-repair-1",
+        "source_uid": "source-scanner-fixture-1",
+        "mode": "repair",
+        "roots": []
+      },
+      "pages": [],
+      "failure_request": null,
+      "expected": {
+        "phase": "completed",
+        "reconcile_missing_eligible": false,
+        "discovered_entry_count": 0,
+        "processed_page_count": 0,
+        "entry_identity_keys": []
+      }
+    }
+  ]
+}

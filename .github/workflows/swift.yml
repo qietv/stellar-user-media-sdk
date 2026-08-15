@@ -115,6 +115,9 @@ jobs:
         run: |
           swift run -c release stellar-media version
           swift run -c release stellar-media parse "The.Matrix.1999.2160p.mkv"
+          swift run -c release stellar-media manifest replay \
+            ../../specs/fixtures/media-library/scanner-state-v1.json | \
+            grep "stellar.scan-manifest-replay.v1"
           swift run -c release stellar-media help | grep "stellar-media smb check"
 
   repository-guards:

@@ -2,7 +2,7 @@
 
 面向 iOS、iPadOS、macOS 和 tvOS 的原生 Swift 实现。
 
-完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S1 已建立模块边界、跨平台构建和公共 API 门禁；下一阶段是在 Linux 上通过 libsmb2 完成只读 SMB2/3 扫库验收。
+完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S2 已完成 Linux/libsmb2 只读纵向切片；当前阶段是建立来源无关、可恢复且具备 missing 安全边界的 Scanner 合同与实现。
 
 ## 工具链与兼容基线
 
@@ -19,6 +19,8 @@ Swift 的 `Codable` 实现必须通过共享 fixture 验证 wire format。公共
 ```text
 Sources/StellarCore/
 Sources/StellarRemoteMedia/
+Sources/StellarLocalMedia/          # macOS/Linux read-only local directory connector
+Sources/StellarWebDAV/              # read-only PROPFIND/stat/Range connector
 Sources/StellarMediaLibrary/
 Sources/StellarSMB2Core/            # libsmb2-independent seam and values
 Sources/CStellarSMB2Wrapper/        # 不暴露上游类型的 allowlisted C API
@@ -28,7 +30,7 @@ Sources/StellarMediaCLI/
 Tests/StellarUserMediaSDKTests/
 ```
 
-当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、加密凭据 envelope、最小文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。Core、RemoteMedia、MediaLibrary 和 SMB2Core 已是独立 target；其余 target 在第一次产生真实代码时加入。
+当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、加密凭据 envelope、来源无关的 locator/entry/connector 合同、可恢复且有界并发的 scanner、扩展文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。Scanner 在每个成功目录页把 entries 与 checkpoint 作为同一批次提交，只有最终 completion 才携带 missing 协调资格。Core、RemoteMedia、LocalMedia、WebDAV、MediaLibrary 和 SMB2Core 已是独立 target；其余 target 在第一次产生真实代码时加入。
 
 `StellarSMB2Core` 提供不泄漏 C pointer 的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。`CStellarLibsmb2Private` 只在 Linux Package graph 中存在，解析项目私有静态 archive；archive 中所有已定义全局 symbol 均添加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀并从动态导出表隐藏。`CStellarSMB2Wrapper` 是唯一可调用该私有 module 的 target，对 Swift 只暴露项目自有 opaque client 和值记录；`StellarSMB2Linux` 在有界 blocking executor 上实现连接、枚举、`stat` 和 range read。
 
@@ -47,6 +49,7 @@ swift test
 swift build -c release
 swift run stellar-media version
 swift run stellar-media parse "The.Matrix.1999.2160p.mkv"
+swift run stellar-media manifest replay ../../specs/fixtures/media-library/scanner-state-v1.json
 python3 ../../tools/ci/check_swift_dependencies.py --package-root .
 python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
 ```
@@ -88,7 +91,7 @@ python3 ../../tools/ci/check_swift_api.py \
 - `SessionManager`
 - `MediaSourceRepository`
 - `MediaSourceConnector`
-- `LibraryScanner`
+- `MediaScanner`
 - `LibraryRepository`
 - `PosterWallRepository`
 

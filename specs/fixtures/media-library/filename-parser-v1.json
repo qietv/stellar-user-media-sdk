@@ -27,6 +27,85 @@
         "title": "Home Video",
         "source_name": "Home Video.mov"
       }
+    },
+    {
+      "input": "/TV/Foundation (2021)/",
+      "expected": {
+        "kind": "series",
+        "title": "Foundation",
+        "year": 2021,
+        "source_name": "Foundation (2021)"
+      }
+    },
+    {
+      "input": "/TV/Foundation (2021)/Season 02/",
+      "expected": {
+        "kind": "season",
+        "title": "Foundation",
+        "year": 2021,
+        "season": 2,
+        "source_name": "Season 02"
+      }
+    },
+    {
+      "input": "Show.Name.2x03.1080p.mkv",
+      "expected": {
+        "kind": "episode",
+        "title": "Show Name",
+        "season": 2,
+        "episode": 3,
+        "source_name": "Show.Name.2x03.1080p.mkv"
+      }
+    },
+    {
+      "input": "Show.Name.S01E01E02.1080p.mkv",
+      "expected": {
+        "kind": "episode",
+        "title": "Show Name",
+        "season": 1,
+        "episode": 1,
+        "episode_end": 2,
+        "source_name": "Show.Name.S01E01E02.1080p.mkv"
+      }
+    },
+    {
+      "input": "Blade.Runner.1982.Final.Cut.2160p.mkv",
+      "expected": {
+        "kind": "movie",
+        "title": "Blade Runner",
+        "year": 1982,
+        "edition": "Final Cut",
+        "source_name": "Blade.Runner.1982.Final.Cut.2160p.mkv"
+      }
+    },
+    {
+      "input": "Dune.2021.sample.mkv",
+      "expected": {
+        "kind": "extra",
+        "title": "Dune",
+        "year": 2021,
+        "is_sample": true,
+        "source_name": "Dune.2021.sample.mkv"
+      }
+    },
+    {
+      "input": "Show.Name.S01E01.sample.mkv",
+      "expected": {
+        "kind": "extra",
+        "title": "Show Name",
+        "season": 1,
+        "episode": 1,
+        "is_sample": true,
+        "source_name": "Show.Name.S01E01.sample.mkv"
+      }
+    },
+    {
+      "input": "剧集名称.mkv",
+      "expected": {
+        "kind": "unknown",
+        "title": "剧集名称",
+        "source_name": "剧集名称.mkv"
+      }
     }
   ]
 }

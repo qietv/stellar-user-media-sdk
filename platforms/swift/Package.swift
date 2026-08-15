@@ -6,6 +6,8 @@ var cliDependencies: [Target.Dependency] = ["StellarUserMediaSDK"]
 var testDependencies: [Target.Dependency] = [
   "StellarCore",
   "StellarRemoteMedia",
+  "StellarLocalMedia",
+  "StellarWebDAV",
   "StellarMediaLibrary",
   "StellarSMB2Core",
   "StellarUserMediaSDK",
@@ -30,12 +32,23 @@ var packageTargets: [Target] = [
     dependencies: ["StellarCore", "StellarRemoteMedia"]
   ),
   .target(
+    name: "StellarLocalMedia",
+    dependencies: ["StellarCore", "StellarRemoteMedia"]
+  ),
+  .target(
+    name: "StellarWebDAV",
+    dependencies: ["StellarCore", "StellarRemoteMedia"]
+  ),
+  .target(
     name: "StellarSMB2Core",
     dependencies: ["StellarCore", "StellarRemoteMedia"]
   ),
   .target(
     name: "StellarUserMediaSDK",
-    dependencies: ["StellarCore", "StellarRemoteMedia", "StellarMediaLibrary"]
+    dependencies: [
+      "StellarCore", "StellarRemoteMedia", "StellarLocalMedia", "StellarMediaLibrary",
+      "StellarWebDAV",
+    ]
   ),
   .executableTarget(
     name: "StellarMediaCLI",

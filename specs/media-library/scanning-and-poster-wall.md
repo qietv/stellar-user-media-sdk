@@ -49,7 +49,57 @@ flowchart TD
 
 只有在连接器明确支持并且隐私策略允许时才计算全量或部分哈希。哈希默认仅本地用于去重/变更判断，不上传第三方元数据服务。
 
+## 来源枚举合同 v1
+
+所有文件型来源 MUST 映射为同一组来源无关值，连接器私有的 URL、文件句柄和协议对象不得进入 scanner 或 wire fixture：
+
+- `RemoteLocator` 由非空 `source_uid` 和根目录相对的 `relative_path` 组成；根路径编码为空字符串，分隔符固定为 `/`。
+- `relative_path` MUST 移除重复分隔符与 `.` 段，MUST 拒绝 NUL 和 `..` 段。显示路径保留连接器返回的大小写和 Unicode 拼写，不用 compare key 替换。
+- `RemoteEntry` 至少携带 locator、kind、可选稳定 ID、size、`modified_at_ms` 和 etag。未知 kind 必须安全降级为 `unknown`。
+- 稳定 ID 能力分为 `none`、`scan` 和 `persistent`。只有 `persistent` 可跨扫描识别改名或移动；`scan` 只用于单次枚举去重和循环检测。
+- 目录枚举统一返回游标页。即使底层来源不分页，也必须返回一个 `next_cursor: null` 的终页；空游标、重复游标或中途失败都令本次 coverage 不完整。
+- 连接器 MUST 声明路径大小写为 `sensitive`、`insensitive` 或 `unknown`，Unicode 规则为 `preserve`、`nfc` 或 `nfd`。`unknown`/`preserve` 采用精确比较，不能擅自合并可能不同的远端对象。
+
+`path_compare_key` MUST 逐路径段生成：先按声明执行 NFC/NFD，再在大小写不敏感来源上执行 Unicode default case folding，最后用 `/` 连接。它只用于同一来源内的比较；不同 `source_uid` 的相同路径始终是不同对象。范围判断也必须按路径段执行，`Movies/A` 不得覆盖 `Movies/AB`。
+
+连接器能力 fixture 使用以下稳定字段：
+
+| 字段 | 语义 |
+| --- | --- |
+| `stable_id_scope` | `none`、`scan` 或 `persistent` |
+| `case_sensitivity` | `sensitive`、`insensitive` 或 `unknown` |
+| `unicode_normalization` | `preserve`、`nfc` 或 `nfd` |
+| `supports_range_reads` | 是否支持按 byte range 读取 |
+| `supports_change_cursor` | 是否支持来源变化游标 |
+| `delta_deletions_complete` | delta 是否保证包含范围内全部删除；只有为真时 delta 才能协调 missing |
+
+[`remote-enumeration-v1.json`](../fixtures/media-library/remote-enumeration-v1.json) 固定首组跨语言 locator、entry、路径比较和分页样本。
+
+## Scanner 状态机合同 v1
+
+`full`、scoped `incremental` 与 `repair` 共用 `MediaScanRequest`、`MediaScanCheckpoint` 和最终 `MediaScanCompletion`：
+
+- `full` MUST 只覆盖连接器配置根；`incremental` MUST 携带一个或多个互不重叠的递归目录范围；`repair` 不重新枚举来源且永远没有 missing 协调资格。
+- 枚举前 MUST 对每个根执行 `stat`，确认它仍是目录并保存根稳定 ID。恢复使用 persistent stable ID 的 checkpoint 时，根身份变化 MUST 令续扫失败。
+- 每个成功验证的目录页 MUST 把该页 entries 与更新后的 pending page queue、已完成 cursor、去重身份和计数作为同一原子批次提交。恢复允许重放尚未确认的页，因此持久层 MUST 按稳定 ID 或 path compare key 幂等 UPSERT。
+- 目录请求并发度 MUST 有显式上限。持久层批次提交完成前不得无限继续领取结果，以形成背压；取消必须传播到所有 in-flight 请求。
+- 连接器返回不同来源、非直接子项、空/重复 cursor 或目录循环/异常路径时，当前 coverage MUST 失败关闭。精确重复条目不增加发现计数；`scan`/`persistent` stable ID 用于单次扫描去重，只有 `persistent` 可用于跨扫描移动识别。
+- 只有最终原子批次中的 `completion.reconcile_missing_eligible=true` 才授权持久层在 `covered_roots` 内协调 missing。连接、鉴权、根预检、分页、持久化、取消或超时失败只保存可恢复 checkpoint，不产生 completion。
+
+checkpoint 的 pending queue 也包含当前 in-flight 请求。这样任一并发页提交后，其他尚未提交的请求仍会留在 durable checkpoint；崩溃恢复最多重复读取和幂等 UPSERT，不会跳过目录。进度事件只能携带 run、phase、计数和错误分类，不得携带路径或稳定 ID。
+
+[`scanner-state-v1.json`](../fixtures/media-library/scanner-state-v1.json) 固定 full、scoped incremental、repair、分页重复条目、中断 checkpoint 和 missing 资格样本。各语言实现 MUST 规范化顺序后比较结果，不得把连接器到达顺序写进合同。
+
 ## 文件名解析与匹配
+
+文件名 fixture v1 的规范结果除 `kind`、`title`、`year`、`season` 和 `episode` 外，还可携带：
+
+- `episode_end`：`S01E01E02` 一类连续多集文件的末集；
+- `edition`：`Director's Cut`、`Final Cut`、`Extended`、`IMAX`、`Theatrical` 或 `Criterion` 等版本标签；
+- `is_sample`：样片标记；样片的 `kind` 为 `extra`，不得自动物化为正片；
+- `series` 与 `season` kind：仅在输入以目录分隔符结尾、明确表示目录时产生，避免把普通无扩展名文件误判为目录实体。
+
+解码旧 fixture 时缺失的 `is_sample` 等价于 `false`。未知 kind 继续安全降级为 `unknown`。
 
 解析器按以下顺序收集证据：
 
@@ -103,4 +153,3 @@ SDK v1 输出数据模型和分页查询，不内置三端 UI 组件。公开查
 - 电影与剧集文件可被稳定区分；低置信度结果可人工修正并锁定。
 - 文件换路径后，在稳定 ID 或足够可靠指纹存在时能继承观看状态。
 - 删除远端文件后，经完整成功扫描会从可播放列表移除，但用户状态仍可恢复。
-

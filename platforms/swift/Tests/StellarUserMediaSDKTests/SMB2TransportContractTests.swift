@@ -1,5 +1,7 @@
 import Foundation
 import StellarCore
+import StellarMediaLibrary
+import StellarRemoteMedia
 import StellarSMB2Core
 import Testing
 
@@ -143,6 +145,100 @@ struct SMB2TransportContractTests {
     #expect(connectionCount == 1)
     #expect(disconnected)
   }
+
+  @Test("The SMB adapter runs through the shared connector and scanner contracts")
+  func scannerAdapter() async throws {
+    let rootPath = try SMB2Path()
+    let moviesPath = try SMB2Path("Movies")
+    let arrivalPath = try SMB2Path("Movies/Arrival.mkv")
+    let notesPath = try SMB2Path("Notes.txt")
+    let root = try SMB2Entry(path: rootPath, kind: .directory, stableID: "root")
+    let movies = try SMB2Entry(path: moviesPath, kind: .directory, stableID: "movies")
+    let arrival = try SMB2Entry(
+      path: arrivalPath,
+      kind: .file,
+      size: 7,
+      stableID: "arrival"
+    )
+    let notes = try SMB2Entry(path: notesPath, kind: .file, size: 5, stableID: "notes")
+    let request = try SMB2ConnectionRequest(
+      endpoint: SMB2Endpoint(server: "nas.example.test", share: "Media"),
+      credential: SMB2Credential(username: "alice", password: "secret")
+    )
+    let configuration = try SMB2MediaSourceConfiguration(
+      sourceUID: "smb-fixture-1",
+      connectionRequest: request,
+      stableIDScope: .persistent
+    )
+    let directSession = TreeSMB2Session(
+      entriesByDirectory: [rootPath: [notes, movies], moviesPath: [arrival]],
+      entriesByPath: [rootPath: root, moviesPath: movies, arrivalPath: arrival, notesPath: notes]
+    )
+    let directConnector = SMB2MediaSourceConnector(
+      transport: FakeSMB2Transport(session: directSession),
+      configuration: configuration
+    )
+    let connected = try await directConnector.connect()
+    let rootLocator = try RemoteLocator(sourceUID: configuration.sourceUID, path: RemotePath())
+    let firstPage = try await connected.listDirectory(
+      RemoteDirectoryPageRequest(directory: rootLocator, limit: 1)
+    )
+    let secondPage = try await connected.listDirectory(
+      RemoteDirectoryPageRequest(
+        directory: rootLocator,
+        cursor: firstPage.nextCursor,
+        limit: 1
+      )
+    )
+    let arrivalLocator = try RemoteLocator(
+      sourceUID: configuration.sourceUID,
+      path: RemotePath("Movies/Arrival.mkv")
+    )
+    let stat = try await connected.stat(arrivalLocator)
+    let bytes = try await connected.read(
+      at: arrivalLocator,
+      range: RemoteByteRange(offset: 1, length: 3)
+    )
+    await connected.disconnect()
+
+    #expect(firstPage.items.count == 1)
+    #expect(secondPage.items.count == 1)
+    #expect(secondPage.nextCursor == nil)
+    #expect(stat.stableID == "arrival")
+    #expect(String(decoding: bytes, as: UTF8.self) == "rri")
+
+    let scannerSession = TreeSMB2Session(
+      entriesByDirectory: [rootPath: [movies, notes], moviesPath: [arrival]],
+      entriesByPath: [rootPath: root, moviesPath: movies, arrivalPath: arrival, notesPath: notes]
+    )
+    let scannerConnector = SMB2MediaSourceConnector(
+      transport: FakeSMB2Transport(session: scannerSession),
+      configuration: configuration
+    )
+    let sink = SMBScannerSink()
+    let scanner = MediaScanner(
+      configuration: try MediaScannerConfiguration(
+        pageSize: 1,
+        maxConcurrentDirectoryRequests: 2
+      )
+    )
+    let result = try await scanner.scan(
+      MediaScanRequest(
+        runUID: "smb-full-scan",
+        sourceUID: configuration.sourceUID,
+        mode: .full,
+        roots: [rootLocator]
+      ),
+      using: scannerConnector,
+      sink: sink
+    )
+
+    #expect(result.checkpoint.phase == .completed)
+    #expect(result.checkpoint.discoveredEntryCount == 3)
+    #expect(result.checkpoint.processedPageCount == 3)
+    #expect(result.completion.reconcileMissingEligible)
+    #expect(await sink.paths == ["Movies", "Movies/Arrival.mkv", "Notes.txt"])
+  }
 }
 
 private actor FakeSMB2Transport: SMB2Transport {
@@ -195,5 +291,74 @@ private actor FakeSMB2Session: SMB2Session {
 
   func disconnect() async {
     isDisconnected = true
+  }
+}
+
+private actor TreeSMB2Session: SMB2Session {
+  nonisolated let connectionInfo = SMB2ConnectionInfo(
+    dialect: .smb311,
+    signingPolicy: .required,
+    encryptionPolicy: .disabled,
+    implementationVersion: "fake-tree-1"
+  )
+  private let entriesByDirectory: [SMB2Path: [SMB2Entry]]
+  private let entriesByPath: [SMB2Path: SMB2Entry]
+  private var disconnected = false
+
+  init(
+    entriesByDirectory: [SMB2Path: [SMB2Entry]],
+    entriesByPath: [SMB2Path: SMB2Entry]
+  ) {
+    self.entriesByDirectory = entriesByDirectory
+    self.entriesByPath = entriesByPath
+  }
+
+  func listDirectory(at path: SMB2Path) async throws -> [SMB2Entry] {
+    try requireConnected()
+    guard let entries = entriesByDirectory[path] else {
+      throw SDKError(code: .metadataNotFound, message: "fixture directory not found")
+    }
+    return entries
+  }
+
+  func stat(_ path: SMB2Path) async throws -> SMB2Entry {
+    try requireConnected()
+    guard let entry = entriesByPath[path] else {
+      throw SDKError(code: .metadataNotFound, message: "fixture entry not found")
+    }
+    return entry
+  }
+
+  func read(at path: SMB2Path, range: SMB2ByteRange) async throws -> Data {
+    _ = try await stat(path)
+    let data = Data("Arrival".utf8)
+    let lowerBound = Int(range.offset)
+    let upperBound = min(data.count, lowerBound + range.length)
+    guard lowerBound < upperBound else { return Data() }
+    return data.subdata(in: lowerBound..<upperBound)
+  }
+
+  func disconnect() async {
+    disconnected = true
+  }
+
+  private func requireConnected() throws {
+    guard !disconnected else {
+      throw SDKError(code: .remoteUnavailable, message: "fixture SMB session disconnected")
+    }
+  }
+}
+
+private actor SMBScannerSink: MediaScanSink {
+  private var entries: [String: RemoteEntry] = [:]
+
+  var paths: [String] {
+    entries.values.map(\.locator.path.relativePath).sorted()
+  }
+
+  func commit(_ batch: MediaScanBatch) async throws {
+    for entry in batch.entries {
+      entries[entry.stableID ?? entry.locator.path.relativePath] = entry
+    }
   }
 }

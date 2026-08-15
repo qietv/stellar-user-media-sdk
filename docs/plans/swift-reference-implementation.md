@@ -2,7 +2,7 @@
 
 最后核对日期：2026-08-16
 
-当前阶段：**S2 — Linux libsmb2 只读纵向切片**
+当前阶段：**S3 — Scanner 状态机与公共扫描 fixture**
 
 目标工具链：Swift 6.3.x、Swift 6 language mode  
 最低 Apple 平台：iOS/iPadOS 17、macOS 14、tvOS 17
@@ -57,7 +57,7 @@ v1 不包含：
 已经完成：
 
 - Swift 6.3 Package，导出 `StellarUserMediaSDK` library 与 `stellar-media` executable；
-- `StellarCore`、`StellarRemoteMedia` 和 `StellarMediaLibrary` 已拆分为独立 target，并保留 umbrella SDK 兼容入口；
+- `StellarCore`、`StellarRemoteMedia`、`StellarLocalMedia`、`StellarWebDAV` 和 `StellarMediaLibrary` 已拆分为独立 target，并保留 umbrella SDK 兼容入口；
 - 可注入 clock、UUID、logger、retry 和 cancellation Core runtime；
 - URL、Header、路径、用户名、密码和 token 的统一 redaction API，CLI stderr 已接入；
 - `FieldPresence`、epoch 毫秒和 `CursorPage` wire contract 及公共 fixture；
@@ -65,21 +65,24 @@ v1 不包含：
 - 公共错误模型、`EncryptedCredentialEnvelope` wire model；
 - 最小电影/剧集文件名 parser；
 - repository-wide parser fixture；
-- 26 个 Swift Testing 测试，macOS debug/release 构建已通过；
+- 47 个 Swift Testing 测试，macOS debug/release 构建已通过；
 - GitHub Actions 已在 macOS 26 与 Ubuntu 24.04 首次实际通过对等验证，并固定第三方 Action SHA；
-- SwiftPM exact/revision 依赖锁定门禁，以及 5 个公开模块、287 个 symbol 的 API compatibility 基线；
+- SwiftPM exact/revision 依赖锁定门禁，以及 7 个公开模块、605 个 symbol 的 API compatibility 基线；
 - libsmb2 来源/ABI/私有静态链接 ADR、机器可读 lock、全符号前缀和 C ABI smoke guard；
 - 不依赖真实服务器的 `SMB2Transport` / `SMB2Session` seam、只读值模型和 fake transport 合同测试；
 - allowlisted C wrapper、Linux `LinuxSMB2Transport`、有界 blocking executor，以及连接、枚举、`stat`、range read 和确定性释放实现；
 - Linux CLI 的 `smb check`、`smb list`、`smb scan`，密码只从 stdin 读取；
+- 来源无关的 `RemoteLocator`、`RemoteEntry`、connector 能力、路径比较语义和公共枚举 fixture；
+- full/scoped incremental/repair scanner 状态机、有界目录队列、原子 page checkpoint 和公共扫描 fixture；
+- macOS/Linux 本地目录 connector、SMB transport adapter、WebDAV URLSession/transport seam，以及三者的统一 scanner tests；
 - Credential Vault 规范和 E2EE 同步 ADR。
 
 尚未完成：
 
 - 尚未产生真实代码的 Storage、Auth、Sync 与平台 backend targets；
 - Windows compile check；
-- 支持 SMB3 encryption 的隔离服务验收；
-- 可执行 SQLite DDL、GRDB repository 和 scanner；
+- SMB3 encryption 的客户端合同与 server-free 测试已经完成；当前没有可用的隔离加密服务，真实服务验收推迟到 release candidate，不阻断 S2；
+- 可执行 SQLite DDL、GRDB repository 和扫描持久化实现；
 - OAuth、配置同步、Vault 密码学实现和服务端 transport；
 - StellarPlayer iOS 正式集成。
 
@@ -173,7 +176,7 @@ flowchart TD
 
 完成证据：初始 commit `d1b8b2e` 已在 GitHub-hosted macOS 26、Ubuntu 24.04 和 repository guards 全部通过。当前 worktree 新增的依赖/API 门禁已在 macOS 本地通过，合入后的首轮 workflow 还需确认 Linux symbol graph 完全一致。CI 会拒绝 SwiftPM branch/range；新增外部依赖时要求 exact version 或 immutable revision 并提交 `Package.resolved`。`API/PublicAPI.json` 固定 `StellarCore`、`StellarRemoteMedia`、`StellarMediaLibrary`、`StellarSMB2Core` 和 umbrella module 的公开 symbol graph，API 有意变化必须显式更新并审阅 baseline diff。
 
-### S2 — Linux libsmb2 只读纵向切片 🚧
+### S2 — Linux libsmb2 只读纵向切片 ✅
 
 目标：在 Linux 上用真实 SMB2/3 来源完成连接、递归枚举和验收报告，这是首个生产数据路径。
 
@@ -209,31 +212,33 @@ stellar-media smb scan
 - 空目录、单文件、深层目录、大目录；
 - 空格、emoji、CJK、组合 Unicode、点文件和无扩展名文件；
 - 正确凭据、错误密码、无权限目录、来源离线、扫描中断和超时；
-- SMB 2.1/3.x、要求 signing、要求 SMB3 encryption；
+- SMB 2.1/3.x、要求 signing；要求 SMB3 encryption 的客户端配置、错误和 fake transport 合同测试必须通过，真实加密服务验收推迟到 release candidate；
 - 重复扫描结果稳定；扫描过程不执行任何远端写操作；
 - 密码不会出现在 argv、stdout/stderr、JSONL、日志、core dump 测试字符串或 CI artifact。
 
-完成定义：Ubuntu release binary 能针对隔离 Samba 和至少一个真实 SMB2/3 来源完成只读扫描；取消/失败不会生成“完整成功”标记；报告可用于后续 scanner fixture。
+完成定义：Ubuntu release binary 能针对至少一个获准的真实 SMB2/3 来源完成只读扫描；取消/失败不会生成“完整成功”标记；报告可用于后续 scanner fixture。当前无可用的 SMB3 encryption 隔离服务，因此真实加密服务不属于本阶段完成门禁。
 
-当前验证状态：macOS 已通过 26 个 Swift 测试和 API/依赖/secret/import guards。Ubuntu 26.04 已从固定 libsmb2 6.1.0 commit 重建全符号前缀静态 archive，通过 C ABI/主动取消 smoke、28 个 Swift 测试、公共 API guard 和无额外参数的 release CLI 构建；Swift `Task.cancel()` 黑洞连接测试在 2 秒门限内返回 `.cancelled`，实际为毫秒级。最终 ELF 内含私有 archive，相关 symbol 为 local，动态导出和 `DT_NEEDED` 均不含 libsmb2。LGPL kit 已从包内完整源码重建替换 archive，并用 15 个交付 object 重链接、运行及复核静态隔离。隔离真实 NAS 已使用 kit 重链接 binary 通过 SMB 2.1、3.0、3.0.2、3.1.1、required signing、递归重复扫描、`stat`、range read、离线失败和错误凭据分类验收；该 NAS 不支持 SMB3 encryption，已用 Samba 客户端对照确认。支持 encryption 的隔离服务仍待完成，因此 S2 仍为进行中。
+完成证据：macOS 已通过 26 个 Swift 测试和 API/依赖/secret/import guards。Ubuntu 26.04 已从固定 libsmb2 6.1.0 commit 重建全符号前缀静态 archive，通过 C ABI/主动取消 smoke、28 个 Swift 测试、公共 API guard 和无额外参数的 release CLI 构建；Swift `Task.cancel()` 黑洞连接测试在 2 秒门限内返回 `.cancelled`，实际为毫秒级。最终 ELF 内含私有 archive，相关 symbol 为 local，动态导出和 `DT_NEEDED` 均不含 libsmb2。LGPL kit 已从包内完整源码重建替换 archive，并用 15 个交付 object 重链接、运行及复核静态隔离。隔离真实 NAS 已使用 kit 重链接 binary 通过 SMB 2.1、3.0、3.0.2、3.1.1、required signing、递归重复扫描、`stat`、range read、离线失败和错误凭据分类验收。该 NAS 不支持 SMB3 encryption，已用 Samba 客户端对照确认；客户端的 required-encryption 配置和失败语义由 server-free 合同测试覆盖，真实加密服务验收明确推迟到 release candidate。
 
-### S3 — Scanner 状态机与公共扫描 fixture ⬜
+### S3 — Scanner 状态机与公共扫描 fixture 🚧
 
 目标：把“列目录”提升为可恢复、可判断覆盖范围的媒体扫描，不依赖具体来源实现。
 
 工作：
 
-- [ ] 定义 `RemoteLocator`、`RemoteEntry`、能力、稳定 ID、路径大小写和 Unicode 语义；
-- [ ] 实现 full、scoped incremental、repair 三种 scan mode；
-- [ ] 实现有界并发目录队列、背压、取消、checkpoint 和进度事件；
-- [ ] 只有完整覆盖且成功结束的扫描才有资格协调 missing；
-- [ ] 来源不可达、认证失败、分页中断、取消或超时时禁止把未看到的文件标记为删除；
-- [ ] 建立本地 fake connector，覆盖分页、重复条目、顺序变化、移动、删除、循环/异常路径和断线恢复；
-- [ ] 实现 macOS/Linux 本地目录只读 connector；Apple security-scoped bookmark 适配留到 S7；
-- [ ] 实现 WebDAV 只读 connector，覆盖验证、PROPFIND 分页/目录、`stat`、Range read、鉴权失效和 TLS 错误；
-- [ ] 本地目录、SMB 和 WebDAV 通过同一套 connector/scanner contract tests；
-- [ ] 扩展文件名 parser fixture，覆盖电影、剧集、季、集、多版本、样片和无法识别文件；
-- [ ] CLI 支持扫描 manifest 的重放与规范化 snapshot 比较。
+- [x] 定义 `RemoteLocator`、`RemoteEntry`、能力、稳定 ID、路径大小写和 Unicode 语义；
+- [x] 实现 full、scoped incremental、repair 三种 scan mode；
+- [x] 实现有界并发目录队列、背压、取消、checkpoint 和进度事件；
+- [x] 只有完整覆盖且成功结束的扫描才有资格协调 missing；
+- [x] 来源不可达、认证失败、分页中断、取消或超时时禁止把未看到的文件标记为删除；
+- [x] 建立本地 fake connector，覆盖分页、重复条目、顺序变化、移动、删除、循环/异常路径和断线恢复；
+- [x] 实现 macOS/Linux 本地目录只读 connector；Apple security-scoped bookmark 适配留到 S7；
+- [x] 实现 WebDAV 只读 connector，覆盖验证、PROPFIND 分页/目录、`stat`、Range read、鉴权失效和 TLS 错误；
+- [x] 本地目录、SMB 和 WebDAV 通过同一套 connector/scanner contract tests；
+- [x] 扩展文件名 parser fixture，覆盖电影、剧集、季、集、多版本、样片和无法识别文件；
+- [x] CLI 支持扫描 manifest 的重放与规范化 snapshot 比较。
+
+当前进展：来源枚举合同 v1、scanner 状态机、Swift 公共模型、`remote-enumeration-v1.json` 与 `scanner-state-v1.json` 已建立。Scanner 对根执行 `stat` 预检，以最多 32、默认 4 个并发目录请求分页遍历；每页 entries 与 checkpoint 经 `MediaScanSink` 原子提交，只有 batch 成功后内存状态才前移，pending queue 保留其他 in-flight 请求以支持安全重放；最终 completion 是唯一 missing 授权边界。fake connector 已覆盖分页重复、顺序变化、persistent-ID 移动、删除、重复 cursor、异常路径、断线续扫、取消、存储提交失败和并发上限。本地 connector 使用目录清单指纹令分页期间的变化失败关闭，并阻止 symlink 越出配置根；SMB adapter 和 WebDAV connector 复用同一 scanner，WebDAV 另覆盖跨 origin href、鉴权和 TLS 分类。parser fixture 已扩展到 series/season、多集、edition 和 sample；release CLI 可重放 `scanner-state-v1.json` 并比较规范化 snapshot。macOS 本地 47 个测试、debug/release build、公共 API、依赖、format、secret/import/libsmb2 guards 全部通过；S3 保持进行中，等待合入后的 Ubuntu 24.04 对等 CI 结果。
 
 完成定义：同一 fixture 重复扫描幂等；中断后续扫不会丢失已提交工作；不完整枚举不能产生删除；本地目录、SMB、WebDAV 和 fake connector 通过同一 scanner contract tests。
 

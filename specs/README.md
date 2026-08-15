@@ -56,4 +56,4 @@
 
 ## 公共测试向量
 
-`fixtures/` 保存所有平台共同执行的输入与期望输出。当前包括 [`wire-format-v1.json`](fixtures/core/wire-format-v1.json) 和 [`filename-parser-v1.json`](fixtures/media-library/filename-parser-v1.json)；fixture 变更即合同变更，必须由对应规范或 ADR 解释。
+`fixtures/` 保存所有平台共同执行的输入与期望输出。当前包括 [`wire-format-v1.json`](fixtures/core/wire-format-v1.json)、[`filename-parser-v1.json`](fixtures/media-library/filename-parser-v1.json)、[`remote-enumeration-v1.json`](fixtures/media-library/remote-enumeration-v1.json) 和 [`scanner-state-v1.json`](fixtures/media-library/scanner-state-v1.json)；fixture 变更即合同变更，必须由对应规范或 ADR 解释。

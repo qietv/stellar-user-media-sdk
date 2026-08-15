@@ -11,6 +11,8 @@ from pathlib import Path
 PORTABLE_TARGETS = (
     "StellarCore",
     "StellarRemoteMedia",
+    "StellarLocalMedia",
+    "StellarWebDAV",
     "StellarMediaLibrary",
     "StellarSMB2Core",
     "StellarUserMediaSDK",

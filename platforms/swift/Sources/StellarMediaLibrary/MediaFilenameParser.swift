@@ -5,7 +5,10 @@ import StellarRemoteMedia
 /// The coarse media category inferred from a source filename.
 public enum ParsedMediaKind: String, Sendable {
   case movie
+  case series
+  case season
   case episode
+  case extra
   case unknown
 }
 
@@ -28,6 +31,9 @@ public struct ParsedMediaFilename: Codable, Equatable, Sendable {
   public let year: Int?
   public let season: Int?
   public let episode: Int?
+  public let episodeEnd: Int?
+  public let edition: String?
+  public let isSample: Bool
   public let sourceName: String
 
   public init(
@@ -36,6 +42,9 @@ public struct ParsedMediaFilename: Codable, Equatable, Sendable {
     year: Int? = nil,
     season: Int? = nil,
     episode: Int? = nil,
+    episodeEnd: Int? = nil,
+    edition: String? = nil,
+    isSample: Bool = false,
     sourceName: String
   ) {
     self.kind = kind
@@ -43,7 +52,36 @@ public struct ParsedMediaFilename: Codable, Equatable, Sendable {
     self.year = year
     self.season = season
     self.episode = episode
+    self.episodeEnd = episodeEnd
+    self.edition = edition
+    self.isSample = isSample
     self.sourceName = sourceName
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    kind = try container.decode(ParsedMediaKind.self, forKey: .kind)
+    title = try container.decode(String.self, forKey: .title)
+    year = try container.decodeIfPresent(Int.self, forKey: .year)
+    season = try container.decodeIfPresent(Int.self, forKey: .season)
+    episode = try container.decodeIfPresent(Int.self, forKey: .episode)
+    episodeEnd = try container.decodeIfPresent(Int.self, forKey: .episodeEnd)
+    edition = try container.decodeIfPresent(String.self, forKey: .edition)
+    isSample = try container.decodeIfPresent(Bool.self, forKey: .isSample) ?? false
+    sourceName = try container.decode(String.self, forKey: .sourceName)
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(kind, forKey: .kind)
+    try container.encode(title, forKey: .title)
+    try container.encodeIfPresent(year, forKey: .year)
+    try container.encodeIfPresent(season, forKey: .season)
+    try container.encodeIfPresent(episode, forKey: .episode)
+    try container.encodeIfPresent(episodeEnd, forKey: .episodeEnd)
+    try container.encodeIfPresent(edition, forKey: .edition)
+    try container.encode(isSample, forKey: .isSample)
+    try container.encode(sourceName, forKey: .sourceName)
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -52,6 +90,9 @@ public struct ParsedMediaFilename: Codable, Equatable, Sendable {
     case year
     case season
     case episode
+    case episodeEnd = "episode_end"
+    case edition
+    case isSample = "is_sample"
     case sourceName = "source_name"
   }
 }
@@ -61,11 +102,44 @@ public struct MediaFilenameParser: Sendable {
   public init() {}
 
   public func parse(_ path: String) -> ParsedMediaFilename {
-    let sourceName = URL(fileURLWithPath: path).lastPathComponent
+    let url = URL(fileURLWithPath: path)
+    let sourceName = url.lastPathComponent
     let stem = (sourceName as NSString).deletingPathExtension
+    let isDirectoryHint = path.hasSuffix("/")
+
+    if isDirectoryHint {
+      if let seasonMatch = firstMatch(
+        pattern: #"(?i)^season[\s._-]*(\d{1,2})(?:$|[\s._-])"#,
+        in: stem
+      ), let season = integerCapture(seasonMatch, index: 1, in: stem) {
+        let parentName = url.deletingLastPathComponent().lastPathComponent
+        let (title, year) = normalizedTitleAndYear(parentName)
+        return ParsedMediaFilename(
+          kind: .season,
+          title: title,
+          year: year,
+          season: season,
+          sourceName: sourceName
+        )
+      }
+      let (title, year) = normalizedTitleAndYear(stem)
+      return ParsedMediaFilename(
+        kind: .series,
+        title: title,
+        year: year,
+        sourceName: sourceName
+      )
+    }
+
+    let isSample =
+      firstMatch(
+        pattern: #"(?i)(?:^|[\s._-])sample(?:$|[\s._-])"#,
+        in: stem
+      ) != nil
+    let edition = editionLabel(in: stem)
 
     if let episodeMatch = firstMatch(
-      pattern: #"(?i)(?:^|[\s._-])s(\d{1,2})e(\d{1,3})(?:$|[\s._-])"#,
+      pattern: #"(?i)(?:^|[\s._-])s(\d{1,2})e(\d{1,3})(?:-?e(\d{1,3}))?(?:$|[\s._-])"#,
       in: stem
     ),
       let season = integerCapture(episodeMatch, index: 1, in: stem),
@@ -74,22 +148,88 @@ public struct MediaFilenameParser: Sendable {
       let prefix = String(stem[..<episodeMatch.range.lowerBound])
       let (title, year) = normalizedTitleAndYear(prefix)
       return ParsedMediaFilename(
-        kind: .episode,
+        kind: isSample ? .extra : .episode,
         title: title,
         year: year,
         season: season,
         episode: episode,
+        episodeEnd: integerCapture(episodeMatch, index: 3, in: stem),
+        edition: edition,
+        isSample: isSample,
         sourceName: sourceName
       )
     }
 
-    let (title, year) = normalizedTitleAndYear(stem)
+    if let episodeMatch = firstMatch(
+      pattern: #"(?i)(?:^|[\s._-])(\d{1,2})x(\d{1,3})(?:$|[\s._-])"#,
+      in: stem
+    ),
+      let season = integerCapture(episodeMatch, index: 1, in: stem),
+      let episode = integerCapture(episodeMatch, index: 2, in: stem)
+    {
+      let prefix = String(stem[..<episodeMatch.range.lowerBound])
+      let (title, year) = normalizedTitleAndYear(prefix)
+      return ParsedMediaFilename(
+        kind: isSample ? .extra : .episode,
+        title: title,
+        year: year,
+        season: season,
+        episode: episode,
+        edition: edition,
+        isSample: isSample,
+        sourceName: sourceName
+      )
+    }
+
+    let titleInput =
+      isSample
+      ? stem.replacingOccurrences(
+        of: #"(?i)(?:^|[\s._-])sample(?:$|[\s._-])"#,
+        with: " ",
+        options: .regularExpression
+      )
+      : stem
+    let (title, year) = normalizedTitleAndYear(titleInput)
     return ParsedMediaFilename(
-      kind: year == nil ? .unknown : .movie,
+      kind: isSample ? .extra : (year == nil ? .unknown : .movie),
       title: title,
       year: year,
+      edition: edition,
+      isSample: isSample,
       sourceName: sourceName
     )
+  }
+
+  private func editionLabel(in input: String) -> String? {
+    guard
+      let match = firstMatch(
+        pattern:
+          #"(?i)(?:^|[\s._\[( -])(director'?s[\s._-]+cut|final[\s._-]+cut|extended(?:[\s._-]+(?:edition|cut))?|imax|theatrical(?:[\s._-]+cut)?|criterion)(?:$|[\s._\]) -])"#,
+        in: input
+      ), match.result.numberOfRanges > 1,
+      let range = Range(match.result.range(at: 1), in: input)
+    else {
+      return nil
+    }
+    let normalized = input[range]
+      .replacingOccurrences(of: #"[._-]+"#, with: " ", options: .regularExpression)
+      .lowercased()
+    switch normalized {
+    case "director's cut", "directors cut":
+      return "Director's Cut"
+    case "final cut":
+      return "Final Cut"
+    case "extended", "extended edition", "extended cut":
+      return "Extended"
+    case "imax":
+      return "IMAX"
+    case "theatrical", "theatrical cut":
+      return "Theatrical"
+    case "criterion":
+      return "Criterion"
+    default:
+      return nil
+    }
   }
 
   private func normalizedTitleAndYear(_ input: String) -> (String, Int?) {

@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "source_uid": "source-fixture-1",
+  "capabilities": {
+    "stable_id_scope": "persistent",
+    "case_sensitivity": "insensitive",
+    "unicode_normalization": "nfc",
+    "supports_range_reads": true,
+    "supports_change_cursor": false,
+    "delta_deletions_complete": false
+  },
+  "path_cases": [
+    {
+      "input": "Movies//./Arrival (2016).mkv",
+      "normalized": "Movies/Arrival (2016).mkv",
+      "compare_key": "movies/arrival (2016).mkv"
+    },
+    {
+      "input": "Movies/Café.mkv",
+      "normalized": "Movies/Café.mkv",
+      "compare_key": "movies/café.mkv"
+    },
+    {
+      "input": "剧集/三体/S01E01.mkv",
+      "normalized": "剧集/三体/S01E01.mkv",
+      "compare_key": "剧集/三体/s01e01.mkv"
+    }
+  ],
+  "pages": [
+    {
+      "request": {
+        "directory": {
+          "source_uid": "source-fixture-1",
+          "relative_path": ""
+        },
+        "cursor": null,
+        "limit": 2
+      },
+      "response": {
+        "items": [
+          {
+            "locator": {
+              "source_uid": "source-fixture-1",
+              "relative_path": "剧集"
+            },
+            "kind": "directory",
+            "stable_id": "directory-series",
+            "size": null,
+            "modified_at_ms": 1700000000000,
+            "etag": null
+          },
+          {
+            "locator": {
+              "source_uid": "source-fixture-1",
+              "relative_path": "Movies"
+            },
+            "kind": "directory",
+            "stable_id": "directory-movies",
+            "size": null,
+            "modified_at_ms": 1700000001000,
+            "etag": "root-movies-v1"
+          }
+        ],
+        "next_cursor": "root-page-2"
+      }
+    },
+    {
+      "request": {
+        "directory": {
+          "source_uid": "source-fixture-1",
+          "relative_path": ""
+        },
+        "cursor": "root-page-2",
+        "limit": 2
+      },
+      "response": {
+        "items": [
+          {
+            "locator": {
+              "source_uid": "source-fixture-1",
+              "relative_path": "Movies"
+            },
+            "kind": "directory",
+            "stable_id": "directory-movies",
+            "size": null,
+            "modified_at_ms": 1700000001000,
+            "etag": "root-movies-v1"
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    {
+      "request": {
+        "directory": {
+          "source_uid": "source-fixture-1",
+          "relative_path": "Movies"
+        },
+        "cursor": null,
+        "limit": 2
+      },
+      "response": {
+        "items": [
+          {
+            "locator": {
+              "source_uid": "source-fixture-1",
+              "relative_path": "Movies/Café.mkv"
+            },
+            "kind": "file",
+            "stable_id": "file-cafe",
+            "size": 734003200,
+            "modified_at_ms": 1700000010000,
+            "etag": "file-cafe-v1"
+          },
+          {
+            "locator": {
+              "source_uid": "source-fixture-1",
+              "relative_path": "Movies/Arrival (2016).mkv"
+            },
+            "kind": "file",
+            "stable_id": "file-arrival",
+            "size": 1073741824,
+            "modified_at_ms": 1700000020000,
+            "etag": "file-arrival-v1"
+          }
+        ],
+        "next_cursor": null
+      }
+    }
+  ]
+}
