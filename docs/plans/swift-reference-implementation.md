@@ -201,7 +201,7 @@ stellar-media smb scan
 
 - [x] 当前 CLI 密码只允许从 stdin 输入；明确拒绝 `--password <value>` 和带密码的 SMB URL，Vault/进程外 secret provider 留待 Sync 集成；
 - [x] `smb scan` 输出不带路径的 JSONL 条目与单独 summary，包含 schema、source、范围、开始/结束时间、结果、错误分类和 libsmb2 版本，不包含完整主机、用户名、密码或敏感路径；
-- [x] CI 使用临时 Samba 服务执行隔离集成测试；真实 NAS 使用明确批准的隔离资源完成验收；
+- [x] 真实 NAS 使用明确批准的隔离资源完成手动验收；鉴于真实环境验收已经通过，CI 不再重复启动临时 Samba 执行 SMB 冒烟；
 - [x] 构建生成 LGPL 许可证、固定 commit 完整对应源码和 symbol map；release kit 加入 SwiftPM object code、集成源码、重建/重链接脚本和 SHA-256 manifest，并从交付源码实际重建替换 archive 后重链接验证。
 
 验收矩阵：
@@ -354,10 +354,10 @@ stellar-media smb scan
 ### 触及 SMB
 
 - fake transport contract tests；
-- 临时 Samba integration tests；
-- signing/encryption、认证失败、断线、取消；
+- 不依赖服务器的 C ABI、主动取消和确定性释放测试；
+- signing/encryption、认证失败、断线、取消的合同测试；
 - argv/log/artifact 凭据泄漏检查；
-- release binary 在隔离真实来源上的只读验收。
+- release candidate 或 SMB 行为实质变化时，人工执行隔离真实来源只读验收；CI 不启动临时 Samba。
 
 ### 触及 Credential Vault
 
