@@ -2,7 +2,7 @@
 
 面向 iOS、iPadOS、macOS 和 tvOS 的原生 Swift 实现。
 
-完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S3 已完成来源无关 scanner 与本地/SMB/WebDAV connectors；当前阶段是 SQLite v1、迁移和扫描入库。
+完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S4 已完成 SQLite v1、迁移、扫描入库与跨平台 CI；当前阶段是媒体物化、元数据和 PosterWall 查询。
 
 ## 工具链与兼容基线
 

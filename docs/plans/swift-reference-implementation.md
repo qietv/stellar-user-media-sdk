@@ -2,7 +2,7 @@
 
 最后核对日期：2026-08-16
 
-当前阶段：**S4 — SQLite v1 与扫描入库**
+当前阶段：**S5 — 媒体物化、元数据与 PosterWall**
 
 目标工具链：Swift 6.3.x、Swift 6 language mode  
 最低 Apple 平台：iOS/iPadOS 17、macOS 14、tvOS 17
@@ -82,7 +82,6 @@ v1 不包含：
 - 尚未产生真实代码的 Auth、Sync 与平台 backend targets；
 - Windows compile check；
 - SMB3 encryption 的客户端合同与 server-free 测试已经完成；当前没有可用的隔离加密服务，真实服务验收推迟到 release candidate，不阻断 S2；
-- S4 的 Linux CI 对等验证；SQLite v1 是首个正式版本，因此没有上一正式版本迁移 fixture；
 - OAuth、配置同步、Vault 密码学实现和服务端 transport；
 - StellarPlayer iOS 正式集成。
 
@@ -242,7 +241,7 @@ stellar-media smb scan
 
 完成定义：同一 fixture 重复扫描幂等；中断后续扫不会丢失已提交工作；不完整枚举不能产生删除；本地目录、SMB、WebDAV 和 fake connector 通过同一 scanner contract tests。
 
-### S4 — SQLite v1 与扫描入库 🚧
+### S4 — SQLite v1 与扫描入库 ✅
 
 目标：让 macOS/Linux 使用同一 DDL 把扫描结果安全物化为可查询媒体库。
 
@@ -257,9 +256,9 @@ stellar-media smb scan
 - [x] 扫描批次使用短事务；正式快照、完成标志与 missing diff 位于同一原子边界；
 - [x] 实现 transactional outbox，业务行清理不能级联删除未上传事件；
 - [x] CLI 新增 `db migrate`、`db verify`、`library scan`、`library inspect`；
-- [ ] 测试空库、上一版、中断扫描、未知枚举、大型 fixture、数据库损坏和取消。
+- [x] 测试空库、中断扫描、未知枚举、大型 fixture、数据库损坏和取消；v1 是首个正式版本，没有上一版迁移样本。
 
-当前进展：`specs/storage/sql/` 已成为三端 SQL 唯一合同入口，manifest 固定 `library` 27 表、`account` 6 表与 `metadata_cache` 3 表的 application ID、版本、表数和 SHA-256。Swift 精确固定 GRDB 7.11.1，并新增 `StellarStorage`、事务迁移、只读 verify、`LibraryStore`、`AccountStore` 与 `SQLiteMediaScanSink`。Credential envelope 与 outbox 在同一事务提交，operation UID 幂等且业务行清理不会级联丢失 outbox。公共 scanner fixture 已产生规范化数据库 snapshot；重复 full scan 幂等，真正的 persistent stable ID 移动复用原文件事实，本地 `device:inode` 只声明为 scan scope 以避免 Linux inode 复用误判移动，scoped incremental 只协调范围内 missing，分页中断或任务取消会保留 checkpoint 且不误标现有文件。macOS 本地 57 个测试、新 CLI smoke、2000 文件批次、checksum 不匹配和损坏库失败保留均已通过；v1 没有上一正式版本样本，Ubuntu 对等 CI 仍待完成。
+完成证据：`specs/storage/sql/` 是三端 SQL 唯一合同入口，manifest 固定 `library` 27 表、`account` 6 表与 `metadata_cache` 3 表的 application ID、版本、表数和 SHA-256。Swift 精确固定 GRDB 7.11.1，并交付 `StellarStorage`、事务迁移、只读 verify、`LibraryStore`、`AccountStore` 与 `SQLiteMediaScanSink`。Credential envelope 与 outbox 在同一事务提交，operation UID 幂等且业务行清理不会级联丢失 outbox。公共 scanner fixture 产生规范化数据库 snapshot；重复 full scan 幂等，真正的 persistent stable ID 移动复用原文件事实，本地 `device:inode` 只声明为 scan scope 以避免 Linux inode 复用误判移动，scoped incremental 只协调范围内 missing，分页中断或任务取消会保留 checkpoint 且不误标现有文件。GitHub Actions run `31909219766` 已在 macOS 26 通过 57 个测试，在 Ubuntu 24.04 通过 59 个测试；双端 release build、API/依赖/格式/CLI 门禁以及三库 DDL/checksum/foreign key 检查均通过，Ubuntu 另通过私有静态 libsmb2 隔离和包含 SQLite 链接的 LGPL relink kit 验证。
 
 完成定义：macOS/Linux 使用同一 DDL checksum；同一 scanner fixture 产生一致的规范化数据库 snapshot；迁移失败不覆盖旧库；`foreign_key_check` 为零。
 
