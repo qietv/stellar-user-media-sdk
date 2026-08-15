@@ -40,13 +40,14 @@ jobs:
       run:
         working-directory: platforms/swift
 
-    env:
-      STELLAR_LIBSMB2_PREFIX: ${{ runner.temp }}/stellar-libsmb2
-      PKG_CONFIG_PATH: ${{ runner.temp }}/stellar-libsmb2/lib/pkgconfig
-
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure libsmb2 paths
+        run: |
+          echo "STELLAR_LIBSMB2_PREFIX=$RUNNER_TEMP/stellar-libsmb2" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$RUNNER_TEMP/stellar-libsmb2/lib/pkgconfig" >> "$GITHUB_ENV"
 
       - name: Verify Swift 6.3 toolchain
         run: |
