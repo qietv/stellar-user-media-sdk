@@ -57,7 +57,7 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 ### 5. 凭据与日志
 
 - 用户名、domain 和密码通过 setter 传入，不构造含 userinfo/password 的 SMB URL。
-- 密码只来自 stdin、Credential Vault 或进程外 secret provider；禁止 CLI `--password` 参数、环境回显、JSON 输出和持久化。
+- 密码只来自 stdin、受限的 `CredentialRecord` 读取接口或进程外 secret provider；禁止 CLI `--password` 参数、环境回显、JSON 输出和日志。
 - transport 错误在进入 logger、stderr 或报告前映射到 `SDKError` 并经过统一 redactor。完整主机、用户名和远端路径默认按敏感元数据处理。
 - Swift `String` 无法保证可靠清零，因此明文凭据只在连接所需的最小作用域存在。
 

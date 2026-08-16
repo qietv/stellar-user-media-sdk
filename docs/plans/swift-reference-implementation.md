@@ -25,7 +25,7 @@ Swift 实现不是规范本身。`Codable` 默认行为、Foundation 类型、ac
 v1 必须包含：
 
 - Core 合同、错误、日志脱敏、取消和公共 fixtures；
-- Stellar OAuth session、来源配置同步和 E2EE Credential Vault 客户端；
+- Stellar OAuth session、来源配置同步和明文 `CredentialRecord` 客户端；
 - 本地目录、SMB2/3、WebDAV 三种只读文件型来源；
 - 可恢复 scanner、SQLite v1、文件名/NFO 解析、媒体物化和 PosterWall 查询；
 - macOS/Linux CLI，以及 StellarPlayer iOS 的正式集成。
@@ -47,7 +47,7 @@ v1 不包含：
 | Windows 角色 | reference v1 冻结前完成 Core/CLI 编译验证；不阻断首个 Linux SMB 验收 |
 | SMB | 使用 libsmb2；首版只读，禁止创建、修改、重命名或删除远端文件 |
 | SQLite | 共享 SQLite DDL；Swift 优先沿用 GRDB 7.11.1，必须自行维护 Linux CI 与迁移测试 |
-| 凭据 | 本地 SQLite 与云端只保存 E2EE envelope；Vault 解锁材料进入平台安全存储；服务端不能解密 |
+| 凭据 | 第三方媒体源凭据以应用层明文 `CredentialRecord` 存入本地 SQLite 和云端；不增加设备批准、恢复或独立解锁；保留未来加密升级字段 |
 | 播放 | SDK 只返回 `PlayableResource`；不依赖 KSPlayer、FFmpegKit、SwiftUI 或播放器 View |
 | UI | v1 PosterWall 是数据查询 API，不在本 SDK 中交付 SwiftUI 组件 |
 | 依赖版本 | 所有第三方依赖精确固定；升级使用独立变更并重新执行跨平台合同测试 |
@@ -62,12 +62,12 @@ v1 不包含：
 - URL、Header、路径、用户名、密码和 token 的统一 redaction API，CLI stderr 已接入；
 - `FieldPresence`、epoch 毫秒和 `CursorPage` wire contract 及公共 fixture；
 - iOS 17、macOS 14、tvOS 17 最低版本；
-- 公共错误模型、`EncryptedCredentialEnvelope` wire model；
+- 公共错误模型、`CredentialRecord` wire model；
 - 最小电影/剧集文件名 parser；
 - repository-wide parser fixture；
-- 78 个 Swift Testing 测试，macOS debug/release 构建已通过；
+- 83 个 Swift Testing 测试，macOS debug/release 构建已通过；
 - GitHub Actions 已在 macOS 26 与 Ubuntu 24.04 首次实际通过对等验证，并固定第三方 Action SHA；
-- SwiftPM exact/revision 依赖锁定门禁，以及 9 个公开模块、1277 个 symbol 的 API compatibility 基线；
+- SwiftPM exact/revision 依赖锁定门禁，以及 9 个公开模块、1288 个 symbol 的 API compatibility 基线；
 - libsmb2 来源/ABI/私有静态链接 ADR、机器可读 lock、全符号前缀和 C ABI smoke guard；
 - 不依赖真实服务器的 `SMB2Transport` / `SMB2Session` seam、只读值模型和 fake transport 合同测试；
 - allowlisted C wrapper、Linux `LinuxSMB2Transport`、有界 blocking executor，以及连接、枚举、`stat`、range read 和确定性释放实现；
@@ -75,7 +75,7 @@ v1 不包含：
 - 来源无关的 `RemoteLocator`、`RemoteEntry`、connector 能力、路径比较语义和公共枚举 fixture；
 - full/scoped incremental/repair scanner 状态机、有界目录队列、原子 page checkpoint 和公共扫描 fixture；
 - macOS/Linux 本地目录 connector、SMB transport adapter、WebDAV URLSession/transport seam，以及三者的统一 scanner tests；
-- Credential Vault 规范和 E2EE 同步 ADR。
+- 明文凭据同步规范和 ADR；历史 Credential Vault 方案已被取代。
 - 本地元数据摄取合同 v1、sidecar 分类、受限 Kodi NFO 解析，以及可注入的技术探测模型与协议。
 - 文件名噪声/provider 证据、本地 JSON 解析，以及 filename/sidecar/NFO/JSON/probe 的 SQLite 原子摄取。
 - provider 查询协议、NFO/文件名查询证据合并，以及可由公共 fixture 重放的确定性候选评分与决策。
@@ -85,7 +85,7 @@ v1 不包含：
 - 尚未产生真实代码的 Auth、Sync 与平台 backend targets；
 - Windows compile check；
 - SMB3 encryption 的客户端合同与 server-free 测试已经完成；当前没有可用的隔离加密服务，真实服务验收推迟到 release candidate，不阻断 S2；
-- OAuth、配置同步、Vault 密码学实现和服务端 transport；
+- OAuth、配置/凭据同步和服务端 transport；
 - StellarPlayer iOS 正式集成。
 
 ## 4. 目标 Package 架构
@@ -108,7 +108,7 @@ flowchart TD
     Library --> Storage
     Wall["StellarPosterWall\n查询/分页/搜索"] --> Library
     Auth["StellarAuth\n会话状态机/PKCE 合同"] --> Core
-    Sync["StellarSync\n配置/Vault/outbox"] --> Auth
+    Sync["StellarSync\n配置/凭据/outbox"] --> Auth
     Sync --> Storage
     Sync --> Remote
     Apple["StellarApplePlatform\nKeychain/ASWebAuthenticationSession"] --> Auth
@@ -134,13 +134,12 @@ flowchart TD
 | --- | --- | --- | --- |
 | libsmb2 | 以 StellarPlayer 已验证的 `aedafb2c8742c83188e27841e270fdaad6035d41` 为兼容基准 | SMB2/3 连接、枚举、stat、range read | ADR：源码固定、私有静态 archive、全符号前缀、LGPL relink kit |
 | GRDB.swift | 精确版本 7.11.1 | SQLite 连接、迁移、事务和查询 | Linux debug/release、WAL、migration、`foreign_key_check` 全部进入 CI |
-| Swift Crypto | 候选精确版本 4.5.1 | Apple/Linux 共用 AES-GCM、KDF 和 key wrapping 基础能力 | ADR：算法套件、AAD canonical encoding、设备批准和恢复流程；不得先写自定义密码算法 |
 
 必须先完成的 ADR：
 
 1. libsmb2 获取、固定版本、私有静态链接和 Apple/Linux 分发方式；
 2. SQLite/GRDB 采用方式、数据库文件布局和 DDL 所有权；
-3. Credential Vault key wrapping、设备批准、恢复材料和 key rotation；
+3. 第三方凭据同步、访问控制和未来保护模式迁移边界；
 4. StellarPlayer iOS 现有媒体库向 SDK 迁移及旧数据库清理策略。
 
 ## 6. 里程碑
@@ -153,7 +152,7 @@ flowchart TD
 
 - [x] 初始化 Swift 6.3 Package；
 - [x] 建立 library、CLI 和 Swift Testing target；
-- [x] 实现错误模型、文件名 parser 和加密凭据 envelope model；
+- [x] 实现错误模型、文件名 parser 和版本化凭据记录 model；
 - [x] 建立第一个公共 fixture；
 - [x] macOS debug tests 和 release build 通过。
 
@@ -176,7 +175,7 @@ flowchart TD
 
 完成定义：同一 commit 在 macOS 和 Linux 上执行 Core/CLI tests；代码中没有未经条件隔离的 Apple import；fixture 输出语义一致。
 
-完成证据：初始 commit `d1b8b2e` 已在 GitHub-hosted macOS 26、Ubuntu 24.04 和 repository guards 全部通过；后续 S3 run `31907420283` 继续证明两端 symbol graph 一致。CI 拒绝 SwiftPM branch/range；新增外部依赖要求 exact version 或 immutable revision 并提交 `Package.resolved`。`API/PublicAPI.json` 当前固定包括 `StellarStorage` 在内的 8 个公开模块、717 个 symbol，API 有意变化必须显式更新并审阅 baseline diff。
+完成证据：初始 commit `d1b8b2e` 已在 GitHub-hosted macOS 26、Ubuntu 24.04 和 repository guards 全部通过；后续 S3 run `31907420283` 继续证明两端 symbol graph 一致。CI 拒绝 SwiftPM branch/range；新增外部依赖要求 exact version 或 immutable revision 并提交 `Package.resolved`。`API/PublicAPI.json` 当前固定 9 个公开模块、1288 个 symbol，API 有意变化必须显式更新并审阅 baseline diff。
 
 ### S2 — Linux libsmb2 只读纵向切片 ✅
 
@@ -204,7 +203,7 @@ stellar-media smb list
 stellar-media smb scan
 ```
 
-- [x] 当前 CLI 密码只允许从 stdin 输入；明确拒绝 `--password <value>` 和带密码的 SMB URL，Vault/进程外 secret provider 留待 Sync 集成；
+- [x] 当前 CLI 密码只允许从 stdin 输入；明确拒绝 `--password <value>` 和带密码的 SMB URL，账户同步/进程外 secret provider 留待 Sync 集成；
 - [x] `smb scan` 输出不带路径的 JSONL 条目与单独 summary，包含 schema、source、范围、开始/结束时间、结果、错误分类和 libsmb2 版本，不包含完整主机、用户名、密码或敏感路径；
 - [x] 真实 NAS 使用明确批准的隔离资源完成手动验收；鉴于真实环境验收已经通过，CI 不再重复启动临时 Samba 执行 SMB 冒烟；
 - [x] 构建生成 LGPL 许可证、固定 commit 完整对应源码和 symbol map；release kit 加入 SwiftPM object code、集成源码、重建/重链接脚本和 SHA-256 manifest，并从交付源码实际重建替换 archive 后重链接验证。
@@ -251,7 +250,7 @@ stellar-media smb scan
 工作：
 
 - [x] 从现有 27 表设计提取版本化 `library.sqlite` DDL；
-- [x] 定义 `account.sqlite` 的来源、E2EE envelope、outbox 与 cursor 表；
+- [x] 定义 `account.sqlite` 的来源、明文 `CredentialRecord`、outbox 与 cursor 表；
 - [x] 定义可删除的 `metadata_cache.sqlite`；
 - [x] 完成 GRDB/SQLite ADR，并精确固定 GRDB 7.11.1；
 - [x] 每条连接启用 foreign keys、WAL、busy timeout；写入由单一 writer actor 协调；
@@ -261,7 +260,7 @@ stellar-media smb scan
 - [x] CLI 新增 `db migrate`、`db verify`、`library scan`、`library inspect`；
 - [x] 测试空库、中断扫描、未知枚举、大型 fixture、数据库损坏和取消；v1 是首个正式版本，没有上一版迁移样本。
 
-完成证据：`specs/storage/sql/` 是三端 SQL 唯一合同入口，manifest 固定 `library` 27 表、`account` 6 表与 `metadata_cache` 3 表的 application ID、版本、表数和 SHA-256。Swift 精确固定 GRDB 7.11.1，并交付 `StellarStorage`、事务迁移、只读 verify、`LibraryStore`、`AccountStore` 与 `SQLiteMediaScanSink`。Credential envelope 与 outbox 在同一事务提交，operation UID 幂等且业务行清理不会级联丢失 outbox。公共 scanner fixture 产生规范化数据库 snapshot；重复 full scan 幂等，真正的 persistent stable ID 移动复用原文件事实，本地 `device:inode` 只声明为 scan scope 以避免 Linux inode 复用误判移动，scoped incremental 只协调范围内 missing，分页中断或任务取消会保留 checkpoint 且不误标现有文件。GitHub Actions run `31909219766` 已在 macOS 26 通过 57 个测试，在 Ubuntu 24.04 通过 59 个测试；双端 release build、API/依赖/格式/CLI 门禁以及三库 DDL/checksum/foreign key 检查均通过，Ubuntu 另通过私有静态 libsmb2 隔离和包含 SQLite 链接的 LGPL relink kit 验证。
+完成证据：`specs/storage/sql/` 是三端 SQL 唯一合同入口，manifest 固定 `library` 27 表、`account` 6 表与 `metadata_cache` 3 表的 application ID、版本、表数和 SHA-256。Swift 精确固定 GRDB 7.11.1，并交付 `StellarStorage`、事务迁移、只读 verify、`LibraryStore`、`AccountStore` 与 `SQLiteMediaScanSink`。`CredentialRecord` 与 outbox 在同一事务提交，operation UID 幂等且业务行清理不会级联丢失 outbox。公共 scanner fixture 产生规范化数据库 snapshot；重复 full scan 幂等，真正的 persistent stable ID 移动复用原文件事实，本地 `device:inode` 只声明为 scan scope 以避免 Linux inode 复用误判移动，scoped incremental 只协调范围内 missing，分页中断或任务取消会保留 checkpoint 且不误标现有文件。GitHub Actions run `31909219766` 已在 macOS 26 通过 57 个测试，在 Ubuntu 24.04 通过 59 个测试；双端 release build、API/依赖/格式/CLI 门禁以及三库 DDL/checksum/foreign key 检查均通过，Ubuntu 另通过私有静态 libsmb2 隔离和包含 SQLite 链接的 LGPL relink kit 验证。
 
 完成定义：macOS/Linux 使用同一 DDL checksum；同一 scanner fixture 产生一致的规范化数据库 snapshot；迁移失败不覆盖旧库；`foreign_key_check` 为零。
 
@@ -288,27 +287,27 @@ stellar-media smb scan
 - [x] provider 失败不能删除本地文件事实，也不能覆盖人工匹配；
 - [x] CLI 新增 `library list/search/show`，输出与 PosterWall fixture 对齐。
 
-进行中证据：`metadata-intake-v1.json` 已固定文件名噪声/provider 证据、6 个 sidecar 关联样本、2 个 NFO、1 个本地 JSON 规范化样本和 1 组多轨技术结果；`metadata-matching-v1.json` 固定电影、alias、剧集存在性、缺集拒绝和外部 ID 直达结果；`metadata-match-persistence-v1.json` 固定 review → 人工锁定、锁定保护、同实体 primary/version 绑定、series → season → episode 物化，以及 extra 幂等继承。`SQLiteMediaMetadataStore` 原子写入 parse、完整 sidecar 集与成功 probe，任一行失败时整体回滚且无新成功 probe 时保留上次结果。`SQLiteMediaMatcher` 把 review 候选写入可删除缓存，把自动/人工决定写入核心库；事务内再次保护人工锁，provider 失败不改变已有绑定。`StellarPosterWall` 已成为独立 target；`poster-wall-v1.json` 固定 title pagination、最近添加、继续观看、搜索、类型、片单、选图、剧集详情和轨道投影。cursor 绑定规范化查询与内容 revision，库变化后失败关闭；电影/剧集聚合多版本可用性，详情返回 playable files 与 season/episode 层级。artwork variant identity 包含 provider/reference/尺寸/transform，签名 URL 被拒绝，缓存索引与 prefetch seam 可替换。CLI 已复用同一 API 提供 `library list/search/show`。当前 macOS 共 78 个测试；公共 API baseline 包含 9 个 portable 模块、1277 个 symbol。
+进行中证据：`metadata-intake-v1.json` 已固定文件名噪声/provider 证据、6 个 sidecar 关联样本、2 个 NFO、1 个本地 JSON 规范化样本和 1 组多轨技术结果；`metadata-matching-v1.json` 固定电影、alias、剧集存在性、缺集拒绝和外部 ID 直达结果；`metadata-match-persistence-v1.json` 固定 review → 人工锁定、锁定保护、同实体 primary/version 绑定、series → season → episode 物化，以及 extra 幂等继承。`SQLiteMediaMetadataStore` 原子写入 parse、完整 sidecar 集与成功 probe，任一行失败时整体回滚且无新成功 probe 时保留上次结果。`SQLiteMediaMatcher` 把 review 候选写入可删除缓存，把自动/人工决定写入核心库；事务内再次保护人工锁，provider 失败不改变已有绑定。`StellarPosterWall` 已成为独立 target；`poster-wall-v1.json` 固定 title pagination、最近添加、继续观看、搜索、类型、片单、选图、剧集详情和轨道投影。cursor 绑定规范化查询与内容 revision，库变化后失败关闭；电影/剧集聚合多版本可用性，详情返回 playable files 与 season/episode 层级。artwork variant identity 包含 provider/reference/尺寸/transform，签名 URL 被拒绝，缓存索引与 prefetch seam 可替换。CLI 已复用同一 API 提供 `library list/search/show`。当前 macOS 共 83 个测试；公共 API baseline 包含 9 个 portable 模块、1288 个 symbol。
 
 完成定义：从 SMB fixture 扫描到数据库，再到海报墙 JSON 查询形成完整离线纵向路径；重建派生索引不会丢失人工状态、播放状态或 outbox。
 
-### S6 — OAuth、来源同步与 Credential Vault ⬜
+### S6 — OAuth、来源配置与凭据同步 ⬜
 
-目标：实现账户会话、来源配置同步及用户明确要求的跨平台凭据同步。
+目标：实现账户会话和无需额外批准、恢复或独立解锁的跨平台来源同步。
 
 工作：
 
-- [ ] 实现 PKCE、state/nonce 校验、session actor、单飞 refresh、退出/撤销和 reauthentication；
-- [ ] Stellar OAuth token 每设备独立，只进入平台安全存储，不进入 Vault；
+- [ ] 实现 Authorization Code + PKCE、`state` 校验、session actor、单飞 refresh、退出/撤销和 reauthentication；只有服务升级为 OIDC 并返回 ID token 时才增加 `nonce`、issuer 和 audience 校验；
+- [ ] Stellar OAuth token 每设备独立，不进入来源凭据同步：access token 优先只驻留内存，refresh token 进入平台安全存储；Apple backend 全程使用 Data Protection Keychain、默认私有 access group、`ThisDeviceOnly`、非交互 `LAContext`，禁止 `kSecAttrAccessControl`/LocalAuthentication evaluate/共享 entitlement 依赖，确保零 Face ID/Touch ID/设备密码弹框和零运行时权限请求；
 - [ ] 实现 `MediaSourceConfig`、revision、tombstone、冲突和 config outbox；
-- [ ] 完成 Vault ADR，固定 Swift Crypto 版本、AES-256-GCM、AAD canonical encoding、key wrapping、设备批准、恢复和轮换；
-- [ ] 实现 `CredentialPayload` 受限 schema、seal/open、envelope repository 和 redaction；
-- [ ] 新设备未获 Vault 授权时只能取得配置和密文，来源状态为 `credential_required`；
+- [x] 采用 ADR-0005，固定 v1 `CredentialRecord` 为应用层明文，并保留 `protection_mode`、稳定 UID、revision、tombstone 和可选受保护字段作为未来迁移边界；
+- [ ] 实现受限 `payload_json` schema、record repository、字段大小限制和 redaction；当前客户端只创建/使用 `plaintext`，遇到未来未知或受保护模式必须失败关闭且不得覆盖远端记录；
+- [ ] 新设备完成 Stellar OAuth 后直接拉取来源配置和凭据，不需要旧设备批准、恢复口令、Vault key 或生物识别；
 - [ ] 实现可替换 sync transport 与 deterministic fake server；staging 服务可用后执行真实 pull/push/revoke 验收；
-- [ ] 建立跨语言 known-answer vectors，覆盖加解密、AAD 篡改、key rotation 和未知 schema；
-- [ ] 验证 SQLite、WAL、备份、请求、服务端存储和日志中没有明文测试秘密。
+- [ ] 建立跨语言 fixtures，覆盖创建、更新、冲突、删除、未知 schema/protection mode 和幂等重放；
+- [ ] 验证本地 SQLite、同步请求和服务端受限存储可以正确读取测试 payload；同时验证普通日志、崩溃报告、分析事件、URL 和非受限诊断导出不出现凭据。
 
-完成定义：两台隔离设备可在用户授权后同步并使用 SMB 凭据；服务端/fake service 只有密文；设备撤销、密码更新、冲突、删除和 key rotation 均通过。
+完成定义：用户在第二台隔离设备完成 Stellar OAuth 后，无额外操作即可同步并使用 SMB 凭据；服务端按账户授权隔离且可以读取 v1 明文；Apple 首次保存、冷启动恢复、前后台刷新、登出和遗留受保护 item 均不弹认证 UI、不申请运行时权限；密码更新、冲突、删除、登出和未知保护模式均通过。
 
 ### S7 — StellarPlayer iOS 集成与数据迁移 ⬜
 
@@ -326,7 +325,7 @@ stellar-media smb scan
 - [ ] SDK `PlayableResource` 适配为 App 的运行期播放候选；凭据不得进入持久化队列或普通日志；
 - [ ] 用真实扫描 repository 替换 `DemoMediaCatalogProvider`；
 - [ ] 迁移来源、选择范围、目录快照和凭据引用；所有 migration 可重试并保留回滚副本；
-- [ ] 当前 App SQLite 中的明文媒体源凭据必须 seal 成 Vault envelope，再清理旧字段、WAL、临时备份和明文缓存；迁移测试应搜索测试秘密字节；
+- [ ] 当前 App SQLite 中的媒体源凭据迁移为 `CredentialRecord(protection_mode=plaintext)`，保持稳定引用并清理重复旧字段；回滚副本、WAL 和迁移日志必须按凭据数据限制访问；
 - [ ] 行为对等并经过至少一个版本验证后，删除或明确冻结 App 内重复的媒体库实现；
 - [ ] 更新 App 产品规范、媒体库架构和 PLAN 状态；
 - [ ] 执行 App Package tests、Debug/Release simulator build、静态分析和 SMB 真机回归。
@@ -342,7 +341,7 @@ stellar-media smb scan
 - [ ] 大型媒体库性能、内存、数据库大小、冷启动和取消测试；
 - [ ] 网络抖动、来源离线、数据库忙/满/损坏、进程终止和恢复 fault injection；
 - [ ] API compatibility、migration rollback、隐私、安全和 secret scanning；
-- [ ] 完成 libsmb2、GRDB、Swift Crypto 及传递依赖许可证与 notices；
+- [ ] 完成 libsmb2、GRDB 及传递依赖许可证与 notices；若未来加密升级引入密码学依赖，再独立补充其许可证和验证；
 - [ ] Windows Core/CLI compile check，修正路径、stderr 和进程退出差异；
 - [ ] 发布 DocC、CLI reference、数据库 schema、迁移说明和故障排查；
 - [ ] 冻结 reference v1 的 JSON Schema、fixtures、DDL/checksum、错误表和行为矩阵；
@@ -378,12 +377,12 @@ stellar-media smb scan
 - argv/log/artifact 凭据泄漏检查；
 - release candidate 或 SMB 行为实质变化时，人工执行隔离真实来源只读验收；CI 不启动临时 Samba。
 
-### 触及 Credential Vault
+### 触及来源凭据同步
 
-- known-answer vectors；
-- nonce 唯一性和篡改失败；
-- 未授权设备、批准、撤销、恢复和 key rotation；
-- SQLite/WAL/backup/network/log 明文扫描。
+- 明文 `CredentialRecord` 跨语言 fixture、revision、tombstone 和幂等重放；
+- 账户级授权隔离、撤销/登出、密码更新和冲突；
+- 未知 schema 或 protection mode 失败关闭且不覆盖远端数据；
+- SQLite、同步请求和受限服务端存储存在预期测试 payload；日志、URL、崩溃报告、分析事件和非受限诊断导出不得包含凭据。
 
 ## 8. 每个里程碑的交付物
 
@@ -423,7 +422,7 @@ S1 模块/CI
   → S8 Reference v1
 
 S1
-  → S6 OAuth/Config/Vault
+  → S6 OAuth/Config/Credentials
   ───────────────────────→ S7
 ```
 

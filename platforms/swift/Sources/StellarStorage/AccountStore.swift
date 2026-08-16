@@ -26,7 +26,7 @@ public struct AccountOutboxRecord: Codable, Equatable, Sendable {
   }
 }
 
-/// Transactional account repository for encrypted credential envelopes and their outbox.
+/// Transactional account repository for synchronized credential records and their outbox.
 public struct AccountStore: Sendable {
   public let database: StorageDatabase
   private let uuidGenerator: any SDKUUIDGenerating
@@ -42,9 +42,9 @@ public struct AccountStore: Sendable {
     self.uuidGenerator = uuidGenerator
   }
 
-  /// Upserts a ciphertext-only envelope and enqueues its sync operation in the same transaction.
-  public func saveCredentialEnvelope(
-    _ envelope: EncryptedCredentialEnvelope,
+  /// Upserts a v1 plaintext credential record and enqueues its sync operation atomically.
+  public func saveCredentialRecord(
+    _ record: CredentialRecord,
     baseRevision: Int64,
     operationUID suppliedOperationUID: String? = nil
   ) async throws {
@@ -54,48 +54,56 @@ public struct AccountStore: Sendable {
     let operationUID =
       suppliedOperationUID
       ?? uuidGenerator.makeUUID().uuidString.lowercased()
-    let kind = Self.credentialKind(envelope.kind)
+    let kind = Self.credentialKind(record.kind)
     guard !operationUID.isEmpty, !operationUID.contains("\0") else {
       throw SDKError(code: .invalidConfiguration, message: "operation UID is invalid")
     }
-    guard !envelope.credentialUID.isEmpty, !envelope.accountUID.isEmpty,
-      !envelope.sourceUID.isEmpty, !envelope.credentialUID.contains("\0"),
-      !envelope.accountUID.contains("\0"), !envelope.sourceUID.contains("\0"),
+    guard record.protectionMode == .plaintext else {
+      throw SDKError(
+        code: .credentialProtectionUnsupported,
+        message: "credential protection mode is not supported by this client"
+      )
+    }
+    guard !record.credentialUID.isEmpty, !record.accountUID.isEmpty,
+      !record.sourceUID.isEmpty, !record.credentialUID.contains("\0"),
+      !record.accountUID.contains("\0"), !record.sourceUID.contains("\0"),
       !kind.isEmpty, !kind.contains("\0"),
-      envelope.algorithm == "aes_256_gcm", envelope.keyVersion > 0,
-      !envelope.nonceBase64.isEmpty, !envelope.ciphertextBase64.isEmpty,
-      envelope.authenticatedDataVersion == 1, envelope.revision >= 0,
-      envelope.schemaVersion == 1
+      record.algorithm == nil, record.keyVersion == nil, record.nonceBase64 == nil,
+      record.protectedPayloadBase64 == nil, record.authenticatedDataVersion == nil,
+      record.revision >= 0, record.schemaVersion == 1,
+      Self.validPlaintextPayload(record.payloadJSON, tombstone: record.deletedAtMilliseconds != nil)
     else {
-      throw SDKError(code: .invalidConfiguration, message: "credential envelope is invalid")
+      throw SDKError(code: .invalidConfiguration, message: "credential record is invalid")
     }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     let payload: String
     do {
-      payload = String(decoding: try encoder.encode(envelope), as: UTF8.self)
+      payload = String(decoding: try encoder.encode(record), as: UTF8.self)
     } catch {
-      throw SDKError(code: .parseFailure, message: "credential envelope encoding failed")
+      throw SDKError(code: .parseFailure, message: "credential record encoding failed")
     }
-    let operation = envelope.deletedAtMilliseconds == nil ? "upsert" : "delete"
+    let operation = record.deletedAtMilliseconds == nil ? "upsert" : "delete"
 
     do {
       try await database.write { database in
         try database.execute(
           sql: """
-            INSERT INTO credential_envelope(
-              credential_uid, account_uid, source_uid, kind, algorithm, key_version,
-              nonce_b64, ciphertext_b64, aad_version, revision, base_revision,
-              updated_at_ms, deleted_at_ms, schema_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO credential_record(
+              credential_uid, account_uid, source_uid, kind, protection_mode, payload_json,
+              algorithm, key_version, nonce_b64, protected_payload_b64, aad_version,
+              revision, base_revision, updated_at_ms, deleted_at_ms, schema_version
+            ) VALUES (?, ?, ?, ?, 'plaintext', ?, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?)
             ON CONFLICT(credential_uid) DO UPDATE SET
               account_uid = excluded.account_uid,
               source_uid = excluded.source_uid,
               kind = excluded.kind,
+              protection_mode = excluded.protection_mode,
+              payload_json = excluded.payload_json,
               algorithm = excluded.algorithm,
               key_version = excluded.key_version,
               nonce_b64 = excluded.nonce_b64,
-              ciphertext_b64 = excluded.ciphertext_b64,
+              protected_payload_b64 = excluded.protected_payload_b64,
               aad_version = excluded.aad_version,
               revision = excluded.revision,
               base_revision = excluded.base_revision,
@@ -104,11 +112,9 @@ public struct AccountStore: Sendable {
               schema_version = excluded.schema_version
             """,
           arguments: [
-            envelope.credentialUID, envelope.accountUID, envelope.sourceUID, kind,
-            envelope.algorithm, envelope.keyVersion, envelope.nonceBase64,
-            envelope.ciphertextBase64, envelope.authenticatedDataVersion, envelope.revision,
-            baseRevision, envelope.updatedAtMilliseconds, envelope.deletedAtMilliseconds,
-            envelope.schemaVersion,
+            record.credentialUID, record.accountUID, record.sourceUID, kind, record.payloadJSON,
+            record.revision, baseRevision, record.updatedAtMilliseconds,
+            record.deletedAtMilliseconds, record.schemaVersion,
           ]
         )
         try database.execute(
@@ -116,12 +122,12 @@ public struct AccountStore: Sendable {
             INSERT INTO account_change_log(
               operation_uid, account_uid, entity_type, entity_uid, base_revision,
               operation, payload_json, modified_at_ms
-            ) VALUES (?, ?, 'credential_envelope', ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, 'credential_record', ?, ?, ?, ?, ?)
             ON CONFLICT(operation_uid) DO NOTHING
             """,
           arguments: [
-            operationUID, envelope.accountUID, envelope.credentialUID, baseRevision,
-            operation, payload, envelope.updatedAtMilliseconds,
+            operationUID, record.accountUID, record.credentialUID, baseRevision,
+            operation, payload, record.updatedAtMilliseconds,
           ]
         )
         guard
@@ -141,8 +147,8 @@ public struct AccountStore: Sendable {
         let storedBaseRevision: Int64 = storedIdentity["base_revision"]
         let storedOperation: String = storedIdentity["operation"]
         let storedPayload: String? = storedIdentity["payload_json"]
-        guard storedAccountUID == envelope.accountUID,
-          storedEntityUID == envelope.credentialUID,
+        guard storedAccountUID == record.accountUID,
+          storedEntityUID == record.credentialUID,
           storedBaseRevision == baseRevision,
           storedOperation == operation,
           storedPayload == payload
@@ -153,11 +159,11 @@ public struct AccountStore: Sendable {
     } catch let error as SDKError {
       throw error
     } catch {
-      throw SDKError(code: .storageFailure, message: "credential envelope transaction failed")
+      throw SDKError(code: .storageFailure, message: "credential record transaction failed")
     }
   }
 
-  /// Lists pending operations without returning encrypted payload bytes to diagnostics surfaces.
+  /// Lists pending operations without returning credential payloads to diagnostics surfaces.
   public func pendingOutbox(accountUID: String) async throws -> [AccountOutboxRecord] {
     do {
       return try await database.read { database in
@@ -199,5 +205,17 @@ public struct AccountStore: Sendable {
     case .keyPair: "key_pair"
     case .unknown(let value): value
     }
+  }
+
+  private static func validPlaintextPayload(_ payload: String?, tombstone: Bool) -> Bool {
+    guard let payload else { return tombstone }
+    guard !payload.isEmpty, payload.utf8.count <= 65_536,
+      let data = payload.data(using: .utf8),
+      let object = try? JSONSerialization.jsonObject(with: data),
+      object is [String: Any]
+    else {
+      return false
+    }
+    return true
   }
 }

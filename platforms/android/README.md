@@ -20,7 +20,8 @@ stellar-user-media-sdk/src/
 ## 实现约定
 
 - 对外异步 API 使用 `suspend`；持续状态使用冷 `Flow` 或只读 `StateFlow`。
-- OAuth 优先使用系统 Custom Tabs/AppAuth；令牌通过 Android Keystore 保护。
+- OAuth 优先使用系统 Custom Tabs/AppAuth；access token 优先只驻留内存，refresh token 通过 Android Keystore 支持的应用私有存储透明保护。默认不要求每次读取都进行指纹/人脸认证，以支持会话恢复和后台刷新。
+- 第三方连接凭据按公共合同以应用层明文 `CredentialRecord` 存入账户数据库并同步；当前只创建 `plaintext`，不把 Keystore 或文件系统加密宣传为 E2EE。
 - 扫描和网络 I/O 使用受控 dispatcher；任务应响应 coroutine cancellation。
 - SQLite 可以由 Room 管理，但 schema、索引、迁移和删除规则必须遵循公共规范。
 - 周期任务可由 WorkManager 触发，SDK 核心不得依赖任务一定准时运行。
@@ -37,4 +38,3 @@ stellar-user-media-sdk/src/
 - `PosterWallRepository`
 
 Gradle 构建文件将在主工程的 Android Gradle Plugin、Kotlin 和发布坐标确认后加入。
-

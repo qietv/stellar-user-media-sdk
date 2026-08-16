@@ -9,13 +9,13 @@
 1. **用户 OAuth 登录及状态维护**
    - Authorization Code + PKCE；
    - 登录、刷新、退出、撤销和需要重新认证状态；
-   - Token 仅进入平台安全存储；
+   - access token 仅驻留内存或平台安全存储，refresh token 仅进入平台安全存储；
    - 多账户数据隔离和会话事件流。
 2. **远程媒体配置同步**
    - 同步 NAS、WebDAV、云盘和媒体服务器的连接配置；
    - 同步 Favorite、扫描范围、元数据与预缓存策略；
-   - 用户名、密码和第三方 Token 通过 Credential Vault 端到端加密后保存到本地数据库并跨设备同步；
-   - 云端只保存加密 envelope，解密密钥仅交给用户已授权的设备；
+   - 用户名、密码和第三方 Token 在 v1 以可同步的明文 `CredentialRecord` 保存；
+   - 新设备完成 Stellar OAuth 后无需 Vault 批准或恢复步骤即可使用凭据，结构预留未来加密升级；
    - 版本、冲突和 tombstone 删除协议。
 3. **媒体库与海报墙**
    - 本地、NAS、云盘及 Plex/Emby/Jellyfin 来源适配；
@@ -33,9 +33,9 @@ flowchart LR
     SDK --> Library["MediaLibrary"]
     SDK --> Wall["PosterWall"]
     Auth --> Secure["平台安全存储"]
-    Config --> Vault["本地加密 Credential Vault"]
+    Config --> Credential["本地 CredentialRecord"]
     Config --> API["Stellar account/config API"]
-    Vault --> API
+    Credential --> API
     Config --> Adapters["NAS/云盘/媒体服务器 adapters"]
     Library --> Adapters
     Library --> SQLite["设备本地 SQLite"]
@@ -76,7 +76,7 @@ third_party/           第三方依赖版本、许可证与来源记录（不存
 
 ## 当前约束
 
-- 不把 OAuth client secret、明文用户密码、明文 refresh token 或 NAS Token 写进 Git、日志、普通 SQLite 字段或云端；媒体源凭据只以端到端加密 envelope 形式持久化和同步。
+- 不把 OAuth client secret、Stellar OAuth token、用户密码或 NAS Token 写进 Git、日志、崩溃报告、分析事件或 URL。第三方媒体源凭据按当前产品决策会以应用层明文进入 `account.sqlite` 和同步服务；这些数据库、备份和服务端快照必须按凭据材料保护，产品不得声称 E2EE。
 - 自动扫描无权删除真实媒体文件。
 - 来源不可达或枚举不完整时，不得把未看到的文件判定为删除。
 - 人工匹配、观看状态、片单和未上传同步事件不能随索引重建丢失。

@@ -7,15 +7,15 @@ Swift、Android 与 OpenHarmony 均采用 SQLite 作为本地事实库，使用�
 可执行 v1 合同由 [`schema-manifest-v1.json`](schema-manifest-v1.json) 固定 checksum，并分别位于：
 
 - [`library-v1.sql`](sql/library-v1.sql)：27 张核心业务表；
-- [`account-v1.sql`](sql/account-v1.sql)：来源配置、加密 envelope、冲突、outbox 与 cursor；
+- [`account-v1.sql`](sql/account-v1.sql)：来源配置、凭据记录、冲突、outbox 与 cursor；
 - [`metadata-cache-v1.sql`](sql/metadata-cache-v1.sql)：3 张可删除缓存表。
 
 研究文档中的 SQL 只保留设计推导与数据字典；若与上述可执行合同冲突，以 `specs/storage/sql/` 为准。数据库身份、GRDB 采用方式、连接参数和迁移失败策略见 [ADR-0004](../../docs/decisions/0004-sqlite-storage-and-migrations.md)。
 
 持久化分为三个逻辑域，其中媒体库域拆成核心库与缓存库：
 
-- 平台安全存储：Stellar OAuth token、设备私钥和 Credential Vault 解锁材料；不是 SQLite。
-- `account.sqlite`：账号资料、可同步媒体源配置、字段级 AEAD 加密的第三方凭据 envelope，以及各自的同步 outbox。v1 DDL 不保存 Vault key、设备私钥或 Stellar OAuth token，也不计入媒体库 27 表。
+- 平台安全存储：每台设备独立的 Stellar OAuth token；不是 SQLite。默认访问策略不要求每次读取时进行生物识别或用户在场验证。
+- `account.sqlite`：账号资料、可同步媒体源配置、应用层明文第三方凭据记录，以及各自的同步 outbox。v1 DDL 不保存 Stellar OAuth token，也不计入媒体库 27 表；应用沙箱和平台 data-protection 不改变 payload 可被应用读取的事实。
 - `library.sqlite`：27 张媒体库核心表，包括扫描、文件、影视实体、用户状态和媒体库同步状态。
 - `metadata_cache.sqlite`：3 张可删除、可重建的供应商响应、匹配候选和图片文件缓存表。
 
@@ -46,8 +46,7 @@ Swift、Android 与 OpenHarmony 均采用 SQLite 作为本地事实库，使用�
 | 数据 | 删除触发 | 规则 |
 | --- | --- | --- |
 | Stellar OAuth token | 登出、撤销或失效 | 位于平台安全存储，不进入 SQLite，也不跨设备同步 |
-| 第三方媒体源凭据 | 来源删除、解绑、失效或用户清除 | 仅以 E2EE envelope 进入 `account.sqlite` 和云同步；使用 tombstone 删除 |
-| Vault key 与设备私钥 | 设备撤销、账户清除或 key 轮换 | 解锁材料位于平台安全存储；服务端只保存不可自行解开的包装结果 |
+| 第三方媒体源凭据 | 来源删除、解绑、失效或用户清除 | v1 以明文 `CredentialRecord` 进入 `account.sqlite` 和云同步；使用 tombstone 删除 |
 | 媒体源配置 | 用户删除或服务端墓碑 | 先停止任务并软删除，再清理派生索引 |
 | 文件与流信息 | 完整扫描确认缺失且超过宽限期 | 允许物理删除本地行，不删除远端文件 |
 | 逻辑媒体和元数据 | 无文件、无用户状态、无有效引用 | 延迟垃圾回收 |
@@ -75,7 +74,7 @@ Swift、Android 与 OpenHarmony 均采用 SQLite 作为本地事实库，使用�
 ## 同步边界
 
 - 账号资料和远程媒体配置可以服务端同步。
-- 第三方媒体源凭据按 [`../security/credential-vault.md`](../security/credential-vault.md) 端到端加密后必须支持跨平台同步；服务端不具备解密能力。
+- 第三方媒体源凭据按 [`../security/credential-storage.md`](../security/credential-storage.md) 使用 `CredentialRecord` 跨平台同步；v1 服务端具备读取明文 payload 的能力。
 - 观看状态、片单和手工匹配是否云同步由产品策略控制；启用后必须通过 `change_log` 幂等上传。
 - 文件清单和大体积技术信息默认只存在本地；除非用户启用且服务端协议明确需要。
 - `change_log` 是媒体库同步的 transactional outbox，同时可驱动应用层增量；不要把已上传记录无限保留。

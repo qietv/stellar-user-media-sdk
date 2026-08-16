@@ -9,6 +9,7 @@ public enum SDKErrorCode: String, CaseIterable, Sendable {
   case rateLimited = "rate_limited"
   case remoteUnavailable = "remote_unavailable"
   case credentialRequired = "credential_required"
+  case credentialProtectionUnsupported = "credential_protection_unsupported"
   case invalidConfiguration = "invalid_configuration"
   case storageFailure = "storage_failure"
   case parseFailure = "parse_failure"

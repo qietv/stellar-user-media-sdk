@@ -34,6 +34,7 @@
 | `rate_limited` | 服务端限流 | 遵循 `retry_after_ms` |
 | `remote_unavailable` | NAS、网盘或服务暂不可用 | 指数退避 |
 | `credential_required` | 缺少或失效的媒体源凭据 | 请求用户重新连接 |
+| `credential_protection_unsupported` | 客户端不支持该凭据保护模式 | 保留远端记录，升级客户端；不得降级覆盖 |
 | `invalid_configuration` | 配置字段无效 | 停止任务并显示具体字段 |
 | `storage_failure` | 本地数据库或安全存储失败 | 停止写入并保留诊断信息 |
 | `parse_failure` | 文件名或远程数据无法解析 | 进入待人工匹配队列 |
@@ -48,7 +49,7 @@
 - [JSON Wire Format v1](core/wire-format.md)
 - [OAuth 与会话](auth/oauth-session.md)
 - [远程媒体配置同步](remote-media/source-config-sync.md)
-- [Credential Vault 与凭据同步](security/credential-vault.md)
+- [凭据存储与同步](security/credential-storage.md)
 - [扫描、解析与海报墙](media-library/scanning-and-poster-wall.md)
 - [本地元数据与技术探测 v1](media-library/metadata-intake.md)
 - [元数据候选与匹配 v1](media-library/metadata-matching.md)

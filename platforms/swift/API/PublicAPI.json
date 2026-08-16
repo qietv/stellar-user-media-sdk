@@ -348,6 +348,15 @@
           ]
         },
         {
+          "declaration": "case credentialProtectionUnsupported",
+          "identifier": "s:11StellarCore12SDKErrorCodeO31credentialProtectionUnsupportedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "SDKErrorCode",
+            "credentialProtectionUnsupported"
+          ]
+        },
+        {
           "declaration": "init(from decoder: any Decoder) throws",
           "identifier": "s:11StellarCore12SDKErrorCodeO4fromACs7Decoder_p_tKcfc",
           "kind": "swift.init",
@@ -7763,164 +7772,244 @@
           ]
         },
         {
-          "declaration": "struct EncryptedCredentialEnvelope",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV",
+          "declaration": "struct CredentialRecord",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV",
           "kind": "swift.struct",
           "path": [
-            "EncryptedCredentialEnvelope"
+            "CredentialRecord"
           ]
         },
         {
           "declaration": "let accountUID: String",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV10accountUIDSSvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV10accountUIDSSvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "accountUID"
           ]
         },
         {
-          "declaration": "let keyVersion: Int",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV10keyVersionSivp",
+          "declaration": "let keyVersion: Int?",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV10keyVersionSiSgvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "keyVersion"
           ]
         },
         {
           "declaration": "var description: String { get }",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV11descriptionSSvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV11descriptionSSvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "description"
           ]
         },
         {
-          "declaration": "let nonceBase64: String",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV11nonceBase64SSvp",
+          "declaration": "let nonceBase64: String?",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV11nonceBase64SSSgvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "nonceBase64"
           ]
         },
         {
-          "declaration": "init(credentialUID: String, accountUID: String, sourceUID: String, kind: CredentialKind, algorithm: String = \"aes_256_gcm\", keyVersion: Int, nonceBase64: String, ciphertextBase64: String, authenticatedDataVersion: Int = 1, revision: Int64, updatedAtMilliseconds: Int64, deletedAtMilliseconds: Int64? = nil, schemaVersion: Int = 1)",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV13credentialUID07accountH006sourceH04kind9algorithm10keyVersion11nonceBase64010ciphertextP0017authenticatedDataN08revision21updatedAtMilliseconds07deletedvW006schemaN0ACSS_S2SAA0E4KindOSSSiS2SSis5Int64VA2TSgSitcfc",
+          "declaration": "let payloadJSON: String?",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV11payloadJSONSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialRecord",
+            "payloadJSON"
+          ]
+        },
+        {
+          "declaration": "init(credentialUID: String, accountUID: String, sourceUID: String, kind: CredentialKind, protectionMode: CredentialProtectionMode = .plaintext, payloadJSON: String?, algorithm: String? = nil, keyVersion: Int? = nil, nonceBase64: String? = nil, protectedPayloadBase64: String? = nil, authenticatedDataVersion: Int? = nil, revision: Int64, updatedAtMilliseconds: Int64, deletedAtMilliseconds: Int64? = nil, schemaVersion: Int = 1)",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV13credentialUID07accountG006sourceG04kind14protectionMode11payloadJSON9algorithm10keyVersion11nonceBase64016protectedPayloadS0017authenticatedDataQ08revision21updatedAtMilliseconds07deletedZ12Milliseconds06schemaQ0ACSS_S2SAA0D4KindOAA0d10ProtectionL0OSSSgAWSiSgA2wXs5Int64VA2ZSgSitcfc",
           "kind": "swift.init",
           "path": [
-            "EncryptedCredentialEnvelope",
-            "init(credentialUID:accountUID:sourceUID:kind:algorithm:keyVersion:nonceBase64:ciphertextBase64:authenticatedDataVersion:revision:updatedAtMilliseconds:deletedAtMilliseconds:schemaVersion:)"
+            "CredentialRecord",
+            "init(credentialUID:accountUID:sourceUID:kind:protectionMode:payloadJSON:algorithm:keyVersion:nonceBase64:protectedPayloadBase64:authenticatedDataVersion:revision:updatedAtMilliseconds:deletedAtMilliseconds:schemaVersion:)"
           ]
         },
         {
           "declaration": "let credentialUID: String",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV13credentialUIDSSvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV13credentialUIDSSvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "credentialUID"
           ]
         },
         {
           "declaration": "let schemaVersion: Int",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV13schemaVersionSivp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV13schemaVersionSivp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "schemaVersion"
           ]
         },
         {
-          "declaration": "let ciphertextBase64: String",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV16ciphertextBase64SSvp",
+          "declaration": "let protectionMode: CredentialProtectionMode",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV14protectionModeAA0d10ProtectionG0Ovp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
-            "ciphertextBase64"
+            "CredentialRecord",
+            "protectionMode"
           ]
         },
         {
           "declaration": "var debugDescription: String { get }",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV16debugDescriptionSSvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV16debugDescriptionSSvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "debugDescription"
           ]
         },
         {
           "declaration": "let deletedAtMilliseconds: Int64?",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV21deletedAtMillisecondss5Int64VSgvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV21deletedAtMillisecondss5Int64VSgvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "deletedAtMilliseconds"
           ]
         },
         {
           "declaration": "let updatedAtMilliseconds: Int64",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV21updatedAtMillisecondss5Int64Vvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV21updatedAtMillisecondss5Int64Vvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "updatedAtMilliseconds"
           ]
         },
         {
-          "declaration": "let authenticatedDataVersion: Int",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV24authenticatedDataVersionSivp",
+          "declaration": "let protectedPayloadBase64: String?",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV22protectedPayloadBase64SSSgvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
+            "protectedPayloadBase64"
+          ]
+        },
+        {
+          "declaration": "let authenticatedDataVersion: Int?",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV24authenticatedDataVersionSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialRecord",
             "authenticatedDataVersion"
           ]
         },
         {
           "declaration": "init(from decoder: any Decoder) throws",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV4fromACs7Decoder_p_tKcfc",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV4fromACs7Decoder_p_tKcfc",
           "kind": "swift.init",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "init(from:)"
           ]
         },
         {
           "declaration": "let kind: CredentialKind",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV4kindAA0E4KindOvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV4kindAA0D4KindOvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "kind"
           ]
         },
         {
           "declaration": "let revision: Int64",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV8revisions5Int64Vvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV8revisions5Int64Vvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "revision"
           ]
         },
         {
-          "declaration": "let algorithm: String",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV9algorithmSSvp",
+          "declaration": "let algorithm: String?",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV9algorithmSSSgvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "algorithm"
           ]
         },
         {
           "declaration": "let sourceUID: String",
-          "identifier": "s:18StellarRemoteMedia27EncryptedCredentialEnvelopeV9sourceUIDSSvp",
+          "identifier": "s:18StellarRemoteMedia16CredentialRecordV9sourceUIDSSvp",
           "kind": "swift.property",
           "path": [
-            "EncryptedCredentialEnvelope",
+            "CredentialRecord",
             "sourceUID"
+          ]
+        },
+        {
+          "declaration": "enum CredentialProtectionMode",
+          "identifier": "s:18StellarRemoteMedia24CredentialProtectionModeO",
+          "kind": "swift.enum",
+          "path": [
+            "CredentialProtectionMode"
+          ]
+        },
+        {
+          "declaration": "case serverEncrypted",
+          "identifier": "s:18StellarRemoteMedia24CredentialProtectionModeO15serverEncryptedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialProtectionMode",
+            "serverEncrypted"
+          ]
+        },
+        {
+          "declaration": "case endToEndEncrypted",
+          "identifier": "s:18StellarRemoteMedia24CredentialProtectionModeO17endToEndEncryptedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialProtectionMode",
+            "endToEndEncrypted"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia24CredentialProtectionModeO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CredentialProtectionMode",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:18StellarRemoteMedia24CredentialProtectionModeO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "CredentialProtectionMode",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case unknown(String)",
+          "identifier": "s:18StellarRemoteMedia24CredentialProtectionModeO7unknownyACSScACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialProtectionMode",
+            "unknown(_:)"
+          ]
+        },
+        {
+          "declaration": "case plaintext",
+          "identifier": "s:18StellarRemoteMedia24CredentialProtectionModeO9plaintextyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialProtectionMode",
+            "plaintext"
           ]
         }
       ]
@@ -9081,12 +9170,12 @@
           ]
         },
         {
-          "declaration": "func saveCredentialEnvelope(_ envelope: EncryptedCredentialEnvelope, baseRevision: Int64, operationUID suppliedOperationUID: String? = nil) async throws",
-          "identifier": "s:14StellarStorage12AccountStoreV22saveCredentialEnvelope_12baseRevision12operationUIDy0A11RemoteMedia09EncryptedfG0V_s5Int64VSSSgtYaKF",
+          "declaration": "func saveCredentialRecord(_ record: CredentialRecord, baseRevision: Int64, operationUID suppliedOperationUID: String? = nil) async throws",
+          "identifier": "s:14StellarStorage12AccountStoreV20saveCredentialRecord_12baseRevision12operationUIDy0A11RemoteMedia0fG0V_s5Int64VSSSgtYaKF",
           "kind": "swift.method",
           "path": [
             "AccountStore",
-            "saveCredentialEnvelope(_:baseRevision:operationUID:)"
+            "saveCredentialRecord(_:baseRevision:operationUID:)"
           ]
         },
         {
@@ -10395,6 +10484,14 @@
           ]
         },
         {
+          "declaration": "typealias CredentialRecord = CredentialRecord",
+          "identifier": "s:19StellarUserMediaSDK16CredentialRecorda",
+          "kind": "swift.typealias",
+          "path": [
+            "CredentialRecord"
+          ]
+        },
+        {
           "declaration": "typealias PosterWallFilter = PosterWallFilter",
           "identifier": "s:19StellarUserMediaSDK16PosterWallFiltera",
           "kind": "swift.typealias",
@@ -10683,6 +10780,14 @@
           ]
         },
         {
+          "declaration": "typealias CredentialProtectionMode = CredentialProtectionMode",
+          "identifier": "s:19StellarUserMediaSDK24CredentialProtectionModea",
+          "kind": "swift.typealias",
+          "path": [
+            "CredentialProtectionMode"
+          ]
+        },
+        {
           "declaration": "typealias LocalMetadataArtworkKind = LocalMetadataArtworkKind",
           "identifier": "s:19StellarUserMediaSDK24LocalMetadataArtworkKinda",
           "kind": "swift.typealias",
@@ -10744,14 +10849,6 @@
           "kind": "swift.typealias",
           "path": [
             "WebDAVMediaSourceConnector"
-          ]
-        },
-        {
-          "declaration": "typealias EncryptedCredentialEnvelope = EncryptedCredentialEnvelope",
-          "identifier": "s:19StellarUserMediaSDK27EncryptedCredentialEnvelopea",
-          "kind": "swift.typealias",
-          "path": [
-            "EncryptedCredentialEnvelope"
           ]
         },
         {

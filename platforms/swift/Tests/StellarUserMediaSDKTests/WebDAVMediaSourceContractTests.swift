@@ -3,6 +3,7 @@ import StellarCore
 import StellarMediaLibrary
 import StellarRemoteMedia
 import Testing
+
 @testable import StellarWebDAV
 
 @Suite("WebDAV media source contracts")

@@ -55,13 +55,13 @@ flowchart TD
 ```text
 OAuth callback
   → 校验 state/PKCE
-  → Token 写平台安全存储
+  → refresh token 写平台安全存储；access token 优先只驻留内存
   → 发布 signedIn session
   → Sync 拉取用户 source config 变化
   → 合并本地配置和 tombstone
-  → 拉取 E2EE 凭据 envelope
-  → 已授权设备用本机 Vault key 解密
-  → 来源进入 ready；未获 Vault 授权时进入 needsCredential
+  → 拉取明文 CredentialRecord
+  → 按账户和来源重新校验 payload
+  → 来源进入 ready
 ```
 
 ### 4.2 配置到媒体库
@@ -82,7 +82,7 @@ OAuth callback
 ```text
 entity + selected media_file
   → RemoteMedia adapter 解析可播放 URL/请求头
-  → 通过 credential_uid 从本地加密 Vault 临时解密凭据
+  → 通过 credential_uid 从本地 CredentialRecord 读取凭据
   → 返回 PlayableResource
   → 播放器内核消费
 ```

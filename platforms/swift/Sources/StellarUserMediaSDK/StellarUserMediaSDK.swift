@@ -54,10 +54,12 @@ public typealias RedactingSDKLogger = StellarCore.RedactingSDKLogger
 public typealias RetryPolicy = StellarCore.RetryPolicy
 /// Compatibility alias for retry execution.
 public typealias RetryExecutor = StellarCore.RetryExecutor
-/// Compatibility alias for the encrypted credential category.
+/// Compatibility alias for the synchronized credential category.
 public typealias CredentialKind = StellarRemoteMedia.CredentialKind
-/// Compatibility alias for the encrypted credential wire envelope.
-public typealias EncryptedCredentialEnvelope = StellarRemoteMedia.EncryptedCredentialEnvelope
+/// Compatibility alias for credential payload protection metadata.
+public typealias CredentialProtectionMode = StellarRemoteMedia.CredentialProtectionMode
+/// Compatibility alias for the synchronized credential record.
+public typealias CredentialRecord = StellarRemoteMedia.CredentialRecord
 /// Compatibility alias for source path case-sensitivity semantics.
 public typealias RemotePathCaseSensitivity = StellarRemoteMedia.RemotePathCaseSensitivity
 /// Compatibility alias for source Unicode normalization semantics.
@@ -278,7 +280,7 @@ public typealias StorageDatabaseKind = StellarStorage.StorageDatabaseKind
 public typealias StorageDatabase = StellarStorage.StorageDatabase
 /// Compatibility alias for SQLite integrity and migration verification.
 public typealias StorageVerificationReport = StellarStorage.StorageVerificationReport
-/// Compatibility alias for the encrypted credential and account outbox repository.
+/// Compatibility alias for the credential and account outbox repository.
 public typealias AccountStore = StellarStorage.AccountStore
 /// Compatibility alias for the disposable provider and matching cache repository.
 public typealias MetadataCacheStore = StellarStorage.MetadataCacheStore

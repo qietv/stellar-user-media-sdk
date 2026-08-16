@@ -20,7 +20,8 @@ stellar_user_media_sdk/src/
 ## 实现约定
 
 - 对外异步 API 使用 Promise；长任务通过 TaskPool 或平台后台任务能力协调并支持取消。
-- OAuth 使用系统浏览器/授权 UI 能力，回调 URI 必须校验 state；令牌使用 HUKS 支持的加密存储。
+- OAuth 使用系统浏览器/授权 UI 能力，回调 URI 必须校验 state；access token 优先只驻留内存，refresh token 使用 HUKS 支持的应用私有存储透明保护。默认不启用每次读取所需的指纹/人脸门禁。
+- 第三方连接凭据按公共合同以应用层明文 `CredentialRecord` 存入账户数据库并同步；当前只创建 `plaintext`，不把 HUKS 或设备文件加密宣传为 E2EE。
 - RDB/SQLite schema 与公共规范保持一致，启用事务和外键，并测试应用升级迁移。
 - 状态变化通过轻量可订阅事件接口发布，避免把 UI 框架类型放入 SDK 核心。
 - 连接器负责平台网络和文件 API 的差异，但输出统一 locator 与能力声明。
@@ -37,4 +38,3 @@ stellar_user_media_sdk/src/
 - `PosterWallRepository`
 
 `oh-package.json5`、`build-profile.json5` 与 HAR 配置将在 API level 和模块标识确认后加入。
-

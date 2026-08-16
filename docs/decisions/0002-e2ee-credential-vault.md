@@ -1,7 +1,9 @@
 # ADR-0002：第三方媒体源凭据使用端到端加密 Vault 同步
 
-状态：已接受  
+状态：已被 ADR-0005 取代
 日期：2026-08-14
+
+> 2026-08-16 决定优先保证新设备登录后无需旧设备批准、恢复口令或独立 Vault 解锁。当前有效设计见 [ADR-0005](0005-synced-credential-storage.md) 和 [`specs/security/credential-storage.md`](../../specs/security/credential-storage.md)。本文件仅保留历史决策背景。
 
 ## 背景
 

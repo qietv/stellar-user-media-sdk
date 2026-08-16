@@ -6,7 +6,7 @@
 
 - 确认三平台最低系统版本、包名和发布渠道；
 - 固化公共错误码、JSON 命名和时间/ID 规则；
-- 固化 Credential Vault envelope、设备授权/恢复、key 轮换协议和跨平台密码学测试向量；
+- 固化明文 `CredentialRecord`、同步冲突、删除和未来 `protection_mode` 升级合同；
 - 从 27 表设计提取可执行 DDL 与迁移测试；
 - 建立 CI、格式化、单元测试和 secret scanning。
 
@@ -16,15 +16,15 @@
 - Token 安全存储和单飞刷新；
 - 退出、撤销、需要重新认证；
 - 多账户数据目录；
-- 每设备独立的 Stellar OAuth token 与 Vault 设备密钥；
+- 每设备独立且默认无需生物识别读取的 Stellar OAuth token；
 - 三端相同的会话测试向量。
 
 ## M2：远程媒体配置同步
 
 - `MediaSourceConfig`、Favorite 和扫描策略模型；
 - 配置 pull/push、版本和 tombstone；
-- 第三方用户名、密码和 Token 的 E2EE envelope、本地持久化与跨平台同步；
-- Vault 授权状态与 `needsCredential`；
+- 第三方用户名、密码和 Token 的明文 `CredentialRecord` 本地持久化与跨平台同步；
+- 新设备完成 Stellar OAuth 后直接恢复来源凭据，不增加 Vault 授权步骤；
 - SMB/WebDAV 一个基础 adapter；
 - 配置变化触发本地 scanner。
 
@@ -64,6 +64,6 @@
 
 - Android/OHOS 最低系统版本；Swift 已确定最低 iOS/iPadOS 17、macOS 14、tvOS 17；
 - Stellar account/config API 的最终 URL 与认证 scope；
-- Credential Vault 新设备批准与恢复材料的最终产品交互；
+- 第三方凭据未来升级为服务端托管加密或 E2EE 的真实需求与迁移时机；
 - PosterWall UI 组件是否作为独立包发布；
 - TMDB 等 provider key 由宿主应用提供还是由 Stellar 后端代理。

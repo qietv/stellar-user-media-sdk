@@ -53,7 +53,13 @@ stateDiagram-v2
 ## 令牌与 PKCE
 
 - MUST 使用授权码模式、PKCE `S256` 和每次随机生成的 `state`。
-- access token 与 refresh token MUST 写入平台安全存储，不得进入 SQLite、日志、崩溃报告或普通偏好设置。
+- access token MUST 只位于进程内存或平台安全存储；refresh token MUST 写入平台安全存储。两者都不得进入 SQLite、日志、崩溃报告或普通偏好设置。
+- 平台安全存储默认 MUST 使用无需每次读取时验证用户在场的设备绑定策略；不得默认要求 Face ID、Touch ID、Android/OHOS 生物识别或 Windows Hello。生物识别只能作为用户显式开启的高安全模式，并必须明确说明它会阻止锁屏后台刷新。
+- Apple 默认 Keychain 路径 MUST 完全非交互：不得创建或写入 `kSecAttrAccessControl`，不得使用 `.userPresence`、`.biometryAny`、`.biometryCurrentSet`、`.devicePasscode` 或 `.applicationPassword`，不得调用 `LAContext.evaluatePolicy` / `evaluateAccessControl`。因此 SDK 不要求 `NSFaceIDUsageDescription`，也不得把 LocalAuthentication 权限或生物识别注册状态作为登录前提。
+- Apple 每次 `SecItemAdd`、`SecItemCopyMatching`、`SecItemUpdate` 和 `SecItemDelete` MUST 设置 `kSecUseDataProtectionKeychain=true`，尤其禁止 macOS 回退到 legacy file-based Keychain。Stellar token MUST 设置 `kSecAttrSynchronizable=false`；需要锁屏后台刷新时使用 `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`，否则使用 `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`。
+- Apple 默认不指定 `kSecAttrAccessGroup`，使用应用自身的默认私有组；SDK 不要求 Keychain Sharing、App Groups 或其他额外 capability/entitlement。只有宿主明确需要多个同开发者 target 共享会话时，才允许由宿主在构建时配置共享 access group，这仍不得产生运行时权限请求。
+- Apple 读取、更新和删除查询 MUST 传入 `interactionNotAllowed=true` 的 `LAContext`（旧系统等价行为可使用非交互 Security API 选项）。如果旧记录、系统状态或错误配置要求交互，操作必须以 `errSecInteractionNotAllowed`/稳定存储错误失败，绝不显示认证 UI。旧版受 user-presence 保护的 token 不做交互迁移；将其视为不可用，完成普通 OAuth 后写入新的非交互版本化 item。
+- access token SHOULD 优先只保存在内存并按需刷新；需要恢复短期会话时可以与 refresh token 一同进入上述平台安全存储。refresh token 必须持久化，除非产品明确选择每次启动重新登录。
 - 令牌刷新提前量 SHOULD 为 60–300 秒，并考虑设备时钟偏差。
 - 同一账号同时发生的刷新请求 MUST 合并成一次网络请求，等待者共享结果。
 - `invalid_grant` 或 refresh token 被撤销后转为 `needs_reauth`，不得无限重试。
@@ -66,6 +72,8 @@ stateDiagram-v2
 | Swift | `ASWebAuthenticationSession` | Keychain | `async/await` + actor |
 | Android | Custom Tabs / AppAuth | Android Keystore 加密后的存储 | Kotlin coroutines + `Flow` |
 | OpenHarmony | 系统浏览器或授权 UI 扩展 | HUKS 支持的加密存储 | Promise/TaskPool + 可观察状态 |
+
+Windows 实现使用 Credential Manager 或当前用户绑定的 DPAPI；Android Keystore/HUKS/DPAPI 的默认配置同样不得要求额外生物识别交互。各平台可以利用系统磁盘加密、应用沙箱和设备解锁状态，但不得因此把 Stellar OAuth token 跨设备复制。
 
 平台代码不得把 WebView cookie 当作唯一登录状态；回调处理需防止重复消费。
 
@@ -82,8 +90,8 @@ stateDiagram-v2
 ## 验收条件
 
 - 应用重启后能恢复有效会话或明确进入 `needs_reauth`。
+- 首次安装、首次保存、冷启动恢复、前台刷新、后台刷新、登出和遗留受保护 item 场景均不出现 Face ID、Touch ID、设备密码或 Keychain 访问确认框，也不触发运行时权限申请；需要交互的遗留 item 失败关闭并进入普通重新登录。
 - 20 个并发取令牌请求最多触发一次刷新。
 - 用户取消授权不污染之前的有效账号。
 - 登出后该账号的新扫描和同步任务无法取得令牌。
 - 三端对相同错误响应产生相同的错误类别与状态转换。
-

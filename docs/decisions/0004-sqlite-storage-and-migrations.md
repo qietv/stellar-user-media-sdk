@@ -14,7 +14,7 @@ Swift reference implementation 已完成来源无关 scanner。S4 需要把 chec
 - `library.sqlite` 和 `account.sqlite` 使用 `DatabasePool`，每个数据库再由一个 writer actor 协调业务写入；读取可并发。
 - 每条连接启用 foreign keys、5000 ms busy timeout 与 `synchronous=NORMAL`；可写数据库使用 WAL。
 - 迁移 SQL、版本和 SHA-256 checksum 由仓库 guard 校验。迁移在事务内完成，只有 DDL、`schema_migration` 记录、`application_id` 与 `user_version` 全部成功才提交。
-- `library.sqlite` 保存 27 张核心业务表；`metadata_cache.sqlite` 只保存 3 张可删除缓存表；`account.sqlite` 保存来源配置、E2EE credential envelope、冲突候选、transactional outbox 与同步 cursor。
+- `library.sqlite` 保存 27 张核心业务表；`metadata_cache.sqlite` 只保存 3 张可删除缓存表；`account.sqlite` 保存来源配置、v1 明文 `CredentialRecord`、冲突候选、transactional outbox 与同步 cursor。凭据保护决策以后续 [ADR-0005](0005-synced-credential-storage.md) 为准。
 - 数据库之间不建立外键。跨库关联只使用稳定 UID，并由应用层检查。
 - scanner 每页 entries、durable checkpoint 和 scan counters 在一个短事务中提交。只有携带最终 `MediaScanCompletion` 且 `reconcile_missing_eligible=true` 的事务可以协调 covered roots 内的 missing。
 - `change_log`/`account_change_log` 故意不引用业务表；业务行删除不能级联丢失尚未上传的 upsert 或 tombstone。

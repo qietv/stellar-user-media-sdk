@@ -1,6 +1,6 @@
 # 类 Infuse 媒体库：iOS、OHOS、Android 数据模型与扫描入库设计
 
-> 凭据存储与同步说明：本文记录形成初版架构时的研究结论，其中“凭据仅存平台安全存储、不跨设备共享”的表述已被 [ADR-0002](../../decisions/0002-e2ee-credential-vault.md) 和 [Credential Vault 规范](../../../specs/security/credential-vault.md)取代。媒体库表中的 `credential_ref` 现在关联 `account.sqlite` 内的 E2EE envelope；明文凭据仍不得进入媒体库数据库。
+> 凭据存储与同步说明：本文记录形成初版架构时的研究推导，其中所有 Credential Vault、E2EE envelope、设备批准和“凭据不得以明文进入 account.sqlite”的结论均已被 [ADR-0005](../../decisions/0005-synced-credential-storage.md) 和 [第三方凭据存储规范](../../../specs/security/credential-storage.md)取代。v1 使用可同步的明文 `CredentialRecord`，本文后续相关段落仅保留历史背景，不再是实现合同。
 
 版本：1.2
 日期：2026-08-14  

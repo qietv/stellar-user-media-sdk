@@ -23,27 +23,27 @@ struct ContractModelTests {
     #expect(object["trace_id"] as? String == "trace-1")
   }
 
-  @Test("Credential envelopes encode ciphertext and redact descriptions")
-  func credentialEnvelopeWireFormat() throws {
-    let envelope = EncryptedCredentialEnvelope(
+  @Test("Credential records encode plaintext explicitly and redact descriptions")
+  func credentialRecordWireFormat() throws {
+    let record = CredentialRecord(
       credentialUID: "credential-1",
       accountUID: "account-1",
       sourceUID: "source-1",
       kind: .password,
-      keyVersion: 1,
-      nonceBase64: "bm9uY2U=",
-      ciphertextBase64: "Y2lwaGVydGV4dA==",
+      payloadJSON:
+        #"{"auth_type":"username_password","password":"secret","schema_version":1,"username":"alice"}"#,
       revision: 3,
       updatedAtMilliseconds: 1_700_000_000_000
     )
 
     let object = try #require(
-      JSONSerialization.jsonObject(with: JSONEncoder().encode(envelope)) as? [String: Any]
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as? [String: Any]
     )
     #expect(object["credential_uid"] as? String == "credential-1")
-    #expect(object["ciphertext_b64"] as? String == "Y2lwaGVydGV4dA==")
-    #expect(envelope.description.contains("Y2lwaGVydGV4dA==") == false)
-    #expect(envelope.description.contains("<redacted>"))
+    #expect(object["protection_mode"] as? String == "plaintext")
+    #expect((object["payload_json"] as? String)?.contains("secret") == true)
+    #expect(record.description.contains("secret") == false)
+    #expect(record.description.contains("<redacted>"))
   }
 
   @Test("Unknown credential kinds survive a round trip")
