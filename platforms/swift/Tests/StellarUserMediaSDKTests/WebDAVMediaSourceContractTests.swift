@@ -2,8 +2,8 @@ import Foundation
 import StellarCore
 import StellarMediaLibrary
 import StellarRemoteMedia
-import StellarWebDAV
 import Testing
+@testable import StellarWebDAV
 
 @Suite("WebDAV media source contracts")
 struct WebDAVMediaSourceContractTests {
@@ -55,6 +55,173 @@ struct WebDAVMediaSourceContractTests {
     #expect(String(decoding: bytes, as: UTF8.self) == "rri")
     #expect(await transport.sawAuthorizationHeader)
     #expect(await transport.methods.allSatisfy { ["PROPFIND", "GET"].contains($0) })
+  }
+
+  @Test("A failed optional-property propstat does not hide a valid collection")
+  func partialPropertyFailure() async throws {
+    let body = Data(
+      """
+      <?xml version="1.0" encoding="utf-8"?>
+      <d:multistatus xmlns:d="DAV:"><d:response><d:href>/media/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype><d:getlastmodified>Sun, 16 Aug 2026 00:00:00 GMT</d:getlastmodified></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat><d:propstat><d:prop><d:getcontentlength/><d:getetag/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response></d:multistatus>
+      """.utf8
+    )
+    let configuration = try WebDAVMediaSourceConfiguration(
+      sourceUID: "webdav-partial-properties",
+      baseURL: URL(string: "https://dav.example.test/media/")!
+    )
+    let connector = WebDAVMediaSourceConnector(
+      configuration: configuration,
+      transport: ConstantWebDAVTransport(
+        response: WebDAVHTTPResponse(statusCode: 207, body: body)
+      )
+    )
+
+    let session = try await connector.connect()
+    let root = try RemoteLocator(sourceUID: configuration.sourceUID, path: RemotePath())
+    let entry = try await session.stat(root)
+
+    #expect(entry.kind == .directory)
+    #expect(entry.size == nil)
+  }
+
+  @Test("Range GET follows a cross-origin HTTPS redirect without forwarding credentials")
+  func rangeReadRedirect() async throws {
+    let executor = ScriptedWebDAVRequestExecutor(responses: [
+      WebDAVHTTPResponse(
+        statusCode: 302,
+        headers: ["Location": "https://cdn.example.test/signed/arrival.mkv?token=opaque"]
+      ),
+      WebDAVHTTPResponse(
+        statusCode: 206,
+        headers: ["Content-Range": "bytes 1-3/7"],
+        body: Data("rri".utf8)
+      ),
+    ])
+    let transport = URLSessionWebDAVTransport(executor: executor)
+
+    let response = try await transport.send(
+      WebDAVHTTPRequest(
+        method: "GET",
+        url: URL(string: "https://dav.example.test/media/Movies/Arrival.mkv")!,
+        headers: [
+          "Authorization": "Basic source-secret",
+          "Cookie": "session=source-secret",
+          "Host": "dav.example.test",
+          "Proxy-Authorization": "Basic proxy-secret",
+          "Range": "bytes=1-3",
+        ]
+      )
+    )
+
+    #expect(response.statusCode == 206)
+    #expect(response.body == Data("rri".utf8))
+    let requests = await executor.recordedRequests
+    #expect(requests.count == 2)
+    let redirected = try #require(requests.last)
+    #expect(redirected.method == "GET")
+    #expect(redirected.url.host == "cdn.example.test")
+    #expect(header("Range", in: redirected) == "bytes=1-3")
+    #expect(header("Authorization", in: redirected) == nil)
+    #expect(header("Cookie", in: redirected) == nil)
+    #expect(header("Host", in: redirected) == nil)
+    #expect(header("Proxy-Authorization", in: redirected) == nil)
+  }
+
+  @Test("Same-origin redirects preserve WebDAV method, body, and authentication")
+  func metadataRedirect() async throws {
+    for statusCode in [301, 302, 307, 308] {
+      let executor = ScriptedWebDAVRequestExecutor(responses: [
+        WebDAVHTTPResponse(statusCode: statusCode, headers: ["location": "/media/"]),
+        WebDAVHTTPResponse(statusCode: 207, body: Data("multistatus".utf8)),
+      ])
+      let transport = URLSessionWebDAVTransport(executor: executor)
+      let body = Data("propfind-body".utf8)
+
+      let response = try await transport.send(
+        WebDAVHTTPRequest(
+          method: "PROPFIND",
+          url: URL(string: "https://dav.example.test/media")!,
+          headers: [
+            "Authorization": "Basic source-secret",
+            "Content-Type": "application/xml",
+            "Depth": "1",
+          ],
+          body: body
+        )
+      )
+
+      #expect(response.statusCode == 207)
+      let requests = await executor.recordedRequests
+      #expect(requests.count == 2)
+      let redirected = try #require(requests.last)
+      #expect(redirected.method == "PROPFIND")
+      #expect(redirected.url.absoluteString == "https://dav.example.test/media/")
+      #expect(redirected.body == body)
+      #expect(header("Depth", in: redirected) == "1")
+      #expect(header("Authorization", in: redirected) == "Basic source-secret")
+    }
+  }
+
+  @Test("Redirects reject downgrade, cross-origin metadata, and loops")
+  func redirectSafety() async {
+    let downgradeExecutor = ScriptedWebDAVRequestExecutor(responses: [
+      WebDAVHTTPResponse(
+        statusCode: 302,
+        headers: ["Location": "http://cdn.example.test/arrival.mkv"]
+      )
+    ])
+    await expectSDKError(.forbidden) {
+      _ = try await URLSessionWebDAVTransport(executor: downgradeExecutor).send(
+        WebDAVHTTPRequest(
+          method: "GET",
+          url: URL(string: "https://dav.example.test/media/Arrival.mkv")!
+        )
+      )
+    }
+
+    let metadataExecutor = ScriptedWebDAVRequestExecutor(responses: [
+      WebDAVHTTPResponse(
+        statusCode: 301,
+        headers: ["Location": "https://other.example.test/media/"]
+      )
+    ])
+    await expectSDKError(.forbidden) {
+      _ = try await URLSessionWebDAVTransport(executor: metadataExecutor).send(
+        WebDAVHTTPRequest(
+          method: "PROPFIND",
+          url: URL(string: "https://dav.example.test/media/")!
+        )
+      )
+    }
+
+    let loopExecutor = ScriptedWebDAVRequestExecutor(responses: [
+      WebDAVHTTPResponse(statusCode: 302, headers: ["Location": "/second"]),
+      WebDAVHTTPResponse(statusCode: 302, headers: ["Location": "/first"]),
+    ])
+    await expectSDKError(.remoteUnavailable) {
+      _ = try await URLSessionWebDAVTransport(executor: loopExecutor).send(
+        WebDAVHTTPRequest(
+          method: "GET",
+          url: URL(string: "https://dav.example.test/first")!
+        )
+      )
+    }
+    #expect(await loopExecutor.recordedRequests.count == 2)
+
+    let limitExecutor = ScriptedWebDAVRequestExecutor(
+      responses: (1...6).map {
+        WebDAVHTTPResponse(statusCode: 302, headers: ["Location": "/redirect-\($0)"])
+      }
+    )
+    await expectSDKError(.remoteUnavailable) {
+      _ = try await URLSessionWebDAVTransport(executor: limitExecutor).send(
+        WebDAVHTTPRequest(
+          method: "GET",
+          url: URL(string: "https://dav.example.test/redirect-0")!
+        )
+      )
+    }
+    #expect(await limitExecutor.recordedRequests.count == 6)
   }
 
   @Test("The shared scanner recursively scans the fake WebDAV transport")
@@ -158,6 +325,43 @@ struct WebDAVMediaSourceContractTests {
       )
     }
     #expect(await sink.completion == nil)
+  }
+}
+
+private actor ScriptedWebDAVRequestExecutor: WebDAVRequestExecutor {
+  private var responses: [WebDAVHTTPResponse]
+  private(set) var recordedRequests: [WebDAVHTTPRequest] = []
+
+  init(responses: [WebDAVHTTPResponse]) {
+    self.responses = responses
+  }
+
+  func execute(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse {
+    recordedRequests.append(request)
+    guard !responses.isEmpty else {
+      throw SDKError(code: .remoteUnavailable, message: "WebDAV test response is missing")
+    }
+    return responses.removeFirst()
+  }
+}
+
+private func header(_ name: String, in request: WebDAVHTTPRequest) -> String? {
+  request.headers.first(where: {
+    $0.key.caseInsensitiveCompare(name) == .orderedSame
+  })?.value
+}
+
+private func expectSDKError(
+  _ expectedCode: SDKErrorCode,
+  operation: @Sendable () async throws -> Void
+) async {
+  do {
+    try await operation()
+    Issue.record("Expected SDKError with code \(expectedCode.rawValue)")
+  } catch let error as SDKError {
+    #expect(error.code == expectedCode)
+  } catch {
+    Issue.record("Expected SDKError but received \(type(of: error))")
   }
 }
 

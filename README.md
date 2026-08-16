@@ -61,6 +61,7 @@ third_party/           第三方依赖版本、许可证与来源记录（不存
 ## 设计入口
 
 - [架构总览](docs/architecture/overview.md)
+- [WebDAV 只读访问架构](architecture.md)
 - [公共合同索引](specs/README.md)
 - [OAuth 与会话合同](specs/auth/oauth-session.md)
 - [远程媒体配置同步合同](specs/remote-media/source-config-sync.md)

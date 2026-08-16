@@ -115,37 +115,25 @@ public protocol WebDAVTransport: Sendable {
   func send(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse
 }
 
-/// Cross-platform URLSession transport that refuses HTTP redirects.
+protocol WebDAVRequestExecutor: Sendable {
+  func execute(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse
+}
+
+/// Cross-platform URLSession transport with bounded, credential-safe redirect handling.
 public struct URLSessionWebDAVTransport: WebDAVTransport {
-  public init() {}
+  private let executor: any WebDAVRequestExecutor
+
+  public init() {
+    executor = FoundationWebDAVRequestExecutor()
+  }
+
+  init(executor: any WebDAVRequestExecutor) {
+    self.executor = executor
+  }
 
   public func send(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse {
-    var urlRequest = URLRequest(url: request.url)
-    urlRequest.httpMethod = request.method
-    urlRequest.httpBody = request.body
-    for (name, value) in request.headers {
-      urlRequest.setValue(value, forHTTPHeaderField: name)
-    }
-    let session = URLSession(
-      configuration: .ephemeral,
-      delegate: WebDAVNoRedirectDelegate.shared,
-      delegateQueue: nil
-    )
-    defer { session.invalidateAndCancel() }
     do {
-      let (data, response) = try await session.data(for: urlRequest)
-      guard let response = response as? HTTPURLResponse else {
-        throw SDKError(code: .remoteUnavailable, message: "WebDAV response is not HTTP")
-      }
-      var headers: [String: String] = [:]
-      for (name, value) in response.allHeaderFields {
-        headers[String(describing: name).lowercased()] = String(describing: value)
-      }
-      return WebDAVHTTPResponse(
-        statusCode: response.statusCode,
-        headers: headers,
-        body: data
-      )
+      return try await sendFollowingRedirects(request)
     } catch let error as SDKError {
       throw error
     } catch let error as URLError {
@@ -166,6 +154,152 @@ public struct URLSessionWebDAVTransport: WebDAVTransport {
     } catch {
       throw SDKError(code: .remoteUnavailable, message: "WebDAV request failed")
     }
+  }
+
+  private func sendFollowingRedirects(_ request: WebDAVHTTPRequest) async throws
+    -> WebDAVHTTPResponse
+  {
+    var currentRequest = request
+    var visitedURLs: Set<String> = [Self.redirectIdentity(request.url)]
+    var redirectCount = 0
+
+    while true {
+      let response = try await executor.execute(currentRequest)
+      guard Self.redirectStatusCodes.contains(response.statusCode) else {
+        return response
+      }
+      guard redirectCount < Self.maximumRedirectCount else {
+        throw SDKError(code: .remoteUnavailable, message: "WebDAV redirect limit exceeded")
+      }
+
+      let redirectedRequest = try Self.redirectedRequest(
+        from: currentRequest,
+        response: response
+      )
+      guard visitedURLs.insert(Self.redirectIdentity(redirectedRequest.url)).inserted else {
+        throw SDKError(code: .remoteUnavailable, message: "WebDAV redirect loop detected")
+      }
+      currentRequest = redirectedRequest
+      redirectCount += 1
+    }
+  }
+
+  private static func redirectedRequest(
+    from request: WebDAVHTTPRequest,
+    response: WebDAVHTTPResponse
+  ) throws -> WebDAVHTTPRequest {
+    guard
+      let location = response.headers.first(where: {
+        $0.key.caseInsensitiveCompare("Location") == .orderedSame
+      })?.value,
+      let targetURL = URL(string: location, relativeTo: request.url)?.absoluteURL,
+      targetURL.host?.isEmpty == false,
+      targetURL.user == nil,
+      targetURL.password == nil,
+      targetURL.fragment == nil
+    else {
+      throw SDKError(code: .remoteUnavailable, message: "WebDAV redirect target is invalid")
+    }
+
+    guard let sourceOrigin = origin(of: request.url),
+      let targetOrigin = origin(of: targetURL)
+    else {
+      throw SDKError(code: .remoteUnavailable, message: "WebDAV redirect target is invalid")
+    }
+    let sameOrigin = sourceOrigin == targetOrigin
+    let targetScheme = targetURL.scheme?.lowercased()
+    let sourceScheme = request.url.scheme?.lowercased()
+    guard targetScheme == "https" || (sameOrigin && sourceScheme == "http") else {
+      throw SDKError(code: .forbidden, message: "WebDAV redirect is not secure")
+    }
+
+    let method = request.method.uppercased()
+    guard sameOrigin || method == "GET" || method == "HEAD" else {
+      throw SDKError(
+        code: .forbidden,
+        message: "WebDAV metadata redirect escaped the configured origin"
+      )
+    }
+
+    let headers = request.headers.filter { name, _ in
+      let normalizedName = name.lowercased()
+      if normalizedName == "host" {
+        return false
+      }
+      if !sameOrigin, sensitiveRedirectHeaders.contains(normalizedName) {
+        return false
+      }
+      return true
+    }
+    return WebDAVHTTPRequest(
+      method: request.method,
+      url: targetURL,
+      headers: headers,
+      body: request.body
+    )
+  }
+
+  private static func origin(of url: URL) -> WebDAVOrigin? {
+    guard let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased() else {
+      return nil
+    }
+    let port: Int?
+    if let explicitPort = url.port {
+      port = explicitPort
+    } else if scheme == "https" {
+      port = 443
+    } else if scheme == "http" {
+      port = 80
+    } else {
+      port = nil
+    }
+    return WebDAVOrigin(scheme: scheme, host: host, port: port)
+  }
+
+  private static func redirectIdentity(_ url: URL) -> String {
+    url.standardized.absoluteString
+  }
+
+  private static let maximumRedirectCount = 5
+  private static let redirectStatusCodes: Set<Int> = [301, 302, 307, 308]
+  private static let sensitiveRedirectHeaders: Set<String> = [
+    "authorization", "cookie", "cookie2", "proxy-authorization",
+  ]
+}
+
+private struct WebDAVOrigin: Equatable {
+  let scheme: String
+  let host: String
+  let port: Int?
+}
+
+private struct FoundationWebDAVRequestExecutor: WebDAVRequestExecutor {
+  func execute(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse {
+    var urlRequest = URLRequest(url: request.url)
+    urlRequest.httpMethod = request.method
+    urlRequest.httpBody = request.body
+    for (name, value) in request.headers {
+      urlRequest.setValue(value, forHTTPHeaderField: name)
+    }
+    let session = URLSession(
+      configuration: .ephemeral,
+      delegate: WebDAVNoRedirectDelegate.shared,
+      delegateQueue: nil
+    )
+    defer { session.invalidateAndCancel() }
+    let (data, response) = try await session.data(for: urlRequest)
+    guard let response = response as? HTTPURLResponse else {
+      throw SDKError(code: .remoteUnavailable, message: "WebDAV response is not HTTP")
+    }
+    var headers: [String: String] = [:]
+    for (name, value) in response.allHeaderFields {
+      headers[String(describing: name).lowercased()] = String(describing: value)
+    }
+    return WebDAVHTTPResponse(
+      statusCode: response.statusCode,
+      headers: headers,
+      body: data
+    )
   }
 }
 
@@ -482,6 +616,8 @@ private enum WebDAVMultiStatusParser {
     private let sourceUID: String
     private let baseURL: URL
     private var current: ResponseFields?
+    private var currentPropstat: PropertyFields?
+    private var elementStack: [String] = []
     private var text = ""
     fileprivate var entries: Result<[RemoteEntry], Error> = .success([])
 
@@ -498,11 +634,15 @@ private enum WebDAVMultiStatusParser {
       attributes _: [String: String] = [:]
     ) {
       let name = localName(elementName)
+      elementStack.append(name)
       text = ""
       if name == "response" {
         current = ResponseFields()
+        currentPropstat = nil
+      } else if name == "propstat" {
+        currentPropstat = PropertyFields()
       } else if name == "collection" {
-        current?.isCollection = true
+        currentPropstat?.isCollection = true
       }
     }
 
@@ -516,20 +656,36 @@ private enum WebDAVMultiStatusParser {
       namespaceURI _: String?,
       qualifiedName _: String?
     ) {
-      guard entries.isSuccess else { return }
       let name = localName(elementName)
+      let parentName = elementStack.dropLast().last
       let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+      defer {
+        if elementStack.last == name {
+          elementStack.removeLast()
+        }
+        text = ""
+      }
+      guard entries.isSuccess else { return }
       switch name {
-      case "href":
+      case "href" where parentName == "response":
         current?.href = value
       case "getcontentlength":
-        current?.size = Int64(value)
+        currentPropstat?.size = Int64(value)
       case "getlastmodified":
-        current?.modifiedAtMilliseconds = Self.parseHTTPDate(value)
+        currentPropstat?.modifiedAtMilliseconds = Self.parseHTTPDate(value)
       case "getetag":
-        current?.entityTag = value.isEmpty ? nil : value
+        currentPropstat?.entityTag = value.isEmpty ? nil : value
       case "status":
-        current?.isSuccessful = value.contains(" 2")
+        if currentPropstat != nil {
+          currentPropstat?.isSuccessful = Self.isSuccessfulStatus(value)
+        } else {
+          current?.isSuccessful = Self.isSuccessfulStatus(value)
+        }
+      case "propstat":
+        if let currentPropstat {
+          current?.include(currentPropstat)
+        }
+        currentPropstat = nil
       case "response":
         if let current, current.isSuccessful {
           do {
@@ -540,10 +696,10 @@ private enum WebDAVMultiStatusParser {
           }
         }
         current = nil
+        currentPropstat = nil
       default:
         break
       }
-      text = ""
     }
 
     private func makeEntry(_ fields: ResponseFields) throws -> RemoteEntry {
@@ -589,8 +745,31 @@ private enum WebDAVMultiStatusParser {
       }
     }
 
+    private static func isSuccessfulStatus(_ value: String) -> Bool {
+      let fields = value.split(whereSeparator: { $0.isWhitespace })
+      guard fields.count >= 2, let statusCode = Int(fields[1]) else { return false }
+      return (200...299).contains(statusCode)
+    }
+
     private struct ResponseFields {
       var href: String?
+      var isCollection = false
+      var size: Int64?
+      var modifiedAtMilliseconds: Int64?
+      var entityTag: String?
+      var isSuccessful = false
+
+      mutating func include(_ properties: PropertyFields) {
+        guard properties.isSuccessful else { return }
+        isSuccessful = true
+        isCollection = isCollection || properties.isCollection
+        size = properties.size ?? size
+        modifiedAtMilliseconds = properties.modifiedAtMilliseconds ?? modifiedAtMilliseconds
+        entityTag = properties.entityTag ?? entityTag
+      }
+    }
+
+    private struct PropertyFields {
       var isCollection = false
       var size: Int64?
       var modifiedAtMilliseconds: Int64?
