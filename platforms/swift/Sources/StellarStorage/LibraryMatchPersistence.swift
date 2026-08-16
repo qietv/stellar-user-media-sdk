@@ -101,6 +101,44 @@ package struct LibraryFileBindingRequest: Sendable {
   }
 }
 
+package struct LibraryExtraBindingRequest: Sendable {
+  package let sourceUID: String
+  package let mediaRelativePath: String
+  package let parentEntityUID: String
+  package let title: String
+  package let matchMethod: String
+  package let confidence: Double
+  package let locked: Bool
+
+  package init(
+    sourceUID: String,
+    mediaRelativePath: String,
+    parentEntityUID: String,
+    title: String,
+    matchMethod: String,
+    confidence: Double,
+    locked: Bool
+  ) throws {
+    let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0"),
+      !mediaRelativePath.isEmpty, !mediaRelativePath.contains("\0"),
+      !parentEntityUID.isEmpty, !parentEntityUID.contains("\0"),
+      !normalizedTitle.isEmpty, !normalizedTitle.contains("\0"),
+      ["manual", "inherited"].contains(matchMethod), confidence.isFinite,
+      (0...1).contains(confidence), matchMethod != "manual" || locked
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "extra binding request is invalid")
+    }
+    self.sourceUID = sourceUID
+    self.mediaRelativePath = mediaRelativePath
+    self.parentEntityUID = parentEntityUID
+    self.title = normalizedTitle
+    self.matchMethod = matchMethod
+    self.confidence = confidence
+    self.locked = locked
+  }
+}
+
 package struct LibraryFileBindingSnapshot: Equatable, Sendable {
   package let fileUID: String
   package let entityUID: String
@@ -178,6 +216,37 @@ extension LibraryStore {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "file binding read failed")
+    }
+  }
+
+  package func extraBinding(
+    sourceUID: String,
+    mediaRelativePath: String
+  ) async throws -> LibraryFileBindingSnapshot? {
+    do {
+      return try await database.read { database in
+        guard
+          let file = try Row.fetchOne(
+            database,
+            sql: """
+              SELECT f.id, f.uid
+              FROM media_file f
+              JOIN library_source s ON s.id = f.source_id
+              WHERE s.uid = ? AND f.relative_path = ? AND f.deleted_at_ms IS NULL
+              """,
+            arguments: [sourceUID, mediaRelativePath]
+          )
+        else { return nil }
+        return try Self.readExtraBinding(
+          mediaFileID: file["id"],
+          fileUID: file["uid"],
+          database: database
+        )
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "extra binding read failed")
     }
   }
 
@@ -294,6 +363,166 @@ extension LibraryStore {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "file binding transaction failed")
+    }
+  }
+
+  package func commitExtraBinding(_ request: LibraryExtraBindingRequest) async throws
+    -> LibraryFileBindingSnapshot
+  {
+    let now = clock.nowMilliseconds()
+    let generatedUID = uuidGenerator.makeUUID().uuidString.lowercased()
+    do {
+      return try await database.write { database in
+        guard
+          let file = try Row.fetchOne(
+            database,
+            sql: """
+              SELECT f.id, f.uid
+              FROM media_file f
+              JOIN library_source s ON s.id = f.source_id
+              WHERE s.uid = ? AND f.relative_path = ? AND f.deleted_at_ms IS NULL
+              """,
+            arguments: [request.sourceUID, request.mediaRelativePath]
+          ),
+          let parent = try Row.fetchOne(
+            database,
+            sql: """
+              SELECT id, kind FROM media_entity
+              WHERE uid = ? AND status = 'active' AND deleted_at_ms IS NULL
+              """,
+            arguments: [request.parentEntityUID]
+          )
+        else {
+          throw SDKError(code: .metadataNotFound, message: "extra file or parent was not found")
+        }
+        let parentKind: String = parent["kind"]
+        guard ["movie", "series"].contains(parentKind) else {
+          throw SDKError(
+            code: .invalidConfiguration, message: "extra parent must be movie or series")
+        }
+        let mediaFileID: Int64 = file["id"]
+        let fileUID: String = file["uid"]
+        let parentID: Int64 = parent["id"]
+
+        if let existing = try Row.fetchOne(
+          database,
+          sql: """
+            SELECT e.id, b.locked
+            FROM file_binding b
+            JOIN media_entity e ON e.id = b.entity_id
+            WHERE b.media_file_id = ? AND b.binding_role = 'extra'
+              AND e.parent_id = ? AND e.kind = 'extra' AND e.deleted_at_ms IS NULL
+            ORDER BY b.locked DESC, e.uid
+            LIMIT 1
+            """,
+          arguments: [mediaFileID, parentID]
+        ) {
+          let entityID: Int64 = existing["id"]
+          let existingLocked = (existing["locked"] as Int) == 1
+          if !existingLocked || request.locked {
+            try database.execute(
+              sql: """
+                UPDATE media_entity SET
+                  canonical_title = ?, sort_title = ?,
+                  metadata_state = CASE WHEN ? = 1 THEN 'manual' ELSE metadata_state END,
+                  updated_at_ms = ?
+                WHERE id = ?
+                """,
+              arguments: [request.title, request.title, request.locked ? 1 : 0, now, entityID]
+            )
+            try database.execute(
+              sql: """
+                UPDATE file_binding SET
+                  match_method = ?, confidence = ?, locked = MAX(locked, ?), decided_at_ms = ?
+                WHERE media_file_id = ? AND entity_id = ?
+                """,
+              arguments: [
+                request.matchMethod, request.confidence, request.locked ? 1 : 0, now,
+                mediaFileID, entityID,
+              ]
+            )
+          }
+          guard
+            let snapshot = try Self.readExtraBinding(
+              mediaFileID: mediaFileID,
+              fileUID: fileUID,
+              database: database
+            )
+          else {
+            throw SDKError(code: .storageFailure, message: "extra binding was not persisted")
+          }
+          return snapshot
+        }
+
+        let lockedCount =
+          try Int.fetchOne(
+            database,
+            sql: "SELECT COUNT(*) FROM file_binding WHERE media_file_id = ? AND locked = 1",
+            arguments: [mediaFileID]
+          ) ?? 0
+        guard lockedCount == 0 else {
+          throw SDKError(code: .conflict, message: "locked binding prevents extra classification")
+        }
+        let obsoleteExtraIDs = try Int64.fetchAll(
+          database,
+          sql: """
+            SELECT e.id
+            FROM file_binding b
+            JOIN media_entity e ON e.id = b.entity_id
+            WHERE b.media_file_id = ? AND b.binding_role = 'extra' AND e.kind = 'extra'
+            """,
+          arguments: [mediaFileID]
+        )
+        try database.execute(
+          sql: "DELETE FROM file_binding WHERE media_file_id = ?",
+          arguments: [mediaFileID]
+        )
+        for entityID in obsoleteExtraIDs {
+          try database.execute(
+            sql: "UPDATE media_entity SET status = 'obsolete', updated_at_ms = ? WHERE id = ?",
+            arguments: [now, entityID]
+          )
+        }
+        try database.execute(
+          sql: """
+            INSERT INTO media_entity(
+              uid, kind, parent_id, canonical_title, sort_title, status, metadata_state,
+              created_at_ms, updated_at_ms
+            ) VALUES (?, 'extra', ?, ?, ?, 'active', ?, ?, ?)
+            """,
+          arguments: [
+            generatedUID, parentID, request.title, request.title,
+            request.locked ? "manual" : "partial", now, now,
+          ]
+        )
+        let entityID = database.lastInsertedRowID
+        try database.execute(
+          sql: """
+            INSERT INTO file_binding(
+              media_file_id, entity_id, binding_role, match_method, confidence,
+              matched_query, locked, decided_at_ms
+            ) VALUES (?, ?, 'extra', ?, ?, '{}', ?, ?)
+            """,
+          arguments: [
+            mediaFileID, entityID, request.matchMethod, request.confidence,
+            request.locked ? 1 : 0, now,
+          ]
+        )
+        guard
+          let snapshot = try Self.readExtraBinding(
+            mediaFileID: mediaFileID,
+            fileUID: fileUID,
+            database: database
+          )
+        else {
+          throw SDKError(code: .storageFailure, message: "extra binding was not persisted")
+        }
+        return snapshot
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "extra binding transaction failed")
     }
   }
 
@@ -484,6 +713,38 @@ extension LibraryStore {
         LIMIT 1
         """,
       arguments: [mediaFileID, onlyLocked ? 1 : 0]
+    )
+    guard let row else { return nil }
+    return LibraryFileBindingSnapshot(
+      fileUID: fileUID,
+      entityUID: row["entity_uid"],
+      entityKind: row["entity_kind"],
+      canonicalTitle: row["canonical_title"],
+      bindingRole: row["binding_role"],
+      matchMethod: row["match_method"],
+      confidence: row["confidence"],
+      isLocked: (row["locked"] as Int) == 1
+    )
+  }
+
+  private static func readExtraBinding(
+    mediaFileID: Int64,
+    fileUID: String,
+    database: Database
+  ) throws -> LibraryFileBindingSnapshot? {
+    let row = try Row.fetchOne(
+      database,
+      sql: """
+        SELECT e.uid AS entity_uid, e.kind AS entity_kind, e.canonical_title,
+               b.binding_role, b.match_method, b.confidence, b.locked
+        FROM file_binding b
+        JOIN media_entity e ON e.id = b.entity_id
+        WHERE b.media_file_id = ? AND b.binding_role = 'extra'
+          AND e.kind = 'extra' AND e.status = 'active' AND e.deleted_at_ms IS NULL
+        ORDER BY b.locked DESC, e.uid
+        LIMIT 1
+        """,
+      arguments: [mediaFileID]
     )
     guard let row else { return nil }
     return LibraryFileBindingSnapshot(

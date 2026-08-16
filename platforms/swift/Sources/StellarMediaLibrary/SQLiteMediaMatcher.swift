@@ -262,6 +262,31 @@ public struct SQLiteMediaMatcher: Sendable {
     return makeBinding(snapshot)
   }
 
+  /// Binds a sample or bonus file to an existing movie or series without provider search.
+  public func bindExtra(
+    sourceUID: String,
+    mediaRelativePath: String,
+    parentEntityUID: String,
+    title: String,
+    method: MediaMatchMethod = .inherited,
+    confidence: Double = 1,
+    locked: Bool = false
+  ) async throws -> MediaFileMatchBinding {
+    let snapshot = try await libraryStore.commitExtraBinding(
+      try LibraryExtraBindingRequest(
+        sourceUID: sourceUID,
+        mediaRelativePath: mediaRelativePath,
+        parentEntityUID: parentEntityUID,
+        title: title,
+        matchMethod: method.rawValue,
+        confidence: confidence,
+        locked: locked
+      )
+    )
+    try await metadataCacheStore.replaceMatchCandidates(fileUID: snapshot.fileUID, candidates: [])
+    return makeBinding(snapshot)
+  }
+
   /// Reads ranked candidates retained for a user-review decision.
   public func pendingCandidates(
     sourceUID: String,
@@ -291,6 +316,17 @@ public struct SQLiteMediaMatcher: Sendable {
     mediaRelativePath: String
   ) async throws -> MediaFileMatchBinding? {
     try await libraryStore.matchBinding(
+      sourceUID: sourceUID,
+      mediaRelativePath: mediaRelativePath
+    ).map(makeBinding)
+  }
+
+  /// Reads the current extra binding without exposing database row IDs.
+  public func extraBinding(
+    sourceUID: String,
+    mediaRelativePath: String
+  ) async throws -> MediaFileMatchBinding? {
+    try await libraryStore.extraBinding(
       sourceUID: sourceUID,
       mediaRelativePath: mediaRelativePath
     ).map(makeBinding)

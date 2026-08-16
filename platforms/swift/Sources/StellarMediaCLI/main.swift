@@ -86,6 +86,9 @@ private enum StellarMediaCLI {
         stellar-media db verify <library|account|metadata-cache> <database-path>
         stellar-media library scan <database-path> <root-directory> <source-uid>
         stellar-media library inspect <database-path>
+        stellar-media library list <database-path> [--section <section>] [--limit <count>]
+        stellar-media library search <database-path> <query> [--limit <count>]
+        stellar-media library show <database-path> <media-uid> [--profile <profile-uid>]
         stellar-media smb check <options>
         stellar-media smb list <options> [--path <relative-path>]
         stellar-media smb scan <options>

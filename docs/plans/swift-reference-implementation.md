@@ -65,9 +65,9 @@ v1 不包含：
 - 公共错误模型、`EncryptedCredentialEnvelope` wire model；
 - 最小电影/剧集文件名 parser；
 - repository-wide parser fixture；
-- 73 个 Swift Testing 测试，macOS debug/release 构建已通过；
+- 78 个 Swift Testing 测试，macOS debug/release 构建已通过；
 - GitHub Actions 已在 macOS 26 与 Ubuntu 24.04 首次实际通过对等验证，并固定第三方 Action SHA；
-- SwiftPM exact/revision 依赖锁定门禁，以及 8 个公开模块、717 个 symbol 的 API compatibility 基线；
+- SwiftPM exact/revision 依赖锁定门禁，以及 9 个公开模块、1277 个 symbol 的 API compatibility 基线；
 - libsmb2 来源/ABI/私有静态链接 ADR、机器可读 lock、全符号前缀和 C ABI smoke guard；
 - 不依赖真实服务器的 `SMB2Transport` / `SMB2Session` seam、只读值模型和 fake transport 合同测试；
 - allowlisted C wrapper、Linux `LinuxSMB2Transport`、有界 blocking executor，以及连接、枚举、`stat`、range read 和确定性释放实现；
@@ -282,13 +282,13 @@ stellar-media smb scan
 - [x] 实现候选生成、评分、低置信度队列、人工锁定和多版本绑定；
   - [x] 固定 local metadata/文件名查询优先级、外部 ID 直达、类型/标题/年份/剧集存在性评分与三档决策；
   - [x] 持久化低置信度队列，保护人工锁定，并实现同实体多版本绑定；
-- [ ] 物化 movie、series、season、episode、extra 与 external IDs；
-- [ ] 实现最近添加、继续观看、电影、剧集、类型、片单、搜索和稳定游标分页；
-- [ ] 建立 poster/backdrop 选择、缓存索引和预取接口；
+- [x] 物化 movie、series、season、episode、extra 与 external IDs；
+- [x] 实现最近添加、继续观看、电影、剧集、类型、片单、搜索和稳定游标分页；
+- [x] 建立 poster/backdrop 选择、缓存索引和预取接口；
 - [x] provider 失败不能删除本地文件事实，也不能覆盖人工匹配；
-- [ ] CLI 新增 `library list/search/show`，输出与 PosterWall fixture 对齐。
+- [x] CLI 新增 `library list/search/show`，输出与 PosterWall fixture 对齐。
 
-进行中证据：`metadata-intake-v1.json` 已固定文件名噪声/provider 证据、6 个 sidecar 关联样本、2 个 NFO、1 个本地 JSON 规范化样本和 1 组多轨技术结果；`metadata-matching-v1.json` 固定电影、alias、剧集存在性、缺集拒绝和外部 ID 直达结果；`metadata-match-persistence-v1.json` 固定 review → 人工锁定、锁定保护、同实体 primary/version 绑定和 series → season → episode 物化。`SQLiteMediaMetadataStore` 原子写入 parse、完整 sidecar 集与成功 probe，任一行失败时整体回滚且无新成功 probe 时保留上次结果。`SQLiteMediaMatcher` 把 review 候选写入可删除缓存，把自动/人工决定写入核心库；事务内再次保护人工锁，provider 失败不改变已有绑定。当前 macOS 共 73 个测试，公共 API baseline 为 8 个模块、1054 个 symbol。
+进行中证据：`metadata-intake-v1.json` 已固定文件名噪声/provider 证据、6 个 sidecar 关联样本、2 个 NFO、1 个本地 JSON 规范化样本和 1 组多轨技术结果；`metadata-matching-v1.json` 固定电影、alias、剧集存在性、缺集拒绝和外部 ID 直达结果；`metadata-match-persistence-v1.json` 固定 review → 人工锁定、锁定保护、同实体 primary/version 绑定、series → season → episode 物化，以及 extra 幂等继承。`SQLiteMediaMetadataStore` 原子写入 parse、完整 sidecar 集与成功 probe，任一行失败时整体回滚且无新成功 probe 时保留上次结果。`SQLiteMediaMatcher` 把 review 候选写入可删除缓存，把自动/人工决定写入核心库；事务内再次保护人工锁，provider 失败不改变已有绑定。`StellarPosterWall` 已成为独立 target；`poster-wall-v1.json` 固定 title pagination、最近添加、继续观看、搜索、类型、片单、选图、剧集详情和轨道投影。cursor 绑定规范化查询与内容 revision，库变化后失败关闭；电影/剧集聚合多版本可用性，详情返回 playable files 与 season/episode 层级。artwork variant identity 包含 provider/reference/尺寸/transform，签名 URL 被拒绝，缓存索引与 prefetch seam 可替换。CLI 已复用同一 API 提供 `library list/search/show`。当前 macOS 共 78 个测试；公共 API baseline 包含 9 个 portable 模块、1277 个 symbol。
 
 完成定义：从 SMB fixture 扫描到数据库，再到海报墙 JSON 查询形成完整离线纵向路径；重建派生索引不会丢失人工状态、播放状态或 outbox。
 

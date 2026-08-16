@@ -2,7 +2,7 @@
 
 面向 iOS、iPadOS、macOS 和 tvOS 的原生 Swift 实现。
 
-完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S4 已完成 SQLite v1、迁移、扫描入库与跨平台 CI；S5 已完成本地元数据/NFO/JSON/probe 原子入库、候选评分、review 缓存、人工锁保护和多版本绑定，当前继续推进 provider adapter、完整媒体物化和 PosterWall 查询。
+完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S4 已完成 SQLite v1、迁移、扫描入库与跨平台 CI；S5 已完成本地元数据/NFO/JSON/probe 原子入库、候选评分、review 缓存、人工锁保护、多版本/extra 物化，以及 PosterWall 查询、详情、稳定分页、选图和缓存接口，当前剩余具体 provider adapter 与派生索引重建保全测试。
 
 ## 工具链与兼容基线
 
@@ -23,6 +23,7 @@ Sources/StellarLocalMedia/          # macOS/Linux read-only local directory conn
 Sources/StellarWebDAV/              # read-only PROPFIND/stat/Range connector
 Sources/StellarStorage/             # GRDB migrations, verification, repositories
 Sources/StellarMediaLibrary/
+Sources/StellarPosterWall/          # stable pagination, search, sections, and details
 Sources/StellarSMB2Core/            # libsmb2-independent seam and values
 Sources/CStellarSMB2Wrapper/        # 不暴露上游类型的 allowlisted C API
 Sources/StellarSMB2Linux/           # Linux 真正的只读 libsmb2 transport
@@ -55,6 +56,9 @@ swift run stellar-media db migrate library /path/to/library.sqlite
 swift run stellar-media db verify library /path/to/library.sqlite
 swift run stellar-media library scan /path/to/library.sqlite /path/to/media source-uid
 swift run stellar-media library inspect /path/to/library.sqlite
+swift run stellar-media library list /path/to/library.sqlite --section recently-added
+swift run stellar-media library search /path/to/library.sqlite "space opera"
+swift run stellar-media library show /path/to/library.sqlite <media-uid> --profile <profile-uid>
 python3 ../../tools/ci/check_swift_dependencies.py --package-root .
 python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
 ```

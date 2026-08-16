@@ -134,6 +134,31 @@ SDK v1 输出数据模型和分页查询，不内置三端 UI 组件。公开查
 
 `PosterWallItem` 至少包含 `media_uid`、类型、标题、副标题、年份、主海报、背景图、观看进度、未看集数、来源可用性和元数据修订号。
 
+### PosterWall 合同 v1
+
+列表只返回顶层 `movie` 与 `series`，season、episode、extra 和同实体的多个文件版本不得重复生成海报墙条目。series 的来源、可用性、最近播放和继续观看状态从其 episode 聚合；movie 从直接绑定的 primary/version 文件聚合。
+
+v1 固定以下 section：
+
+| section | 选择与默认顺序 |
+| --- | --- |
+| `all` | 全部顶层实体，使用请求 sort |
+| `movies` / `series` | 对应实体类型，使用请求 sort |
+| `recently_added` | `created_at_ms` 降序 |
+| `continue_watching` | 指定 profile 下存在未完成且进度大于零的状态，最近播放降序 |
+| `recently_played` | 指定 profile 下有播放时间的实体，最近播放降序 |
+| `collection` | 指定 `collection_uid` 的未删除片单成员，使用请求 sort |
+
+过滤支持 media kind、一个或多个 source UID、类型名、年份范围、聚合可用性和 profile 观看状态。多个 media kind 或 source 采用“任一命中”，多个类型名采用“全部命中”。搜索对标题、alias、人物、类型和 romanized 投影执行 Unicode 宽度/变音符号/大小写折叠，再以规范化子串匹配；不得依赖 SQLite 平台私有 tokenizer。
+
+`title` 排序使用同一 Unicode 规范化文本并以 `media_uid` 收尾；`added_at`、`release_date`、`recently_played` 均为降序并以 `media_uid` 收尾；`random` 使用请求 `random_seed` 与 `media_uid` 计算跨平台稳定的 FNV-1a 64-bit 顺序。实现不得使用进程随机化 hash。
+
+响应携带不透明 `library_revision`。cursor MUST 绑定规范化查询身份、library revision 和上一页最后一个 `media_uid`；查询参数不一致、revision 改变、anchor 消失或 cursor 无法解码时失败关闭，映射为 `conflict` 或 `invalid_configuration`，不得静默跳页或重复页。一次数据库 read transaction 内构造的 page/detail 使用同一 snapshot。
+
+可用性聚合优先级为 `present` → `offline` → `missing` → `unavailable`。存在任一可播放版本时实体为 `present`；一个版本 missing 不得隐藏仍可播放的其他版本。详情返回顶层实体、provider external IDs、全部 artwork 候选、电影 playable versions 或 series→season→episode 层级，以及每个文件的技术摘要和轨道列表。
+
+[`poster-wall-v1.json`](../fixtures/media-library/poster-wall-v1.json) 固定 title pagination、最近添加、继续观看、搜索、类型、片单、选图、剧集层级和轨道投影样本。各语言实现比较规范化 UID/字段输出；cursor 本身是不透明实现值，不比较编码文本，但必须重放并验证 revision 失效行为。
+
 ## 图片管理
 
 - 数据库保存图片提供方、远程路径、宽高、语言、类型、投票和本地缓存状态。
@@ -141,6 +166,10 @@ SDK v1 输出数据模型和分页查询，不内置三端 UI 组件。公开查
 - 原图仅在明确请求下载/导出时获取；海报墙按屏幕像素尺寸选择接近的可用规格。
 - 缓存键必须包含提供方、图片路径、目标尺寸和变换版本。
 - LRU 清理只删除可再生成缓存；用户导入图片和手工设置必须受保护。
+
+列表选图按 `is_selected`、请求 locale、`und` fallback、provider score、像素面积、`artwork_uid` 的顺序确定。人工 selected 图必须胜过 provider 分数更高的未选图；详情仍返回全部候选。带 query、签名或短期 token 的下载 URL 不得作为稳定 `remote_reference` 写入核心库。
+
+每个缓存 variant identity MUST 包含 artwork UID、provider、稳定 remote reference、目标像素宽高和 transform version。缓存索引与 prefetch 是可替换异步接口；平台实现负责网络、电量、磁盘预算和 LRU，SDK 的内存实现只用于测试或短生命周期宿主。缓存相对路径拒绝绝对路径、空段、`.`、`..` 与 NUL。
 
 ## 事件与一致性
 

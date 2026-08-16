@@ -131,13 +131,13 @@ public actor StorageDatabase {
     }
   }
 
-  func read<Value: Sendable>(
+  package func read<Value: Sendable>(
     _ body: @Sendable (Database) throws -> Value
   ) async throws -> Value {
     try await pool.read(body)
   }
 
-  func write<Value: Sendable>(
+  package func write<Value: Sendable>(
     _ body: @Sendable (Database) throws -> Value
   ) async throws -> Value {
     try await pool.write(body)

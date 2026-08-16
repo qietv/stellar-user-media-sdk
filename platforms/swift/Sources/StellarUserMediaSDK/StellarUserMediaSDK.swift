@@ -1,6 +1,7 @@
 import StellarCore
 import StellarLocalMedia
 import StellarMediaLibrary
+import StellarPosterWall
 import StellarRemoteMedia
 import StellarStorage
 import StellarWebDAV
@@ -219,6 +220,58 @@ public typealias MediaMatchPersistenceState = StellarMediaLibrary.MediaMatchPers
 public typealias MediaMatchPersistenceResult = StellarMediaLibrary.MediaMatchPersistenceResult
 /// Compatibility alias for SQLite-backed matching, review, and binding persistence.
 public typealias SQLiteMediaMatcher = StellarMediaLibrary.SQLiteMediaMatcher
+/// Compatibility alias for a top-level PosterWall media kind.
+public typealias PosterWallMediaKind = StellarPosterWall.PosterWallMediaKind
+/// Compatibility alias for a PosterWall section.
+public typealias PosterWallSection = StellarPosterWall.PosterWallSection
+/// Compatibility alias for deterministic PosterWall sorting.
+public typealias PosterWallSort = StellarPosterWall.PosterWallSort
+/// Compatibility alias for PosterWall availability filtering.
+public typealias PosterWallAvailabilityFilter = StellarPosterWall.PosterWallAvailabilityFilter
+/// Compatibility alias for PosterWall playback-state filtering.
+public typealias PosterWallWatchFilter = StellarPosterWall.PosterWallWatchFilter
+/// Compatibility alias for aggregated media availability.
+public typealias PosterWallAvailability = StellarPosterWall.PosterWallAvailability
+/// Compatibility alias for reusable PosterWall filters.
+public typealias PosterWallFilter = StellarPosterWall.PosterWallFilter
+/// Compatibility alias for a validated PosterWall query.
+public typealias PosterWallQuery = StellarPosterWall.PosterWallQuery
+/// Compatibility alias for selected PosterWall artwork.
+public typealias PosterWallArtwork = StellarPosterWall.PosterWallArtwork
+/// Compatibility alias for a PosterWall list item.
+public typealias PosterWallItem = StellarPosterWall.PosterWallItem
+/// Compatibility alias for a revision-bound PosterWall page.
+public typealias PosterWallPage = StellarPosterWall.PosterWallPage
+/// Compatibility alias for a normalized media stream.
+public typealias PosterWallStream = StellarPosterWall.PosterWallStream
+/// Compatibility alias for a playable media file projection.
+public typealias PosterWallPlayableFile = StellarPosterWall.PosterWallPlayableFile
+/// Compatibility alias for one episode in PosterWall details.
+public typealias PosterWallEpisode = StellarPosterWall.PosterWallEpisode
+/// Compatibility alias for one season in PosterWall details.
+public typealias PosterWallSeason = StellarPosterWall.PosterWallSeason
+/// Compatibility alias for a provider external identity.
+public typealias PosterWallExternalID = StellarPosterWall.PosterWallExternalID
+/// Compatibility alias for complete PosterWall media details.
+public typealias PosterWallDetails = StellarPosterWall.PosterWallDetails
+/// Compatibility alias for SQLite-backed PosterWall queries.
+public typealias PosterWallStore = StellarPosterWall.PosterWallStore
+/// Compatibility alias for one artwork cache variant request.
+public typealias PosterWallArtworkVariantRequest =
+  StellarPosterWall.PosterWallArtworkVariantRequest
+/// Compatibility alias for one regenerable artwork cache record.
+public typealias PosterWallArtworkCacheRecord = StellarPosterWall.PosterWallArtworkCacheRecord
+/// Compatibility alias for a replaceable artwork cache index.
+public typealias PosterWallArtworkCacheIndexing =
+  StellarPosterWall.PosterWallArtworkCacheIndexing
+/// Compatibility alias for the ephemeral artwork cache index.
+public typealias InMemoryPosterWallArtworkCacheIndex =
+  StellarPosterWall.InMemoryPosterWallArtworkCacheIndex
+/// Compatibility alias for artwork prefetch policy integration.
+public typealias PosterWallArtworkPrefetching = StellarPosterWall.PosterWallArtworkPrefetching
+/// Compatibility alias for a prefetcher that performs no work.
+public typealias NoopPosterWallArtworkPrefetcher =
+  StellarPosterWall.NoopPosterWallArtworkPrefetcher
 /// Compatibility alias for a versioned local database kind.
 public typealias StorageDatabaseKind = StellarStorage.StorageDatabaseKind
 /// Compatibility alias for an opened and migrated SQLite database.

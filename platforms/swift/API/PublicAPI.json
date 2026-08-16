@@ -1572,6 +1572,15 @@
           ]
         },
         {
+          "declaration": "func extraBinding(sourceUID: String, mediaRelativePath: String) async throws -> MediaFileMatchBinding?",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV12extraBinding9sourceUID17mediaRelativePathAA0b9FileMatchG0VSgSS_SStYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMatcher",
+            "extraBinding(sourceUID:mediaRelativePath:)"
+          ]
+        },
+        {
           "declaration": "init(libraryStore: LibraryStore, metadataCacheStore: MetadataCacheStore, scorer: MediaMetadataCandidateScorer = MediaMetadataCandidateScorer(), clock: any SDKClock = SystemSDKClock())",
           "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV12libraryStore013metadataCacheG06scorer5clockAC0A7Storage0cG0V_AH08MetadataiG0VAA0bM15CandidateScorerV0A4Core8SDKClock_ptcfc",
           "kind": "swift.init",
@@ -1650,6 +1659,15 @@
           "path": [
             "SQLiteMediaMatcher",
             "evaluate(query:candidates:sourceUID:mediaRelativePath:)"
+          ]
+        },
+        {
+          "declaration": "func bindExtra(sourceUID: String, mediaRelativePath: String, parentEntityUID: String, title: String, method: MediaMatchMethod = .inherited, confidence: Double = 1, locked: Bool = false) async throws -> MediaFileMatchBinding",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV9bindExtra9sourceUID17mediaRelativePath012parentEntityI05title6method10confidence6lockedAA0B16FileMatchBindingVSS_S3SAA0bT6MethodOSdSbtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMatcher",
+            "bindExtra(sourceUID:mediaRelativePath:parentEntityUID:title:method:confidence:locked:)"
           ]
         },
         {
@@ -5040,6 +5058,1759 @@
         }
       ]
     },
+    "StellarPosterWall": {
+      "symbols": [
+        {
+          "declaration": "struct NoopPosterWallArtworkPrefetcher",
+          "identifier": "s:17StellarPosterWall04NoopbC17ArtworkPrefetcherV",
+          "kind": "swift.struct",
+          "path": [
+            "NoopPosterWallArtworkPrefetcher"
+          ]
+        },
+        {
+          "declaration": "func prefetch(_: [PosterWallArtworkVariantRequest]) async throws",
+          "identifier": "s:17StellarPosterWall04NoopbC17ArtworkPrefetcherV8prefetchyySayAA0bcE14VariantRequestVGYaKF",
+          "kind": "swift.method",
+          "path": [
+            "NoopPosterWallArtworkPrefetcher",
+            "prefetch(_:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:17StellarPosterWall04NoopbC17ArtworkPrefetcherVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "NoopPosterWallArtworkPrefetcher",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "actor InMemoryPosterWallArtworkCacheIndex",
+          "identifier": "s:17StellarPosterWall08InMemorybC17ArtworkCacheIndexC",
+          "kind": "swift.class",
+          "path": [
+            "InMemoryPosterWallArtworkCacheIndex"
+          ]
+        },
+        {
+          "declaration": "func store(_ record: PosterWallArtworkCacheRecord) async throws",
+          "identifier": "s:17StellarPosterWall08InMemorybC17ArtworkCacheIndexC5storeyyAA0bcfG6RecordVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "InMemoryPosterWallArtworkCacheIndex",
+            "store(_:)"
+          ]
+        },
+        {
+          "declaration": "func record(for request: PosterWallArtworkVariantRequest) async throws -> PosterWallArtworkCacheRecord?",
+          "identifier": "s:17StellarPosterWall08InMemorybC17ArtworkCacheIndexC6record3forAA0bcfG6RecordVSgAA0bcF14VariantRequestV_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "InMemoryPosterWallArtworkCacheIndex",
+            "record(for:)"
+          ]
+        },
+        {
+          "declaration": "func remove(_ request: PosterWallArtworkVariantRequest) async throws",
+          "identifier": "s:17StellarPosterWall08InMemorybC17ArtworkCacheIndexC6removeyyAA0bcF14VariantRequestVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "InMemoryPosterWallArtworkCacheIndex",
+            "remove(_:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:17StellarPosterWall08InMemorybC17ArtworkCacheIndexCACycfc",
+          "kind": "swift.init",
+          "path": [
+            "InMemoryPosterWallArtworkCacheIndex",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallExternalID",
+          "identifier": "s:17StellarPosterWall0bC10ExternalIDV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallExternalID"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC10ExternalIDV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallExternalID",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let value: String",
+          "identifier": "s:17StellarPosterWall0bC10ExternalIDV5valueSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallExternalID",
+            "value"
+          ]
+        },
+        {
+          "declaration": "let provider: String",
+          "identifier": "s:17StellarPosterWall0bC10ExternalIDV8providerSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallExternalID",
+            "provider"
+          ]
+        },
+        {
+          "declaration": "let namespace: String",
+          "identifier": "s:17StellarPosterWall0bC10ExternalIDV9namespaceSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallExternalID",
+            "namespace"
+          ]
+        },
+        {
+          "declaration": "enum PosterWallWatchFilter",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO",
+          "kind": "swift.enum",
+          "path": [
+            "PosterWallWatchFilter"
+          ]
+        },
+        {
+          "declaration": "case inProgress",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO10inProgressyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallWatchFilter",
+            "inProgress"
+          ]
+        },
+        {
+          "declaration": "case any",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO3anyyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallWatchFilter",
+            "any"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallWatchFilter",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallWatchFilter",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallWatchFilter",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallWatchFilter",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case completed",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO9completedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallWatchFilter",
+            "completed"
+          ]
+        },
+        {
+          "declaration": "case unwatched",
+          "identifier": "s:17StellarPosterWall0bC11WatchFilterO9unwatchedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallWatchFilter",
+            "unwatched"
+          ]
+        },
+        {
+          "declaration": "enum PosterWallAvailability",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO",
+          "kind": "swift.enum",
+          "path": [
+            "PosterWallAvailability"
+          ]
+        },
+        {
+          "declaration": "case unavailable",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO11unavailableyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailability",
+            "unavailable"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallAvailability",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallAvailability",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case missing",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO7missingyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailability",
+            "missing"
+          ]
+        },
+        {
+          "declaration": "case offline",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO7offlineyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailability",
+            "offline"
+          ]
+        },
+        {
+          "declaration": "case present",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO7presentyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailability",
+            "present"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailability",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:17StellarPosterWall0bC12AvailabilityO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallAvailability",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallPlayableFile",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallPlayableFile"
+          ]
+        },
+        {
+          "declaration": "let videoCodec: String?",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV10videoCodecSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "videoCodec"
+          ]
+        },
+        {
+          "declaration": "let bindingRole: String",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV11bindingRoleSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "bindingRole"
+          ]
+        },
+        {
+          "declaration": "let availability: String",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV12availabilitySSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "availability"
+          ]
+        },
+        {
+          "declaration": "let relativePath: String",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV12relativePathSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "relativePath"
+          ]
+        },
+        {
+          "declaration": "let durationMilliseconds: Int64?",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV20durationMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "durationMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallPlayableFile",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let width: Int?",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV5widthSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "width"
+          ]
+        },
+        {
+          "declaration": "let height: Int?",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV6heightSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "height"
+          ]
+        },
+        {
+          "declaration": "let fileUID: String",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV7fileUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "fileUID"
+          ]
+        },
+        {
+          "declaration": "let streams: [PosterWallStream]",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV7streamsSayAA0bC6StreamVGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "streams"
+          ]
+        },
+        {
+          "declaration": "let sizeBytes: Int64?",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV9sizeBytess5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "sizeBytes"
+          ]
+        },
+        {
+          "declaration": "let sourceUID: String",
+          "identifier": "s:17StellarPosterWall0bC12PlayableFileV9sourceUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPlayableFile",
+            "sourceUID"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallArtworkCacheRecord",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkCacheRecordV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallArtworkCacheRecord"
+          ]
+        },
+        {
+          "declaration": "let localRelativePath: String",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkCacheRecordV17localRelativePathSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkCacheRecord",
+            "localRelativePath"
+          ]
+        },
+        {
+          "declaration": "let lastAccessedAtMilliseconds: Int64",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkCacheRecordV26lastAccessedAtMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkCacheRecord",
+            "lastAccessedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkCacheRecordV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallArtworkCacheRecord",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "init(request: PosterWallArtworkVariantRequest, localRelativePath: String, byteCount: Int64, lastAccessedAtMilliseconds: Int64) throws",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkCacheRecordV7request17localRelativePath9byteCount26lastAccessedAtMillisecondsAcA0bcD14VariantRequestV_SSs5Int64VAKtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallArtworkCacheRecord",
+            "init(request:localRelativePath:byteCount:lastAccessedAtMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "let request: PosterWallArtworkVariantRequest",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkCacheRecordV7requestAA0bcD14VariantRequestVvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkCacheRecord",
+            "request"
+          ]
+        },
+        {
+          "declaration": "let byteCount: Int64",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkCacheRecordV9byteCounts5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkCacheRecord",
+            "byteCount"
+          ]
+        },
+        {
+          "declaration": "protocol PosterWallArtworkPrefetching : Sendable",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkPrefetchingP",
+          "kind": "swift.protocol",
+          "path": [
+            "PosterWallArtworkPrefetching"
+          ]
+        },
+        {
+          "declaration": "func prefetch(_ requests: [PosterWallArtworkVariantRequest]) async throws",
+          "identifier": "s:17StellarPosterWall0bC18ArtworkPrefetchingP8prefetchyySayAA0bcD14VariantRequestVGYaKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallArtworkPrefetching",
+            "prefetch(_:)"
+          ]
+        },
+        {
+          "declaration": "enum PosterWallAvailabilityFilter",
+          "identifier": "s:17StellarPosterWall0bC18AvailabilityFilterO",
+          "kind": "swift.enum",
+          "path": [
+            "PosterWallAvailabilityFilter"
+          ]
+        },
+        {
+          "declaration": "case unavailable",
+          "identifier": "s:17StellarPosterWall0bC18AvailabilityFilterO11unavailableyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailabilityFilter",
+            "unavailable"
+          ]
+        },
+        {
+          "declaration": "case any",
+          "identifier": "s:17StellarPosterWall0bC18AvailabilityFilterO3anyyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailabilityFilter",
+            "any"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC18AvailabilityFilterO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallAvailabilityFilter",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:17StellarPosterWall0bC18AvailabilityFilterO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallAvailabilityFilter",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case present",
+          "identifier": "s:17StellarPosterWall0bC18AvailabilityFilterO7presentyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailabilityFilter",
+            "present"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:17StellarPosterWall0bC18AvailabilityFilterO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallAvailabilityFilter",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:17StellarPosterWall0bC18AvailabilityFilterO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallAvailabilityFilter",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "protocol PosterWallArtworkCacheIndexing : Sendable",
+          "identifier": "s:17StellarPosterWall0bC20ArtworkCacheIndexingP",
+          "kind": "swift.protocol",
+          "path": [
+            "PosterWallArtworkCacheIndexing"
+          ]
+        },
+        {
+          "declaration": "func store(_ record: PosterWallArtworkCacheRecord) async throws",
+          "identifier": "s:17StellarPosterWall0bC20ArtworkCacheIndexingP5storeyyAA0bcdE6RecordVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallArtworkCacheIndexing",
+            "store(_:)"
+          ]
+        },
+        {
+          "declaration": "func record(for request: PosterWallArtworkVariantRequest) async throws -> PosterWallArtworkCacheRecord?",
+          "identifier": "s:17StellarPosterWall0bC20ArtworkCacheIndexingP6record3forAA0bcdE6RecordVSgAA0bcD14VariantRequestV_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallArtworkCacheIndexing",
+            "record(for:)"
+          ]
+        },
+        {
+          "declaration": "func remove(_ request: PosterWallArtworkVariantRequest) async throws",
+          "identifier": "s:17StellarPosterWall0bC20ArtworkCacheIndexingP6removeyyAA0bcD14VariantRequestVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallArtworkCacheIndexing",
+            "remove(_:)"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallArtworkVariantRequest",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallArtworkVariantRequest"
+          ]
+        },
+        {
+          "declaration": "init(artworkUID: String, provider: String, remoteReference: String, targetPixelWidth: Int, targetPixelHeight: Int, transformVersion: Int = 1) throws",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV10artworkUID8provider15remoteReference16targetPixelWidth0lM6Height16transformVersionACSS_S2SS3itKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "init(artworkUID:provider:remoteReference:targetPixelWidth:targetPixelHeight:transformVersion:)"
+          ]
+        },
+        {
+          "declaration": "let artworkUID: String",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV10artworkUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "artworkUID"
+          ]
+        },
+        {
+          "declaration": "var cacheIdentity: String { get }",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV13cacheIdentitySSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "cacheIdentity"
+          ]
+        },
+        {
+          "declaration": "let remoteReference: String",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV15remoteReferenceSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "remoteReference"
+          ]
+        },
+        {
+          "declaration": "let targetPixelWidth: Int",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV16targetPixelWidthSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "targetPixelWidth"
+          ]
+        },
+        {
+          "declaration": "let transformVersion: Int",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV16transformVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "transformVersion"
+          ]
+        },
+        {
+          "declaration": "let targetPixelHeight: Int",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV17targetPixelHeightSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "targetPixelHeight"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let provider: String",
+          "identifier": "s:17StellarPosterWall0bC21ArtworkVariantRequestV8providerSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtworkVariantRequest",
+            "provider"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallItem",
+          "identifier": "s:17StellarPosterWall0bC4ItemV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallItem"
+          ]
+        },
+        {
+          "declaration": "let availability: PosterWallAvailability",
+          "identifier": "s:17StellarPosterWall0bC4ItemV12availabilityAA0bC12AvailabilityOvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "availability"
+          ]
+        },
+        {
+          "declaration": "let metadataRevision: Int64",
+          "identifier": "s:17StellarPosterWall0bC4ItemV16metadataRevisions5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "metadataRevision"
+          ]
+        },
+        {
+          "declaration": "let unwatchedEpisodeCount: Int?",
+          "identifier": "s:17StellarPosterWall0bC4ItemV21unwatchedEpisodeCountSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "unwatchedEpisodeCount"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC4ItemV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallItem",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let kind: PosterWallMediaKind",
+          "identifier": "s:17StellarPosterWall0bC4ItemV4kindAA0bC9MediaKindOvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let year: Int?",
+          "identifier": "s:17StellarPosterWall0bC4ItemV4yearSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "year"
+          ]
+        },
+        {
+          "declaration": "let title: String",
+          "identifier": "s:17StellarPosterWall0bC4ItemV5titleSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "title"
+          ]
+        },
+        {
+          "declaration": "let poster: PosterWallArtwork?",
+          "identifier": "s:17StellarPosterWall0bC4ItemV6posterAA0bC7ArtworkVSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "poster"
+          ]
+        },
+        {
+          "declaration": "let backdrop: PosterWallArtwork?",
+          "identifier": "s:17StellarPosterWall0bC4ItemV8backdropAA0bC7ArtworkVSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "backdrop"
+          ]
+        },
+        {
+          "declaration": "let mediaUID: String",
+          "identifier": "s:17StellarPosterWall0bC4ItemV8mediaUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "mediaUID"
+          ]
+        },
+        {
+          "declaration": "let progress: Double?",
+          "identifier": "s:17StellarPosterWall0bC4ItemV8progressSdSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "progress"
+          ]
+        },
+        {
+          "declaration": "let subtitle: String?",
+          "identifier": "s:17StellarPosterWall0bC4ItemV8subtitleSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallItem",
+            "subtitle"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallPage",
+          "identifier": "s:17StellarPosterWall0bC4PageV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallPage"
+          ]
+        },
+        {
+          "declaration": "let nextCursor: String?",
+          "identifier": "s:17StellarPosterWall0bC4PageV10nextCursorSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPage",
+            "nextCursor"
+          ]
+        },
+        {
+          "declaration": "let schemaVersion: Int",
+          "identifier": "s:17StellarPosterWall0bC4PageV13schemaVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPage",
+            "schemaVersion"
+          ]
+        },
+        {
+          "declaration": "let libraryRevision: String",
+          "identifier": "s:17StellarPosterWall0bC4PageV15libraryRevisionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPage",
+            "libraryRevision"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC4PageV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallPage",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let items: [PosterWallItem]",
+          "identifier": "s:17StellarPosterWall0bC4PageV5itemsSayAA0bC4ItemVGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallPage",
+            "items"
+          ]
+        },
+        {
+          "declaration": "enum PosterWallSort",
+          "identifier": "s:17StellarPosterWall0bC4SortO",
+          "kind": "swift.enum",
+          "path": [
+            "PosterWallSort"
+          ]
+        },
+        {
+          "declaration": "case releaseDate",
+          "identifier": "s:17StellarPosterWall0bC4SortO11releaseDateyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSort",
+            "releaseDate"
+          ]
+        },
+        {
+          "declaration": "case recentlyPlayed",
+          "identifier": "s:17StellarPosterWall0bC4SortO14recentlyPlayedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSort",
+            "recentlyPlayed"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC4SortO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallSort",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case title",
+          "identifier": "s:17StellarPosterWall0bC4SortO5titleyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSort",
+            "title"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:17StellarPosterWall0bC4SortO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallSort",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case random",
+          "identifier": "s:17StellarPosterWall0bC4SortO6randomyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSort",
+            "random"
+          ]
+        },
+        {
+          "declaration": "case addedAt",
+          "identifier": "s:17StellarPosterWall0bC4SortO7addedAtyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSort",
+            "addedAt"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:17StellarPosterWall0bC4SortO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSort",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:17StellarPosterWall0bC4SortO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallSort",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallQuery",
+          "identifier": "s:17StellarPosterWall0bC5QueryV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallQuery"
+          ]
+        },
+        {
+          "declaration": "let profileUID: String?",
+          "identifier": "s:17StellarPosterWall0bC5QueryV10profileUIDSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "profileUID"
+          ]
+        },
+        {
+          "declaration": "let randomSeed: UInt64",
+          "identifier": "s:17StellarPosterWall0bC5QueryV10randomSeeds6UInt64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "randomSeed"
+          ]
+        },
+        {
+          "declaration": "let searchText: String?",
+          "identifier": "s:17StellarPosterWall0bC5QueryV10searchTextSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "searchText"
+          ]
+        },
+        {
+          "declaration": "let collectionUID: String?",
+          "identifier": "s:17StellarPosterWall0bC5QueryV13collectionUIDSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "collectionUID"
+          ]
+        },
+        {
+          "declaration": "let libraryRevision: String?",
+          "identifier": "s:17StellarPosterWall0bC5QueryV15libraryRevisionSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "libraryRevision"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC5QueryV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallQuery",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let sort: PosterWallSort",
+          "identifier": "s:17StellarPosterWall0bC5QueryV4sortAA0bC4SortOvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "sort"
+          ]
+        },
+        {
+          "declaration": "let cursor: String?",
+          "identifier": "s:17StellarPosterWall0bC5QueryV6cursorSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "cursor"
+          ]
+        },
+        {
+          "declaration": "let filter: PosterWallFilter",
+          "identifier": "s:17StellarPosterWall0bC5QueryV6filterAA0bC6FilterVvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "filter"
+          ]
+        },
+        {
+          "declaration": "let locale: String",
+          "identifier": "s:17StellarPosterWall0bC5QueryV6localeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "locale"
+          ]
+        },
+        {
+          "declaration": "init(section: PosterWallSection = .all, sort: PosterWallSort = .title, filter: PosterWallFilter? = nil, searchText: String? = nil, profileUID: String? = nil, collectionUID: String? = nil, locale: String = \"und\", pageSize: Int = 50, cursor: String? = nil, libraryRevision: String? = nil, randomSeed: UInt64 = 0) throws",
+          "identifier": "s:17StellarPosterWall0bC5QueryV7section4sort6filter10searchText10profileUID010collectionK06locale8pageSize6cursor15libraryRevision10randomSeedAcA0bC7SectionO_AA0bC4SortOAA0bC6FilterVSgSSSgA2VSSSiA2Vs6UInt64VtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallQuery",
+            "init(section:sort:filter:searchText:profileUID:collectionUID:locale:pageSize:cursor:libraryRevision:randomSeed:)"
+          ]
+        },
+        {
+          "declaration": "let section: PosterWallSection",
+          "identifier": "s:17StellarPosterWall0bC5QueryV7sectionAA0bC7SectionOvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "section"
+          ]
+        },
+        {
+          "declaration": "let pageSize: Int",
+          "identifier": "s:17StellarPosterWall0bC5QueryV8pageSizeSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallQuery",
+            "pageSize"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallStore",
+          "identifier": "s:17StellarPosterWall0bC5StoreV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallStore"
+          ]
+        },
+        {
+          "declaration": "func page(_ query: PosterWallQuery) async throws -> PosterWallPage",
+          "identifier": "s:17StellarPosterWall0bC5StoreV4pageyAA0bC4PageVAA0bC5QueryVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallStore",
+            "page(_:)"
+          ]
+        },
+        {
+          "declaration": "func details(mediaUID: String, profileUID: String? = nil, locale: String = \"und\") async throws -> PosterWallDetails",
+          "identifier": "s:17StellarPosterWall0bC5StoreV7details8mediaUID07profileG06localeAA0bC7DetailsVSS_SSSgSStYaKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallStore",
+            "details(mediaUID:profileUID:locale:)"
+          ]
+        },
+        {
+          "declaration": "let database: StorageDatabase",
+          "identifier": "s:17StellarPosterWall0bC5StoreV8database0A7Storage0F8DatabaseCvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallStore",
+            "database"
+          ]
+        },
+        {
+          "declaration": "init(database: StorageDatabase) throws",
+          "identifier": "s:17StellarPosterWall0bC5StoreV8databaseAC0A7Storage0F8DatabaseC_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallStore",
+            "init(database:)"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallFilter",
+          "identifier": "s:17StellarPosterWall0bC6FilterV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallFilter"
+          ]
+        },
+        {
+          "declaration": "init(mediaKinds: [PosterWallMediaKind] = [], sourceUIDs: [String] = [], genres: [String] = [], yearFrom: Int? = nil, yearThrough: Int? = nil, availability: PosterWallAvailabilityFilter = .any, watchState: PosterWallWatchFilter = .any) throws",
+          "identifier": "s:17StellarPosterWall0bC6FilterV10mediaKinds10sourceUIDs6genres8yearFrom0J7Through12availability10watchStateACSayAA0bC9MediaKindOG_SaySSGANSiSgAoA0bc12AvailabilityD0OAA0bc5WatchD0OtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallFilter",
+            "init(mediaKinds:sourceUIDs:genres:yearFrom:yearThrough:availability:watchState:)"
+          ]
+        },
+        {
+          "declaration": "let mediaKinds: [PosterWallMediaKind]",
+          "identifier": "s:17StellarPosterWall0bC6FilterV10mediaKindsSayAA0bC9MediaKindOGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallFilter",
+            "mediaKinds"
+          ]
+        },
+        {
+          "declaration": "let sourceUIDs: [String]",
+          "identifier": "s:17StellarPosterWall0bC6FilterV10sourceUIDsSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallFilter",
+            "sourceUIDs"
+          ]
+        },
+        {
+          "declaration": "let watchState: PosterWallWatchFilter",
+          "identifier": "s:17StellarPosterWall0bC6FilterV10watchStateAA0bc5WatchD0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallFilter",
+            "watchState"
+          ]
+        },
+        {
+          "declaration": "let yearThrough: Int?",
+          "identifier": "s:17StellarPosterWall0bC6FilterV11yearThroughSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallFilter",
+            "yearThrough"
+          ]
+        },
+        {
+          "declaration": "let availability: PosterWallAvailabilityFilter",
+          "identifier": "s:17StellarPosterWall0bC6FilterV12availabilityAA0bc12AvailabilityD0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallFilter",
+            "availability"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC6FilterV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallFilter",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let genres: [String]",
+          "identifier": "s:17StellarPosterWall0bC6FilterV6genresSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallFilter",
+            "genres"
+          ]
+        },
+        {
+          "declaration": "let yearFrom: Int?",
+          "identifier": "s:17StellarPosterWall0bC6FilterV8yearFromSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallFilter",
+            "yearFrom"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallSeason",
+          "identifier": "s:17StellarPosterWall0bC6SeasonV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallSeason"
+          ]
+        },
+        {
+          "declaration": "let seasonNumber: Int",
+          "identifier": "s:17StellarPosterWall0bC6SeasonV12seasonNumberSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallSeason",
+            "seasonNumber"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC6SeasonV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallSeason",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let title: String",
+          "identifier": "s:17StellarPosterWall0bC6SeasonV5titleSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallSeason",
+            "title"
+          ]
+        },
+        {
+          "declaration": "let episodes: [PosterWallEpisode]",
+          "identifier": "s:17StellarPosterWall0bC6SeasonV8episodesSayAA0bC7EpisodeVGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallSeason",
+            "episodes"
+          ]
+        },
+        {
+          "declaration": "let mediaUID: String",
+          "identifier": "s:17StellarPosterWall0bC6SeasonV8mediaUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallSeason",
+            "mediaUID"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallStream",
+          "identifier": "s:17StellarPosterWall0bC6StreamV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallStream"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC6StreamV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallStream",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let kind: String",
+          "identifier": "s:17StellarPosterWall0bC6StreamV4kindSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallStream",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let codec: String?",
+          "identifier": "s:17StellarPosterWall0bC6StreamV5codecSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallStream",
+            "codec"
+          ]
+        },
+        {
+          "declaration": "let index: Int",
+          "identifier": "s:17StellarPosterWall0bC6StreamV5indexSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallStream",
+            "index"
+          ]
+        },
+        {
+          "declaration": "let title: String?",
+          "identifier": "s:17StellarPosterWall0bC6StreamV5titleSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallStream",
+            "title"
+          ]
+        },
+        {
+          "declaration": "let isForced: Bool",
+          "identifier": "s:17StellarPosterWall0bC6StreamV8isForcedSbvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallStream",
+            "isForced"
+          ]
+        },
+        {
+          "declaration": "let language: String",
+          "identifier": "s:17StellarPosterWall0bC6StreamV8languageSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallStream",
+            "language"
+          ]
+        },
+        {
+          "declaration": "let isDefault: Bool",
+          "identifier": "s:17StellarPosterWall0bC6StreamV9isDefaultSbvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallStream",
+            "isDefault"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallArtwork",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallArtwork"
+          ]
+        },
+        {
+          "declaration": "let artworkUID: String",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV10artworkUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtwork",
+            "artworkUID"
+          ]
+        },
+        {
+          "declaration": "let remoteReference: String?",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV15remoteReferenceSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtwork",
+            "remoteReference"
+          ]
+        },
+        {
+          "declaration": "let localRelativePath: String?",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV17localRelativePathSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtwork",
+            "localRelativePath"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallArtwork",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let kind: String",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV4kindSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtwork",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let width: Int?",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV5widthSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtwork",
+            "width"
+          ]
+        },
+        {
+          "declaration": "let height: Int?",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV6heightSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtwork",
+            "height"
+          ]
+        },
+        {
+          "declaration": "let provider: String",
+          "identifier": "s:17StellarPosterWall0bC7ArtworkV8providerSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallArtwork",
+            "provider"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallDetails",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallDetails"
+          ]
+        },
+        {
+          "declaration": "let externalIDs: [PosterWallExternalID]",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV11externalIDsSayAA0bC10ExternalIDVGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "externalIDs"
+          ]
+        },
+        {
+          "declaration": "let contentRating: String?",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV13contentRatingSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "contentRating"
+          ]
+        },
+        {
+          "declaration": "let playableFiles: [PosterWallPlayableFile]",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV13playableFilesSayAA0bC12PlayableFileVGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "playableFiles"
+          ]
+        },
+        {
+          "declaration": "let schemaVersion: Int",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV13schemaVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "schemaVersion"
+          ]
+        },
+        {
+          "declaration": "let libraryRevision: String",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV15libraryRevisionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "libraryRevision"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallDetails",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let item: PosterWallItem",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV4itemAA0bC4ItemVvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "item"
+          ]
+        },
+        {
+          "declaration": "let genres: [String]",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV6genresSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "genres"
+          ]
+        },
+        {
+          "declaration": "let artwork: [PosterWallArtwork]",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV7artworkSayAA0bC7ArtworkVGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "artwork"
+          ]
+        },
+        {
+          "declaration": "let seasons: [PosterWallSeason]",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV7seasonsSayAA0bC6SeasonVGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "seasons"
+          ]
+        },
+        {
+          "declaration": "let tagline: String?",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV7taglineSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "tagline"
+          ]
+        },
+        {
+          "declaration": "let overview: String?",
+          "identifier": "s:17StellarPosterWall0bC7DetailsV8overviewSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallDetails",
+            "overview"
+          ]
+        },
+        {
+          "declaration": "struct PosterWallEpisode",
+          "identifier": "s:17StellarPosterWall0bC7EpisodeV",
+          "kind": "swift.struct",
+          "path": [
+            "PosterWallEpisode"
+          ]
+        },
+        {
+          "declaration": "let isCompleted: Bool",
+          "identifier": "s:17StellarPosterWall0bC7EpisodeV11isCompletedSbvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallEpisode",
+            "isCompleted"
+          ]
+        },
+        {
+          "declaration": "let episodeNumber: Int",
+          "identifier": "s:17StellarPosterWall0bC7EpisodeV13episodeNumberSivp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallEpisode",
+            "episodeNumber"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC7EpisodeV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallEpisode",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let files: [PosterWallPlayableFile]",
+          "identifier": "s:17StellarPosterWall0bC7EpisodeV5filesSayAA0bC12PlayableFileVGvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallEpisode",
+            "files"
+          ]
+        },
+        {
+          "declaration": "let title: String",
+          "identifier": "s:17StellarPosterWall0bC7EpisodeV5titleSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallEpisode",
+            "title"
+          ]
+        },
+        {
+          "declaration": "let mediaUID: String",
+          "identifier": "s:17StellarPosterWall0bC7EpisodeV8mediaUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallEpisode",
+            "mediaUID"
+          ]
+        },
+        {
+          "declaration": "let progress: Double?",
+          "identifier": "s:17StellarPosterWall0bC7EpisodeV8progressSdSgvp",
+          "kind": "swift.property",
+          "path": [
+            "PosterWallEpisode",
+            "progress"
+          ]
+        },
+        {
+          "declaration": "enum PosterWallSection",
+          "identifier": "s:17StellarPosterWall0bC7SectionO",
+          "kind": "swift.enum",
+          "path": [
+            "PosterWallSection"
+          ]
+        },
+        {
+          "declaration": "case collection",
+          "identifier": "s:17StellarPosterWall0bC7SectionO10collectionyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSection",
+            "collection"
+          ]
+        },
+        {
+          "declaration": "case recentlyAdded",
+          "identifier": "s:17StellarPosterWall0bC7SectionO13recentlyAddedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSection",
+            "recentlyAdded"
+          ]
+        },
+        {
+          "declaration": "case recentlyPlayed",
+          "identifier": "s:17StellarPosterWall0bC7SectionO14recentlyPlayedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSection",
+            "recentlyPlayed"
+          ]
+        },
+        {
+          "declaration": "case continueWatching",
+          "identifier": "s:17StellarPosterWall0bC7SectionO16continueWatchingyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSection",
+            "continueWatching"
+          ]
+        },
+        {
+          "declaration": "case all",
+          "identifier": "s:17StellarPosterWall0bC7SectionO3allyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSection",
+            "all"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC7SectionO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallSection",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:17StellarPosterWall0bC7SectionO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallSection",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case movies",
+          "identifier": "s:17StellarPosterWall0bC7SectionO6moviesyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSection",
+            "movies"
+          ]
+        },
+        {
+          "declaration": "case series",
+          "identifier": "s:17StellarPosterWall0bC7SectionO6seriesyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSection",
+            "series"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:17StellarPosterWall0bC7SectionO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallSection",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:17StellarPosterWall0bC7SectionO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallSection",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "enum PosterWallMediaKind",
+          "identifier": "s:17StellarPosterWall0bC9MediaKindO",
+          "kind": "swift.enum",
+          "path": [
+            "PosterWallMediaKind"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:17StellarPosterWall0bC9MediaKindO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallMediaKind",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case movie",
+          "identifier": "s:17StellarPosterWall0bC9MediaKindO5movieyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallMediaKind",
+            "movie"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:17StellarPosterWall0bC9MediaKindO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallMediaKind",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case series",
+          "identifier": "s:17StellarPosterWall0bC9MediaKindO6seriesyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallMediaKind",
+            "series"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:17StellarPosterWall0bC9MediaKindO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "PosterWallMediaKind",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:17StellarPosterWall0bC9MediaKindO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "PosterWallMediaKind",
+            "init(rawValue:)"
+          ]
+        }
+      ]
+    },
     "StellarRemoteMedia": {
       "symbols": [
         {
@@ -7936,6 +9707,14 @@
     "StellarUserMediaSDK": {
       "symbols": [
         {
+          "declaration": "typealias PosterWallMediaKind = PosterWallMediaKind",
+          "identifier": "s:19StellarUserMediaSDK010PosterWallC4Kinda",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallMediaKind"
+          ]
+        },
+        {
           "declaration": "typealias NoopMediaScanObserver = NoopMediaScanObserver",
           "identifier": "s:19StellarUserMediaSDK04NoopC12ScanObservera",
           "kind": "swift.typealias",
@@ -8520,6 +10299,30 @@
           ]
         },
         {
+          "declaration": "typealias PosterWallItem = PosterWallItem",
+          "identifier": "s:19StellarUserMediaSDK14PosterWallItema",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallItem"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallPage = PosterWallPage",
+          "identifier": "s:19StellarUserMediaSDK14PosterWallPagea",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallPage"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallSort = PosterWallSort",
+          "identifier": "s:19StellarUserMediaSDK14PosterWallSorta",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallSort"
+          ]
+        },
+        {
           "declaration": "typealias SystemSDKClock = SystemSDKClock",
           "identifier": "s:19StellarUserMediaSDK14SystemSDKClocka",
           "kind": "swift.typealias",
@@ -8541,6 +10344,22 @@
           "kind": "swift.typealias",
           "path": [
             "LibrarySnapshot"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallQuery = PosterWallQuery",
+          "identifier": "s:19StellarUserMediaSDK15PosterWallQuerya",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallQuery"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallStore = PosterWallStore",
+          "identifier": "s:19StellarUserMediaSDK15PosterWallStorea",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallStore"
           ]
         },
         {
@@ -8576,6 +10395,30 @@
           ]
         },
         {
+          "declaration": "typealias PosterWallFilter = PosterWallFilter",
+          "identifier": "s:19StellarUserMediaSDK16PosterWallFiltera",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallFilter"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallSeason = PosterWallSeason",
+          "identifier": "s:19StellarUserMediaSDK16PosterWallSeasona",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallSeason"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallStream = PosterWallStream",
+          "identifier": "s:19StellarUserMediaSDK16PosterWallStreama",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallStream"
+          ]
+        },
+        {
           "declaration": "typealias WebDAVCredential = WebDAVCredential",
           "identifier": "s:19StellarUserMediaSDK16WebDAVCredentiala",
           "kind": "swift.typealias",
@@ -8597,6 +10440,38 @@
           "kind": "swift.typealias",
           "path": [
             "LibrarySourceKind"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallArtwork = PosterWallArtwork",
+          "identifier": "s:19StellarUserMediaSDK17PosterWallArtworka",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallArtwork"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallDetails = PosterWallDetails",
+          "identifier": "s:19StellarUserMediaSDK17PosterWallDetailsa",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallDetails"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallEpisode = PosterWallEpisode",
+          "identifier": "s:19StellarUserMediaSDK17PosterWallEpisodea",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallEpisode"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallSection = PosterWallSection",
+          "identifier": "s:19StellarUserMediaSDK17PosterWallSectiona",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallSection"
           ]
         },
         {
@@ -8696,6 +10571,14 @@
           ]
         },
         {
+          "declaration": "typealias PosterWallExternalID = PosterWallExternalID",
+          "identifier": "s:19StellarUserMediaSDK20PosterWallExternalIDa",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallExternalID"
+          ]
+        },
+        {
           "declaration": "typealias LocalMetadataDocument = LocalMetadataDocument",
           "identifier": "s:19StellarUserMediaSDK21LocalMetadataDocumenta",
           "kind": "swift.typealias",
@@ -8712,11 +10595,35 @@
           ]
         },
         {
+          "declaration": "typealias PosterWallWatchFilter = PosterWallWatchFilter",
+          "identifier": "s:19StellarUserMediaSDK21PosterWallWatchFiltera",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallWatchFilter"
+          ]
+        },
+        {
           "declaration": "typealias SensitiveDataRedactor = SensitiveDataRedactor",
           "identifier": "s:19StellarUserMediaSDK21SensitiveDataRedactora",
           "kind": "swift.typealias",
           "path": [
             "SensitiveDataRedactor"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallAvailability = PosterWallAvailability",
+          "identifier": "s:19StellarUserMediaSDK22PosterWallAvailabilitya",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallAvailability"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallPlayableFile = PosterWallPlayableFile",
+          "identifier": "s:19StellarUserMediaSDK22PosterWallPlayableFilea",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallPlayableFile"
           ]
         },
         {
@@ -8848,11 +10755,67 @@
           ]
         },
         {
+          "declaration": "typealias PosterWallArtworkCacheRecord = PosterWallArtworkCacheRecord",
+          "identifier": "s:19StellarUserMediaSDK28PosterWallArtworkCacheRecorda",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallArtworkCacheRecord"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallArtworkPrefetching = PosterWallArtworkPrefetching",
+          "identifier": "s:19StellarUserMediaSDK28PosterWallArtworkPrefetchinga",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallArtworkPrefetching"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallAvailabilityFilter = PosterWallAvailabilityFilter",
+          "identifier": "s:19StellarUserMediaSDK28PosterWallAvailabilityFiltera",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallAvailabilityFilter"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallArtworkCacheIndexing = PosterWallArtworkCacheIndexing",
+          "identifier": "s:19StellarUserMediaSDK30PosterWallArtworkCacheIndexinga",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallArtworkCacheIndexing"
+          ]
+        },
+        {
           "declaration": "typealias WebDAVMediaSourceConfiguration = WebDAVMediaSourceConfiguration",
           "identifier": "s:19StellarUserMediaSDK30WebDAVMediaSourceConfigurationa",
           "kind": "swift.typealias",
           "path": [
             "WebDAVMediaSourceConfiguration"
+          ]
+        },
+        {
+          "declaration": "typealias NoopPosterWallArtworkPrefetcher = NoopPosterWallArtworkPrefetcher",
+          "identifier": "s:19StellarUserMediaSDK31NoopPosterWallArtworkPrefetchera",
+          "kind": "swift.typealias",
+          "path": [
+            "NoopPosterWallArtworkPrefetcher"
+          ]
+        },
+        {
+          "declaration": "typealias PosterWallArtworkVariantRequest = PosterWallArtworkVariantRequest",
+          "identifier": "s:19StellarUserMediaSDK31PosterWallArtworkVariantRequesta",
+          "kind": "swift.typealias",
+          "path": [
+            "PosterWallArtworkVariantRequest"
+          ]
+        },
+        {
+          "declaration": "typealias InMemoryPosterWallArtworkCacheIndex = InMemoryPosterWallArtworkCacheIndex",
+          "identifier": "s:19StellarUserMediaSDK35InMemoryPosterWallArtworkCacheIndexa",
+          "kind": "swift.typealias",
+          "path": [
+            "InMemoryPosterWallArtworkCacheIndex"
           ]
         },
         {

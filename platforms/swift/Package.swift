@@ -10,6 +10,7 @@ var testDependencies: [Target.Dependency] = [
   "StellarWebDAV",
   "StellarStorage",
   "StellarMediaLibrary",
+  "StellarPosterWall",
   "StellarSMB2Core",
   "StellarUserMediaSDK",
   .product(name: "GRDB", package: "GRDB.swift"),
@@ -42,6 +43,14 @@ var packageTargets: [Target] = [
     dependencies: ["StellarCore", "StellarRemoteMedia", "StellarStorage"]
   ),
   .target(
+    name: "StellarPosterWall",
+    dependencies: [
+      "StellarCore",
+      "StellarStorage",
+      .product(name: "GRDB", package: "GRDB.swift"),
+    ]
+  ),
+  .target(
     name: "StellarLocalMedia",
     dependencies: ["StellarCore", "StellarRemoteMedia"]
   ),
@@ -57,7 +66,7 @@ var packageTargets: [Target] = [
     name: "StellarUserMediaSDK",
     dependencies: [
       "StellarCore", "StellarRemoteMedia", "StellarLocalMedia", "StellarMediaLibrary",
-      "StellarStorage", "StellarWebDAV",
+      "StellarPosterWall", "StellarStorage", "StellarWebDAV",
     ]
   ),
   .executableTarget(

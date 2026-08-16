@@ -18,6 +18,7 @@ DEFAULT_MODULES = (
     "StellarWebDAV",
     "StellarStorage",
     "StellarMediaLibrary",
+    "StellarPosterWall",
     "StellarSMB2Core",
     "StellarUserMediaSDK",
 )

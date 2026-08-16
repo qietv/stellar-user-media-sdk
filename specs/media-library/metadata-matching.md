@@ -60,6 +60,8 @@ provider 身份由小写规范化的 `provider + namespace + value` 解析到 `e
 
 同一逻辑实体的第一个文件使用 `binding_role=primary`，后续文件使用 `binding_role=version`。不同版本共享 `entity_uid`，因此重新匹配或缺失一个版本不会复制海报墙条目，也不会删除其他版本的播放状态。
 
+sample、花絮和 bonus 文件不进入 movie/episode provider 搜索。它们只能在父 movie/series 已稳定物化后，以 `binding_role=extra` 和独立 extra entity 绑定；自动继承不得覆盖任一 locked binding。相同 file + parent 重放必须复用 extra identity，改绑父实体时旧的未锁定 extra 标为 obsolete。人工 extra 使用 `match_method=manual` 且必须 locked。
+
 `metadata_cache.sqlite` 是可重建缓存，不能成为人工状态的唯一来源。核心绑定、人工锁和实体身份只保存在 `library.sqlite`；缓存清空或 provider 失败不会改变它们。
 
 ## 公共 fixture

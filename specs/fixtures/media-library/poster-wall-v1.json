@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "profile_uid": "profile-main",
+  "seed": {
+    "sources": [
+      {"uid": "source-a", "kind": "smb", "display_name": "NAS A", "root_uri": "smb://nas-a"},
+      {"uid": "source-b", "kind": "webdav", "display_name": "WebDAV B", "root_uri": "https://dav-b/media"}
+    ],
+    "entities": [
+      {"uid": "movie-alien", "kind": "movie", "title": "Alien", "year": 1979, "release_date": "1979-05-25", "created_at_ms": 1000, "updated_at_ms": 5000},
+      {"uid": "movie-matrix", "kind": "movie", "title": "The Matrix", "year": 1999, "release_date": "1999-03-31", "created_at_ms": 2000, "updated_at_ms": 5000},
+      {"uid": "series-expanse", "kind": "series", "title": "The Expanse", "year": 2015, "release_date": "2015-12-14", "created_at_ms": 3000, "updated_at_ms": 5000},
+      {"uid": "season-expanse-1", "kind": "season", "parent_uid": "series-expanse", "title": "Season 1", "season_number": 1, "created_at_ms": 3000, "updated_at_ms": 5000},
+      {"uid": "episode-expanse-1", "kind": "episode", "parent_uid": "season-expanse-1", "title": "Dulcinea", "episode_number": 1, "created_at_ms": 3000, "updated_at_ms": 5000},
+      {"uid": "episode-expanse-2", "kind": "episode", "parent_uid": "season-expanse-1", "title": "The Big Empty", "episode_number": 2, "created_at_ms": 3000, "updated_at_ms": 5000}
+    ],
+    "files": [
+      {"uid": "file-alien", "source_uid": "source-a", "relative_path": "Movies/Alien.mkv", "availability": "present", "size_bytes": 1001},
+      {"uid": "file-matrix-hd", "source_uid": "source-a", "relative_path": "Movies/The Matrix 1999.mkv", "availability": "present", "size_bytes": 1002},
+      {"uid": "file-matrix-uhd", "source_uid": "source-b", "relative_path": "Movies/The Matrix 1999 UHD.mkv", "availability": "missing", "size_bytes": 1003},
+      {"uid": "file-expanse-1", "source_uid": "source-b", "relative_path": "Shows/The Expanse/S01E01.mkv", "availability": "offline", "size_bytes": 1004},
+      {"uid": "file-expanse-2", "source_uid": "source-b", "relative_path": "Shows/The Expanse/S01E02.mkv", "availability": "present", "size_bytes": 1005}
+    ],
+    "bindings": [
+      {"file_uid": "file-alien", "entity_uid": "movie-alien", "role": "primary"},
+      {"file_uid": "file-matrix-hd", "entity_uid": "movie-matrix", "role": "primary"},
+      {"file_uid": "file-matrix-uhd", "entity_uid": "movie-matrix", "role": "version"},
+      {"file_uid": "file-expanse-1", "entity_uid": "episode-expanse-1", "role": "primary"},
+      {"file_uid": "file-expanse-2", "entity_uid": "episode-expanse-2", "role": "primary"}
+    ],
+    "localized_metadata": [
+      {"entity_uid": "series-expanse", "locale": "en", "title": "The Expanse", "overview": "Humanity has colonized the Solar System.", "tagline": "The stars are better off without us.", "content_rating": "TV-14"}
+    ],
+    "genres": [
+      {"uid": "genre-science-fiction", "name": "Science Fiction", "entity_uids": ["movie-matrix", "series-expanse"]},
+      {"uid": "genre-horror", "name": "Horror", "entity_uids": ["movie-alien"]}
+    ],
+    "artwork": [
+      {"uid": "art-matrix-score", "entity_uid": "movie-matrix", "kind": "poster", "locale": "und", "provider": "fixture", "remote_reference": "/matrix-score.jpg", "width": 1000, "height": 1500, "score": 9.0, "is_selected": false},
+      {"uid": "art-matrix-selected", "entity_uid": "movie-matrix", "kind": "poster", "locale": "en", "provider": "fixture", "remote_reference": "/matrix-selected.jpg", "width": 500, "height": 750, "score": 1.0, "is_selected": true},
+      {"uid": "art-expanse-poster", "entity_uid": "series-expanse", "kind": "poster", "locale": "en", "provider": "fixture", "remote_reference": "/expanse-poster.jpg", "width": 1000, "height": 1500, "score": 8.0, "is_selected": false},
+      {"uid": "art-expanse-backdrop", "entity_uid": "series-expanse", "kind": "backdrop", "locale": "und", "provider": "fixture", "remote_reference": "/expanse-backdrop.jpg", "width": 1920, "height": 1080, "score": 8.0, "is_selected": false}
+    ],
+    "search_documents": [
+      {"entity_uid": "movie-alien", "title": "Alien", "aliases": "xenomorph", "people": "Ridley Scott", "genres": "Horror"},
+      {"entity_uid": "movie-matrix", "title": "The Matrix", "aliases": "matrix", "people": "Lana Wachowski Lilly Wachowski", "genres": "Science Fiction"},
+      {"entity_uid": "series-expanse", "title": "The Expanse", "aliases": "space opera", "people": "", "genres": "Science Fiction"}
+    ],
+    "collections": [
+      {"uid": "collection-favorites", "title": "Favorites", "entity_uids": ["movie-alien"]}
+    ],
+    "playback": [
+      {"entity_uid": "movie-alien", "position_ms": 0, "duration_ms": 7000000, "completed": true, "last_played_at_ms": 8000},
+      {"entity_uid": "movie-matrix", "position_ms": 3600000, "duration_ms": 7200000, "completed": false, "last_played_at_ms": 9000},
+      {"entity_uid": "episode-expanse-1", "position_ms": 3600000, "duration_ms": 3600000, "completed": true, "last_played_at_ms": 7000},
+      {"entity_uid": "episode-expanse-2", "position_ms": 1800000, "duration_ms": 3600000, "completed": false, "last_played_at_ms": 10000}
+    ],
+    "technical_summaries": [
+      {"file_uid": "file-expanse-2", "duration_ms": 3600000, "video_codec": "hevc", "width": 3840, "height": 2160}
+    ],
+    "streams": [
+      {"file_uid": "file-expanse-2", "index": 0, "kind": "video", "codec": "hevc", "language": "und", "is_default": true, "is_forced": false},
+      {"file_uid": "file-expanse-2", "index": 1, "kind": "audio", "codec": "eac3", "language": "en", "title": "English", "is_default": true, "is_forced": false},
+      {"file_uid": "file-expanse-2", "index": 2, "kind": "subtitle", "codec": "subrip", "language": "zh-Hans", "title": "Chinese", "is_default": false, "is_forced": false}
+    ]
+  },
+  "cases": {
+    "title_pagination": {
+      "query": {"section": "all", "sort": "title", "locale": "en", "page_size": 2},
+      "expected_pages": [["movie-alien", "series-expanse"], ["movie-matrix"]]
+    },
+    "recently_added": {
+      "query": {"section": "recently_added", "sort": "title", "locale": "en", "page_size": 10},
+      "expected_uids": ["series-expanse", "movie-matrix", "movie-alien"]
+    },
+    "continue_watching": {
+      "query": {"section": "continue_watching", "sort": "title", "profile_uid": "profile-main", "locale": "en", "page_size": 10},
+      "expected_uids": ["series-expanse", "movie-matrix"],
+      "expected_progress": [0.5, 0.5]
+    },
+    "search": {
+      "query": {"section": "all", "sort": "title", "search_text": "space opera", "locale": "en", "page_size": 10},
+      "expected_uids": ["series-expanse"]
+    },
+    "genre": {
+      "query": {"section": "all", "sort": "title", "filter": {"genres": ["Science Fiction"]}, "locale": "en", "page_size": 10},
+      "expected_uids": ["series-expanse", "movie-matrix"]
+    },
+    "collection": {
+      "query": {"section": "collection", "sort": "title", "collection_uid": "collection-favorites", "locale": "en", "page_size": 10},
+      "expected_uids": ["movie-alien"]
+    },
+    "details": {
+      "media_uid": "series-expanse",
+      "expected_genres": ["Science Fiction"],
+      "expected_external_ids": [],
+      "expected_season_uids": ["season-expanse-1"],
+      "expected_episode_uids": ["episode-expanse-1", "episode-expanse-2"],
+      "expected_episode_file_uids": ["file-expanse-1", "file-expanse-2"],
+      "expected_selected_poster_uid": "art-expanse-poster",
+      "expected_stream_kinds": ["video", "audio", "subtitle"]
+    }
+  }
+}

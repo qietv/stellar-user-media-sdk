@@ -5,7 +5,8 @@
     "first_version": "Movies/Blade Runner/Blade.Runner.1982.1080p.mkv",
     "second_version": "Movies/Blade Runner/Blade.Runner.1982.2160p.mkv",
     "review": "Movies/Spirited Away/Spirited.Away.2001.mkv",
-    "episode": "Shows/Wednesday/Season 01/Wednesday.S01E01.mkv"
+    "episode": "Shows/Wednesday/Season 01/Wednesday.S01E01.mkv",
+    "extra": "Movies/Blade Runner/Behind the Scenes.sample.mkv"
   },
   "review_lock_case": {
     "query": {
@@ -90,5 +91,12 @@
     "state": "automatic_bound",
     "entity_kind": "episode",
     "canonical_title": "Episode 1"
+  },
+  "extra_case": {
+    "title": "Behind the Scenes",
+    "entity_kind": "extra",
+    "binding_role": "extra",
+    "match_method": "inherited",
+    "is_locked": false
   }
 }

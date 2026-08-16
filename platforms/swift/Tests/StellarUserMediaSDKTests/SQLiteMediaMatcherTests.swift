@@ -124,6 +124,46 @@ struct SQLiteMediaMatcherTests {
     #expect(try await fixture.matcher.metadataCacheStore.database.verify().isValid)
   }
 
+  @Test("Extra files bind idempotently below an existing movie")
+  func materializesExtra() async throws {
+    let contract = try loadFixture()
+    let fixture = try await makeFixture(contract)
+    defer { fixture.remove() }
+    let movieCase = contract.multipleVersionsCase
+    let parent = try await fixture.matcher.evaluate(
+      query: movieCase.query,
+      candidates: [movieCase.candidate],
+      sourceUID: fixture.sourceUID,
+      mediaRelativePath: fixture.firstVersionPath
+    )
+    let parentUID = try #require(parent.binding?.entityUID)
+    let testCase = contract.extraCase
+    let first = try await fixture.matcher.bindExtra(
+      sourceUID: fixture.sourceUID,
+      mediaRelativePath: fixture.extraPath,
+      parentEntityUID: parentUID,
+      title: testCase.title
+    )
+    let replay = try await fixture.matcher.bindExtra(
+      sourceUID: fixture.sourceUID,
+      mediaRelativePath: fixture.extraPath,
+      parentEntityUID: parentUID,
+      title: testCase.title
+    )
+
+    #expect(first.entityKind == testCase.entityKind)
+    #expect(first.role == testCase.bindingRole)
+    #expect(first.method == testCase.matchMethod)
+    #expect(first.isLocked == testCase.isLocked)
+    #expect(first.entityUID == replay.entityUID)
+    #expect(
+      try await fixture.matcher.extraBinding(
+        sourceUID: fixture.sourceUID,
+        mediaRelativePath: fixture.extraPath
+      ) == first
+    )
+  }
+
   private func makeFixture(_ contract: MatchPersistenceFixture) async throws
     -> SQLiteMatcherFixture
   {
@@ -159,6 +199,7 @@ struct SQLiteMediaMatcherTests {
       contract.files.secondVersion,
       contract.files.review,
       contract.files.episode,
+      contract.files.extra,
     ]
     let entries = try paths.enumerated().map { index, path in
       try RemoteEntry(
@@ -199,6 +240,7 @@ struct SQLiteMediaMatcherTests {
       secondVersionPath: paths[1],
       reviewPath: paths[2],
       episodePath: paths[3],
+      extraPath: paths[4],
       matcher: SQLiteMediaMatcher(
         libraryStore: libraryStore,
         metadataCacheStore: cacheStore,
@@ -231,6 +273,7 @@ private struct MatchPersistenceFixture: Decodable {
   let reviewLockCase: ReviewLockFixtureCase
   let multipleVersionsCase: MultipleVersionsFixtureCase
   let episodeCase: EpisodePersistenceFixtureCase
+  let extraCase: ExtraPersistenceFixtureCase
 
   private enum CodingKeys: String, CodingKey {
     case schemaVersion = "schema_version"
@@ -239,6 +282,7 @@ private struct MatchPersistenceFixture: Decodable {
     case reviewLockCase = "review_lock_case"
     case multipleVersionsCase = "multiple_versions_case"
     case episodeCase = "episode_case"
+    case extraCase = "extra_case"
   }
 }
 
@@ -247,12 +291,14 @@ private struct MatchPersistenceFiles: Decodable {
   let secondVersion: String
   let review: String
   let episode: String
+  let extra: String
 
   private enum CodingKeys: String, CodingKey {
     case firstVersion = "first_version"
     case secondVersion = "second_version"
     case review
     case episode
+    case extra
   }
 }
 
@@ -310,6 +356,22 @@ private struct EpisodePersistenceFixtureCase: Decodable {
   }
 }
 
+private struct ExtraPersistenceFixtureCase: Decodable {
+  let title: String
+  let entityKind: ParsedMediaKind
+  let bindingRole: MediaMatchBindingRole
+  let matchMethod: MediaMatchMethod
+  let isLocked: Bool
+
+  private enum CodingKeys: String, CodingKey {
+    case title
+    case entityKind = "entity_kind"
+    case bindingRole = "binding_role"
+    case matchMethod = "match_method"
+    case isLocked = "is_locked"
+  }
+}
+
 private struct SQLiteMatcherFixture: Sendable {
   let directory: URL
   let sourceUID: String
@@ -317,6 +379,7 @@ private struct SQLiteMatcherFixture: Sendable {
   let secondVersionPath: String
   let reviewPath: String
   let episodePath: String
+  let extraPath: String
   let matcher: SQLiteMediaMatcher
 
   func remove() {

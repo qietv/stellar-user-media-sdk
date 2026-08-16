@@ -120,6 +120,9 @@ jobs:
             grep "stellar.scan-manifest-replay.v1"
           swift run -c release stellar-media help | grep "stellar-media smb check"
           swift run -c release stellar-media help | grep "stellar-media db migrate"
+          swift run -c release stellar-media help | grep "stellar-media library list"
+          swift run -c release stellar-media help | grep "stellar-media library search"
+          swift run -c release stellar-media help | grep "stellar-media library show"
 
   repository-guards:
     name: Repository guards

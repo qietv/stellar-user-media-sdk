@@ -69,7 +69,7 @@ private struct DatabaseCommandOutput: Encodable {
 enum LibraryCLICommand {
   static func run(arguments: [String]) async -> Int32 {
     guard let command = arguments.first else {
-      writeError("library expects scan or inspect")
+      writeError("library expects scan|inspect|list|search|show")
       return 2
     }
     switch command {
@@ -89,8 +89,38 @@ enum LibraryCLICommand {
         rootPath: arguments[2],
         sourceUID: arguments[3]
       )
+    case "list":
+      guard arguments.count >= 2 else {
+        writeError("library list expects <database-path> [options]")
+        return 2
+      }
+      return await list(
+        databasePath: arguments[1],
+        arguments: Array(arguments.dropFirst(2)),
+        searchText: nil
+      )
+    case "search":
+      guard arguments.count >= 3 else {
+        writeError("library search expects <database-path> <query> [options]")
+        return 2
+      }
+      return await list(
+        databasePath: arguments[1],
+        arguments: Array(arguments.dropFirst(3)),
+        searchText: arguments[2]
+      )
+    case "show":
+      guard arguments.count >= 3 else {
+        writeError("library show expects <database-path> <media-uid> [options]")
+        return 2
+      }
+      return await show(
+        databasePath: arguments[1],
+        mediaUID: arguments[2],
+        arguments: Array(arguments.dropFirst(3))
+      )
     default:
-      writeError("library expects scan or inspect")
+      writeError("library expects scan|inspect|list|search|show")
       return 2
     }
   }
@@ -162,6 +192,76 @@ enum LibraryCLICommand {
     }
   }
 
+  private static func list(
+    databasePath: String,
+    arguments: [String],
+    searchText: String?
+  ) async -> Int32 {
+    do {
+      let options = try LibraryListOptions(arguments: arguments)
+      let database = try await StorageDatabase.open(
+        kind: .library,
+        at: URL(fileURLWithPath: databasePath).standardizedFileURL
+      )
+      let filter = try PosterWallFilter(
+        mediaKinds: options.mediaKinds,
+        sourceUIDs: options.sourceUIDs,
+        genres: options.genres,
+        availability: options.availability,
+        watchState: options.watchState
+      )
+      let query = try PosterWallQuery(
+        section: options.section,
+        sort: options.sort,
+        filter: filter,
+        searchText: searchText,
+        profileUID: options.profileUID,
+        collectionUID: options.collectionUID,
+        locale: options.locale,
+        pageSize: options.limit,
+        cursor: options.cursor,
+        libraryRevision: options.libraryRevision,
+        randomSeed: options.randomSeed
+      )
+      try printJSON(try await PosterWallStore(database: database).page(query))
+      return 0
+    } catch let error as SDKError {
+      writeError(error.message)
+      return error.code == .invalidConfiguration ? 2 : 1
+    } catch {
+      writeError("library query failed")
+      return 1
+    }
+  }
+
+  private static func show(
+    databasePath: String,
+    mediaUID: String,
+    arguments: [String]
+  ) async -> Int32 {
+    do {
+      let options = try LibraryShowOptions(arguments: arguments)
+      let database = try await StorageDatabase.open(
+        kind: .library,
+        at: URL(fileURLWithPath: databasePath).standardizedFileURL
+      )
+      try printJSON(
+        try await PosterWallStore(database: database).details(
+          mediaUID: mediaUID,
+          profileUID: options.profileUID,
+          locale: options.locale
+        )
+      )
+      return 0
+    } catch let error as SDKError {
+      writeError(error.message)
+      return error.code == .invalidConfiguration ? 2 : 1
+    } catch {
+      writeError("library details query failed")
+      return 1
+    }
+  }
+
   private static func printJSON<Value: Encodable>(_ value: Value) throws {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -175,5 +275,114 @@ enum LibraryCLICommand {
   private static func writeError(_ message: String) {
     let safeMessage = SensitiveDataRedactor().redact(message: message)
     FileHandle.standardError.write(Data("error: \(safeMessage)\n".utf8))
+  }
+}
+
+private struct LibraryListOptions {
+  var section: PosterWallSection = .all
+  var sort: PosterWallSort = .title
+  var mediaKinds: [PosterWallMediaKind] = []
+  var sourceUIDs: [String] = []
+  var genres: [String] = []
+  var availability: PosterWallAvailabilityFilter = .any
+  var watchState: PosterWallWatchFilter = .any
+  var profileUID: String?
+  var collectionUID: String?
+  var locale = "und"
+  var limit = 50
+  var cursor: String?
+  var libraryRevision: String?
+  var randomSeed: UInt64 = 0
+
+  init(arguments: [String]) throws {
+    var index = 0
+    while index < arguments.count {
+      let option = arguments[index]
+      guard index + 1 < arguments.count else { throw Self.invalid() }
+      let value = arguments[index + 1]
+      switch option {
+      case "--section":
+        guard let parsed = Self.section(value) else { throw Self.invalid() }
+        section = parsed
+      case "--sort":
+        guard let parsed = Self.sort(value) else { throw Self.invalid() }
+        sort = parsed
+      case "--kind":
+        guard let parsed = PosterWallMediaKind(rawValue: value), parsed != .unknown else {
+          throw Self.invalid()
+        }
+        mediaKinds.append(parsed)
+      case "--source":
+        sourceUIDs.append(value)
+      case "--genre":
+        genres.append(value)
+      case "--availability":
+        guard let parsed = PosterWallAvailabilityFilter(rawValue: value), parsed != .unknown else {
+          throw Self.invalid()
+        }
+        availability = parsed
+      case "--watch":
+        guard let parsed = PosterWallWatchFilter(rawValue: value), parsed != .unknown else {
+          throw Self.invalid()
+        }
+        watchState = parsed
+      case "--profile":
+        profileUID = value
+      case "--collection":
+        collectionUID = value
+      case "--locale":
+        locale = value
+      case "--limit":
+        guard let parsed = Int(value) else { throw Self.invalid() }
+        limit = parsed
+      case "--cursor":
+        cursor = value
+      case "--revision":
+        libraryRevision = value
+      case "--random-seed":
+        guard let parsed = UInt64(value) else { throw Self.invalid() }
+        randomSeed = parsed
+      default:
+        throw Self.invalid()
+      }
+      index += 2
+    }
+  }
+
+  private static func section(_ value: String) -> PosterWallSection? {
+    PosterWallSection(rawValue: value.replacingOccurrences(of: "-", with: "_"))
+  }
+
+  private static func sort(_ value: String) -> PosterWallSort? {
+    PosterWallSort(rawValue: value.replacingOccurrences(of: "-", with: "_"))
+  }
+
+  private static func invalid() -> SDKError {
+    SDKError(code: .invalidConfiguration, message: "library list/search options are invalid")
+  }
+}
+
+private struct LibraryShowOptions {
+  var profileUID: String?
+  var locale = "und"
+
+  init(arguments: [String]) throws {
+    var index = 0
+    while index < arguments.count {
+      guard index + 1 < arguments.count else { throw Self.invalid() }
+      switch arguments[index] {
+      case "--profile":
+        profileUID = arguments[index + 1]
+      case "--locale":
+        locale = arguments[index + 1]
+      default:
+        throw Self.invalid()
+      }
+      index += 2
+    }
+  }
+
+  private static func invalid() -> SDKError {
+    SDKError(code: .invalidConfiguration, message: "library show options are invalid")
   }
 }
