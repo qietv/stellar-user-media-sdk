@@ -65,7 +65,7 @@ v1 不包含：
 - 公共错误模型、`EncryptedCredentialEnvelope` wire model；
 - 最小电影/剧集文件名 parser；
 - repository-wide parser fixture；
-- 57 个 Swift Testing 测试，macOS debug/release 构建已通过；
+- 67 个 Swift Testing 测试，macOS debug/release 构建已通过；
 - GitHub Actions 已在 macOS 26 与 Ubuntu 24.04 首次实际通过对等验证，并固定第三方 Action SHA；
 - SwiftPM exact/revision 依赖锁定门禁，以及 8 个公开模块、717 个 symbol 的 API compatibility 基线；
 - libsmb2 来源/ABI/私有静态链接 ADR、机器可读 lock、全符号前缀和 C ABI smoke guard；
@@ -76,6 +76,8 @@ v1 不包含：
 - full/scoped incremental/repair scanner 状态机、有界目录队列、原子 page checkpoint 和公共扫描 fixture；
 - macOS/Linux 本地目录 connector、SMB transport adapter、WebDAV URLSession/transport seam，以及三者的统一 scanner tests；
 - Credential Vault 规范和 E2EE 同步 ADR。
+- 本地元数据摄取合同 v1、sidecar 分类、受限 Kodi NFO 解析，以及可注入的技术探测模型与协议。
+- provider 查询协议、NFO/文件名查询证据合并，以及可由公共 fixture 重放的确定性候选评分与决策。
 
 尚未完成：
 
@@ -269,13 +271,23 @@ stellar-media smb scan
 工作：
 
 - [ ] 完善文件名 parser、NFO、sidecar 和基础技术信息接口；
+  - [x] 固定 metadata intake v1 合同与公共 fixture，实现同目录 NFO/JSON/字幕/图片/章节分类；
+  - [x] 实现 2 MiB 上限、拒绝 DTD/entity 的 Kodi NFO parser，规范化标题、季集、外部 ID 与 artwork；
+  - [x] 实现来源无关的技术摘要、轨道结果与可注入 range-read probe 协议；
+  - [ ] 扩展文件名候选/噪声证据，实现本地 JSON，并把 sidecar/NFO/probe 结果原子写入 SQLite；
 - [ ] provider 查询通过协议注入，单元测试使用录制/合成响应，不要求真实 TMDB key；
+  - [x] 固定 `MediaMetadataProviding` 搜索协议与合成 provider 测试，不持有或要求真实 TMDB key；
+  - [ ] 实现具体 provider adapter、details/图片响应模型和录制响应脱敏流程；
 - [ ] 实现候选生成、评分、低置信度队列、人工锁定和多版本绑定；
+  - [x] 固定 local metadata/文件名查询优先级、外部 ID 直达、类型/标题/年份/剧集存在性评分与三档决策；
+  - [ ] 持久化低置信度队列，保护人工锁定，并实现同实体多版本绑定；
 - [ ] 物化 movie、series、season、episode、extra 与 external IDs；
 - [ ] 实现最近添加、继续观看、电影、剧集、类型、片单、搜索和稳定游标分页；
 - [ ] 建立 poster/backdrop 选择、缓存索引和预取接口；
 - [ ] provider 失败不能删除本地文件事实，也不能覆盖人工匹配；
 - [ ] CLI 新增 `library list/search/show`，输出与 PosterWall fixture 对齐。
+
+进行中证据：`metadata-intake-v1.json` 已固定 6 个 sidecar 关联样本、2 个 NFO 规范化样本和 1 组多轨技术结果；`metadata-matching-v1.json` 已固定电影、alias、剧集存在性、缺集拒绝和外部 ID 直达结果。Swift 新增 10 个合同/安全测试；当前 macOS 共 67 个测试、format lint、依赖/API/schema/secret/import/libsmb2 guards 与 release build 已通过。公共 API baseline 更新为 8 个模块、939 个 symbol。
 
 完成定义：从 SMB fixture 扫描到数据库，再到海报墙 JSON 查询形成完整离线纵向路径；重建派生索引不会丢失人工状态、播放状态或 outbox。
 

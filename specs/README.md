@@ -50,6 +50,8 @@
 - [远程媒体配置同步](remote-media/source-config-sync.md)
 - [Credential Vault 与凭据同步](security/credential-vault.md)
 - [扫描、解析与海报墙](media-library/scanning-and-poster-wall.md)
+- [本地元数据与技术探测 v1](media-library/metadata-intake.md)
+- [元数据候选与匹配 v1](media-library/metadata-matching.md)
 - [SQLite、本地状态与同步](storage/sqlite-and-sync.md)
 - [SQLite v1 schema manifest](storage/schema-manifest-v1.json)
 
@@ -57,4 +59,4 @@
 
 ## 公共测试向量
 
-`fixtures/` 保存所有平台共同执行的输入与期望输出。当前包括 [`wire-format-v1.json`](fixtures/core/wire-format-v1.json)、[`filename-parser-v1.json`](fixtures/media-library/filename-parser-v1.json)、[`remote-enumeration-v1.json`](fixtures/media-library/remote-enumeration-v1.json) 和 [`scanner-state-v1.json`](fixtures/media-library/scanner-state-v1.json)；fixture 变更即合同变更，必须由对应规范或 ADR 解释。
+`fixtures/` 保存所有平台共同执行的输入与期望输出。当前包括 [`wire-format-v1.json`](fixtures/core/wire-format-v1.json)、[`filename-parser-v1.json`](fixtures/media-library/filename-parser-v1.json)、[`remote-enumeration-v1.json`](fixtures/media-library/remote-enumeration-v1.json)、[`scanner-state-v1.json`](fixtures/media-library/scanner-state-v1.json)、[`metadata-intake-v1.json`](fixtures/media-library/metadata-intake-v1.json) 和 [`metadata-matching-v1.json`](fixtures/media-library/metadata-matching-v1.json)；fixture 变更即合同变更，必须由对应规范或 ADR 解释。

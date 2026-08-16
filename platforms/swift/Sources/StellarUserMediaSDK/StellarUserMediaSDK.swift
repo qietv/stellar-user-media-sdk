@@ -145,6 +145,54 @@ public typealias ParsedMediaKind = StellarMediaLibrary.ParsedMediaKind
 public typealias ParsedMediaFilename = StellarMediaLibrary.ParsedMediaFilename
 /// Compatibility alias for the deterministic filename parser.
 public typealias MediaFilenameParser = StellarMediaLibrary.MediaFilenameParser
+/// Compatibility alias for a classified media sidecar kind.
+public typealias MediaSidecarKind = StellarMediaLibrary.MediaSidecarKind
+/// Compatibility alias for one normalized media sidecar association.
+public typealias MediaSidecarDescriptor = StellarMediaLibrary.MediaSidecarDescriptor
+/// Compatibility alias for deterministic media sidecar classification.
+public typealias MediaSidecarClassifier = StellarMediaLibrary.MediaSidecarClassifier
+/// Compatibility alias for an external identifier found in local metadata.
+public typealias LocalMetadataExternalID = StellarMediaLibrary.LocalMetadataExternalID
+/// Compatibility alias for a local metadata artwork category.
+public typealias LocalMetadataArtworkKind = StellarMediaLibrary.LocalMetadataArtworkKind
+/// Compatibility alias for a deferred local metadata artwork reference.
+public typealias LocalMetadataArtwork = StellarMediaLibrary.LocalMetadataArtwork
+/// Compatibility alias for normalized local metadata.
+public typealias LocalMetadataDocument = StellarMediaLibrary.LocalMetadataDocument
+/// Compatibility alias for the bounded NFO parser.
+public typealias NFOParser = StellarMediaLibrary.NFOParser
+/// Compatibility alias for a source-independent technical probe request.
+public typealias MediaTechnicalProbeRequest = StellarMediaLibrary.MediaTechnicalProbeRequest
+/// Compatibility alias for the compact technical media summary.
+public typealias MediaTechnicalSummary = StellarMediaLibrary.MediaTechnicalSummary
+/// Compatibility alias for a normalized media stream category.
+public typealias MediaTechnicalStreamKind = StellarMediaLibrary.MediaTechnicalStreamKind
+/// Compatibility alias for one normalized media stream.
+public typealias MediaTechnicalStream = StellarMediaLibrary.MediaTechnicalStream
+/// Compatibility alias for one complete technical probe result.
+public typealias MediaTechnicalProbeResult = StellarMediaLibrary.MediaTechnicalProbeResult
+/// Compatibility alias for the injectable technical probing boundary.
+public typealias MediaTechnicalProbing = StellarMediaLibrary.MediaTechnicalProbing
+/// Compatibility alias for a season/episode coordinate used during provider matching.
+public typealias MediaEpisodeCoordinate = StellarMediaLibrary.MediaEpisodeCoordinate
+/// Compatibility alias for a normalized metadata provider query.
+public typealias MediaMatchQuery = StellarMediaLibrary.MediaMatchQuery
+/// Compatibility alias for local-evidence metadata query generation.
+public typealias MediaMatchQueryBuilder = StellarMediaLibrary.MediaMatchQueryBuilder
+/// Compatibility alias for a provider metadata candidate.
+public typealias MediaMetadataCandidate = StellarMediaLibrary.MediaMetadataCandidate
+/// Compatibility alias for the injectable metadata provider boundary.
+public typealias MediaMetadataProviding = StellarMediaLibrary.MediaMetadataProviding
+/// Compatibility alias for a metadata match policy decision.
+public typealias MediaMatchDecision = StellarMediaLibrary.MediaMatchDecision
+/// Compatibility alias for a deterministic metadata scoring signal.
+public typealias MediaMatchSignal = StellarMediaLibrary.MediaMatchSignal
+/// Compatibility alias for a scored provider metadata candidate.
+public typealias ScoredMediaMetadataCandidate = StellarMediaLibrary.ScoredMediaMetadataCandidate
+/// Compatibility alias for metadata match scoring thresholds.
+public typealias MediaMatchScoringPolicy = StellarMediaLibrary.MediaMatchScoringPolicy
+/// Compatibility alias for the deterministic metadata candidate scorer.
+public typealias MediaMetadataCandidateScorer = StellarMediaLibrary.MediaMetadataCandidateScorer
 /// Compatibility alias for a versioned local database kind.
 public typealias StorageDatabaseKind = StellarStorage.StorageDatabaseKind
 /// Compatibility alias for an opened and migrated SQLite database.

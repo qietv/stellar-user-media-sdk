@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "movie_title_and_year",
+      "query": {
+        "kind": "movie",
+        "title": "Dune",
+        "year": 2021,
+        "external_ids": []
+      },
+      "candidates": [
+        {
+          "provider": "tmdb",
+          "candidate_id": "dune-1984",
+          "kind": "movie",
+          "title": "Dune",
+          "aliases": [],
+          "year": 1984,
+          "available_episodes": [],
+          "external_ids": [],
+          "popularity": 50.0
+        },
+        {
+          "provider": "tmdb",
+          "candidate_id": "dune-2021",
+          "kind": "movie",
+          "title": "Dune",
+          "aliases": [],
+          "year": 2021,
+          "available_episodes": [],
+          "external_ids": [],
+          "popularity": 100.0
+        },
+        {
+          "provider": "tmdb",
+          "candidate_id": "arrival-2016",
+          "kind": "movie",
+          "title": "Arrival",
+          "aliases": [],
+          "year": 2016,
+          "available_episodes": [],
+          "external_ids": [],
+          "popularity": 200.0
+        }
+      ],
+      "expected": [
+        {
+          "candidate_id": "dune-2021",
+          "score": 0.88,
+          "decision": "automatic",
+          "signals": ["title_exact", "year_exact"]
+        },
+        {
+          "candidate_id": "dune-1984",
+          "score": 0.55,
+          "decision": "unmatched",
+          "signals": ["title_exact", "year_mismatch"]
+        },
+        {
+          "candidate_id": "arrival-2016",
+          "score": 0.0,
+          "decision": "unmatched",
+          "signals": ["year_mismatch"]
+        }
+      ]
+    },
+    {
+      "name": "localized_alias_requires_review",
+      "query": {
+        "kind": "movie",
+        "title": "Amelie",
+        "year": 2001,
+        "external_ids": []
+      },
+      "candidates": [
+        {
+          "provider": "tmdb",
+          "candidate_id": "amelie-2001",
+          "kind": "movie",
+          "title": "Le Fabuleux Destin d'Amélie Poulain",
+          "aliases": ["Amélie"],
+          "year": 2001,
+          "available_episodes": [],
+          "external_ids": [],
+          "popularity": 80.0
+        }
+      ],
+      "expected": [
+        {
+          "candidate_id": "amelie-2001",
+          "score": 0.8,
+          "decision": "review",
+          "signals": ["title_alias_exact", "year_exact"]
+        }
+      ]
+    },
+    {
+      "name": "episode_existence",
+      "query": {
+        "kind": "episode",
+        "title": "Wednesday",
+        "season": 2,
+        "episode": 3,
+        "external_ids": []
+      },
+      "candidates": [
+        {
+          "provider": "tmdb",
+          "candidate_id": "wednesday-valid",
+          "kind": "series",
+          "title": "Wednesday",
+          "aliases": [],
+          "available_episodes": [{"season": 2, "episode": 3}],
+          "external_ids": [],
+          "popularity": 100.0
+        },
+        {
+          "provider": "tmdb",
+          "candidate_id": "wednesday-missing",
+          "kind": "series",
+          "title": "Wednesday",
+          "aliases": [],
+          "available_episodes": [{"season": 1, "episode": 1}],
+          "external_ids": [],
+          "popularity": 200.0
+        }
+      ],
+      "expected": [
+        {
+          "candidate_id": "wednesday-valid",
+          "score": 0.9,
+          "decision": "automatic",
+          "signals": ["title_exact", "episode_exists"]
+        },
+        {
+          "candidate_id": "wednesday-missing",
+          "score": 0.0,
+          "decision": "rejected",
+          "signals": ["episode_missing"]
+        }
+      ]
+    },
+    {
+      "name": "external_id_direct_hit",
+      "query": {
+        "kind": "movie",
+        "title": "Alien",
+        "year": 1979,
+        "external_ids": [
+          {
+            "provider": "imdb",
+            "namespace": "title",
+            "value": "tt0078748",
+            "is_primary": true
+          }
+        ]
+      },
+      "candidates": [
+        {
+          "provider": "tmdb",
+          "candidate_id": "alien-1979",
+          "kind": "movie",
+          "title": "Alien",
+          "aliases": [],
+          "year": 1979,
+          "available_episodes": [],
+          "external_ids": [
+            {
+              "provider": "imdb",
+              "namespace": "title",
+              "value": "tt0078748",
+              "is_primary": false
+            }
+          ],
+          "popularity": 90.0
+        },
+        {
+          "provider": "tmdb",
+          "candidate_id": "alien-tv",
+          "kind": "series",
+          "title": "Alien",
+          "aliases": [],
+          "available_episodes": [],
+          "external_ids": [],
+          "popularity": 300.0
+        }
+      ],
+      "expected": [
+        {
+          "candidate_id": "alien-1979",
+          "score": 1.0,
+          "decision": "automatic",
+          "signals": ["exact_external_id"]
+        },
+        {
+          "candidate_id": "alien-tv",
+          "score": 0.0,
+          "decision": "rejected",
+          "signals": ["kind_mismatch"]
+        }
+      ]
+    }
+  ]
+}

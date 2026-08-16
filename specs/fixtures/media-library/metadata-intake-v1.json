@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "sidecar_cases": [
+    {
+      "media_path": "Movies/Blade Runner (1982)/Blade Runner (1982).mkv",
+      "candidate_path": "Movies/Blade Runner (1982)/Blade Runner (1982).nfo",
+      "expected": {
+        "kind": "nfo",
+        "relative_path": "Movies/Blade Runner (1982)/Blade Runner (1982).nfo",
+        "language": "und",
+        "forced": false,
+        "hearing_impaired": false
+      }
+    },
+    {
+      "media_path": "Movies/Blade Runner (1982)/Blade Runner (1982).mkv",
+      "candidate_path": "Movies/Blade Runner (1982)/Blade Runner (1982).en-US.forced.srt",
+      "expected": {
+        "kind": "subtitle",
+        "relative_path": "Movies/Blade Runner (1982)/Blade Runner (1982).en-US.forced.srt",
+        "language": "en-US",
+        "forced": true,
+        "hearing_impaired": false
+      }
+    },
+    {
+      "media_path": "Movies/Blade Runner (1982)/Blade Runner (1982).mkv",
+      "candidate_path": "Movies/Blade Runner (1982)/poster.jpg",
+      "expected": {
+        "kind": "poster",
+        "relative_path": "Movies/Blade Runner (1982)/poster.jpg",
+        "language": "und",
+        "forced": false,
+        "hearing_impaired": false
+      }
+    },
+    {
+      "media_path": "TV/Example/Example.S01E01.mkv",
+      "candidate_path": "TV/Example/Example.S01E01.zh-Hans.sdh.ass",
+      "expected": {
+        "kind": "subtitle",
+        "relative_path": "TV/Example/Example.S01E01.zh-Hans.sdh.ass",
+        "language": "zh-Hans",
+        "forced": false,
+        "hearing_impaired": true
+      }
+    },
+    {
+      "media_path": "TV/Example/Example.S01E01.mkv",
+      "candidate_path": "TV/Example/chapters.xml",
+      "expected": {
+        "kind": "chapters",
+        "relative_path": "TV/Example/chapters.xml",
+        "language": "und",
+        "forced": false,
+        "hearing_impaired": false
+      }
+    },
+    {
+      "media_path": "TV/Example/Example.S01E01.mkv",
+      "candidate_path": "TV/Example/Other.Show.en.srt",
+      "expected": null
+    }
+  ],
+  "nfo_cases": [
+    {
+      "name": "movie_with_ids_and_artwork",
+      "xml": "<movie><title>Blade Runner</title><originaltitle>Blade Runner</originaltitle><sorttitle>Blade Runner</sorttitle><year>1982</year><plot>A blade runner hunts replicants.</plot><tagline>Man has made his match.</tagline><mpaa>R</mpaa><premiered>1982-06-25</premiered><runtime>117</runtime><uniqueid type=\"tmdb\" default=\"true\">78</uniqueid><uniqueid type=\"imdb\">tt0083658</uniqueid><thumb aspect=\"poster\">poster.jpg</thumb><fanart><thumb>fanart.jpg</thumb></fanart></movie>",
+      "expected": {
+        "kind": "movie",
+        "title": "Blade Runner",
+        "original_title": "Blade Runner",
+        "sort_title": "Blade Runner",
+        "year": 1982,
+        "overview": "A blade runner hunts replicants.",
+        "tagline": "Man has made his match.",
+        "content_rating": "R",
+        "release_date": "1982-06-25",
+        "runtime_ms": 7020000,
+        "external_ids": [
+          {
+            "provider": "tmdb",
+            "namespace": "movie",
+            "value": "78",
+            "is_primary": true
+          },
+          {
+            "provider": "imdb",
+            "namespace": "title",
+            "value": "tt0083658",
+            "is_primary": false
+          }
+        ],
+        "artwork": [
+          {
+            "kind": "poster",
+            "location": "poster.jpg"
+          },
+          {
+            "kind": "backdrop",
+            "location": "fanart.jpg"
+          }
+        ]
+      }
+    },
+    {
+      "name": "episode_with_series_context",
+      "xml": "<episodedetails><title>Wednesday's Child Is Full of Woe</title><showtitle>Wednesday</showtitle><season>1</season><episode>1</episode><aired>2022-11-23</aired><uniqueid type=\"tmdb\" default=\"true\">1940343</uniqueid><tvdbid>8792292</tvdbid></episodedetails>",
+      "expected": {
+        "kind": "episode",
+        "title": "Wednesday's Child Is Full of Woe",
+        "series_title": "Wednesday",
+        "release_date": "2022-11-23",
+        "season": 1,
+        "episode": 1,
+        "external_ids": [
+          {
+            "provider": "tmdb",
+            "namespace": "episode",
+            "value": "1940343",
+            "is_primary": true
+          },
+          {
+            "provider": "tvdb",
+            "namespace": "episode",
+            "value": "8792292",
+            "is_primary": false
+          }
+        ],
+        "artwork": []
+      }
+    }
+  ],
+  "technical_probe": {
+    "probe_provider": "fixture-probe",
+    "probe_version": 1,
+    "summary": {
+      "container": "matroska",
+      "duration_ms": 7020123,
+      "overall_bitrate": 18400000,
+      "video_codec": "hevc",
+      "width": 3840,
+      "height": 2160,
+      "frame_rate": 23.976,
+      "hdr_profile": "dolby_vision_profile_8",
+      "audio_codec": "eac3",
+      "audio_channels": 6.0,
+      "embedded_cover": false
+    },
+    "streams": [
+      {
+        "stream_index": 0,
+        "kind": "video",
+        "codec": "hevc",
+        "language": "und",
+        "width": 3840,
+        "height": 2160,
+        "frame_rate": 23.976,
+        "hdr_profile": "dolby_vision_profile_8",
+        "is_default": true,
+        "is_forced": false
+      },
+      {
+        "stream_index": 1,
+        "kind": "audio",
+        "codec": "eac3",
+        "language": "en",
+        "title": "Dolby Atmos",
+        "channel_count": 6.0,
+        "channel_layout": "5.1",
+        "sample_rate": 48000,
+        "is_default": true,
+        "is_forced": false
+      },
+      {
+        "stream_index": 2,
+        "kind": "subtitle",
+        "codec": "subrip",
+        "language": "zh-Hans",
+        "title": "简体中文",
+        "is_default": false,
+        "is_forced": false
+      }
+    ]
+  }
+}
