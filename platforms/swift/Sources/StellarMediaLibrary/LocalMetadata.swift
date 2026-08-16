@@ -478,6 +478,36 @@ public struct NFOParser: Sendable {
   }
 }
 
+/// A bounded parser for normalized local JSON metadata sidecars.
+public struct LocalMetadataJSONParser: Sendable {
+  public let maximumDocumentBytes: Int
+
+  public init(maximumDocumentBytes: Int = 2 * 1024 * 1024) {
+    self.maximumDocumentBytes = max(1, maximumDocumentBytes)
+  }
+
+  public func parse(_ data: Data) throws -> LocalMetadataDocument {
+    guard !data.isEmpty, data.count <= maximumDocumentBytes else {
+      throw SDKError(code: .parseFailure, message: "local JSON document size is invalid")
+    }
+    do {
+      let document = try JSONDecoder().decode(LocalMetadataDocument.self, from: data)
+      let hasTitle = [document.title, document.originalTitle, document.seriesTitle]
+        .contains { value in
+          value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        }
+      guard hasTitle || !document.externalIDs.isEmpty || !document.artwork.isEmpty else {
+        throw SDKError(code: .parseFailure, message: "local JSON has no usable metadata")
+      }
+      return document
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .parseFailure, message: "local JSON is invalid")
+    }
+  }
+}
+
 private final class NFOXMLCollector: NSObject, XMLParserDelegate {
   private var elements: [String] = []
   private var buffers: [String] = []

@@ -1529,6 +1529,130 @@
           ]
         },
         {
+          "declaration": "struct SQLiteMediaMetadataStore",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB13MetadataStoreV",
+          "kind": "swift.struct",
+          "path": [
+            "SQLiteMediaMetadataStore"
+          ]
+        },
+        {
+          "declaration": "let store: LibraryStore",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB13MetadataStoreV5store0A7Storage0cF0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SQLiteMediaMetadataStore",
+            "store"
+          ]
+        },
+        {
+          "declaration": "init(store: LibraryStore)",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB13MetadataStoreV5storeAC0A7Storage0cF0V_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "SQLiteMediaMetadataStore",
+            "init(store:)"
+          ]
+        },
+        {
+          "declaration": "func persist(_ batch: MediaMetadataIntakeBatch) async throws",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB13MetadataStoreV7persistyyAA0bE11IntakeBatchVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMetadataStore",
+            "persist(_:)"
+          ]
+        },
+        {
+          "declaration": "struct SQLiteMediaMatcher",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV",
+          "kind": "swift.struct",
+          "path": [
+            "SQLiteMediaMatcher"
+          ]
+        },
+        {
+          "declaration": "init(libraryStore: LibraryStore, metadataCacheStore: MetadataCacheStore, scorer: MediaMetadataCandidateScorer = MediaMetadataCandidateScorer(), clock: any SDKClock = SystemSDKClock())",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV12libraryStore013metadataCacheG06scorer5clockAC0A7Storage0cG0V_AH08MetadataiG0VAA0bM15CandidateScorerV0A4Core8SDKClock_ptcfc",
+          "kind": "swift.init",
+          "path": [
+            "SQLiteMediaMatcher",
+            "init(libraryStore:metadataCacheStore:scorer:clock:)"
+          ]
+        },
+        {
+          "declaration": "let libraryStore: LibraryStore",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV12libraryStore0A7Storage0cG0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SQLiteMediaMatcher",
+            "libraryStore"
+          ]
+        },
+        {
+          "declaration": "func pendingCandidates(sourceUID: String, mediaRelativePath: String) async throws -> [ScoredMediaMetadataCandidate]",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV17pendingCandidates9sourceUID17mediaRelativePathSayAA06ScoredB17MetadataCandidateVGSS_SStYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMatcher",
+            "pendingCandidates(sourceUID:mediaRelativePath:)"
+          ]
+        },
+        {
+          "declaration": "let metadataCacheStore: MetadataCacheStore",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV18metadataCacheStore0A7Storage08MetadatagH0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "SQLiteMediaMatcher",
+            "metadataCacheStore"
+          ]
+        },
+        {
+          "declaration": "func match(query: MediaMatchQuery, sourceUID: String, mediaRelativePath: String, using provider: any MediaMetadataProviding) async throws -> MediaMatchPersistenceResult",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV5match5query9sourceUID17mediaRelativePath5usingAA0B22MatchPersistenceResultVAA0bN5QueryV_S2SAA0B17MetadataProviding_ptYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMatcher",
+            "match(query:sourceUID:mediaRelativePath:using:)"
+          ]
+        },
+        {
+          "declaration": "let scorer: MediaMetadataCandidateScorer",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV6scorerAA0B23MetadataCandidateScorerVvp",
+          "kind": "swift.property",
+          "path": [
+            "SQLiteMediaMatcher",
+            "scorer"
+          ]
+        },
+        {
+          "declaration": "func binding(sourceUID: String, mediaRelativePath: String) async throws -> MediaFileMatchBinding?",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV7binding9sourceUID17mediaRelativePathAA0B16FileMatchBindingVSgSS_SStYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMatcher",
+            "binding(sourceUID:mediaRelativePath:)"
+          ]
+        },
+        {
+          "declaration": "func confirm(query: MediaMatchQuery, candidate: MediaMetadataCandidate, sourceUID: String, mediaRelativePath: String) async throws -> MediaFileMatchBinding",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV7confirm5query9candidate9sourceUID17mediaRelativePathAA0B16FileMatchBindingVAA0bO5QueryV_AA0B17MetadataCandidateVS2StYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMatcher",
+            "confirm(query:candidate:sourceUID:mediaRelativePath:)"
+          ]
+        },
+        {
+          "declaration": "func evaluate(query: MediaMatchQuery, candidates: [MediaMetadataCandidate], sourceUID: String, mediaRelativePath: String) async throws -> MediaMatchPersistenceResult",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB7MatcherV8evaluate5query10candidates9sourceUID17mediaRelativePathAA0B22MatchPersistenceResultVAA0bN5QueryV_SayAA0B17MetadataCandidateVGS2StYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMatcher",
+            "evaluate(query:candidates:sourceUID:mediaRelativePath:)"
+          ]
+        },
+        {
           "declaration": "struct SQLiteMediaScanSink",
           "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV",
           "kind": "swift.struct",
@@ -1747,6 +1871,104 @@
           "path": [
             "MediaScanResult",
             "completion"
+          ]
+        },
+        {
+          "declaration": "enum MediaMatchMethod",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaMatchMethod"
+          ]
+        },
+        {
+          "declaration": "case filenameID",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO10filenameIDyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchMethod",
+            "filenameID"
+          ]
+        },
+        {
+          "declaration": "case mediaServer",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO11mediaServeryA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchMethod",
+            "mediaServer"
+          ]
+        },
+        {
+          "declaration": "case providerSearch",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO14providerSearchyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchMethod",
+            "providerSearch"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaMatchMethod",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaMatchMethod",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case manual",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO6manualyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchMethod",
+            "manual"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchMethod",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaMatchMethod",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case inherited",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO9inheritedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchMethod",
+            "inherited"
+          ]
+        },
+        {
+          "declaration": "case sidecarID",
+          "identifier": "s:19StellarMediaLibrary0B11MatchMethodO9sidecarIDyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchMethod",
+            "sidecarID"
           ]
         },
         {
@@ -2221,6 +2443,59 @@
           ]
         },
         {
+          "declaration": "struct MediaSidecarIntake",
+          "identifier": "s:19StellarMediaLibrary0B13SidecarIntakeV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaSidecarIntake"
+          ]
+        },
+        {
+          "declaration": "init(descriptor: MediaSidecarDescriptor, modifiedAtMilliseconds: Int64? = nil, sha256: String? = nil, metadata: LocalMetadataDocument? = nil) throws",
+          "identifier": "s:19StellarMediaLibrary0B13SidecarIntakeV10descriptor22modifiedAtMilliseconds6sha2568metadataAcA0bD10DescriptorV_s5Int64VSgSSSgAA21LocalMetadataDocumentVSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSidecarIntake",
+            "init(descriptor:modifiedAtMilliseconds:sha256:metadata:)"
+          ]
+        },
+        {
+          "declaration": "let descriptor: MediaSidecarDescriptor",
+          "identifier": "s:19StellarMediaLibrary0B13SidecarIntakeV10descriptorAA0bD10DescriptorVvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSidecarIntake",
+            "descriptor"
+          ]
+        },
+        {
+          "declaration": "let modifiedAtMilliseconds: Int64?",
+          "identifier": "s:19StellarMediaLibrary0B13SidecarIntakeV22modifiedAtMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSidecarIntake",
+            "modifiedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let sha256: String?",
+          "identifier": "s:19StellarMediaLibrary0B13SidecarIntakeV6sha256SSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSidecarIntake",
+            "sha256"
+          ]
+        },
+        {
+          "declaration": "let metadata: LocalMetadataDocument?",
+          "identifier": "s:19StellarMediaLibrary0B13SidecarIntakeV8metadataAA21LocalMetadataDocumentVSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSidecarIntake",
+            "metadata"
+          ]
+        },
+        {
           "declaration": "struct MediaFilenameParser",
           "identifier": "s:19StellarMediaLibrary0B14FilenameParserV",
           "kind": "swift.struct",
@@ -2235,6 +2510,24 @@
           "path": [
             "MediaFilenameParser",
             "parse(_:)"
+          ]
+        },
+        {
+          "declaration": "func analyze(_ path: String) throws -> MediaFilenameAnalysis",
+          "identifier": "s:19StellarMediaLibrary0B14FilenameParserV7analyzeyAA0bD8AnalysisVSSKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaFilenameParser",
+            "analyze(_:)"
+          ]
+        },
+        {
+          "declaration": "static let version: Int",
+          "identifier": "s:19StellarMediaLibrary0B14FilenameParserV7versionSivpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "MediaFilenameParser",
+            "version"
           ]
         },
         {
@@ -2663,6 +2956,308 @@
           "path": [
             "MediaTechnicalStream",
             "isDefault"
+          ]
+        },
+        {
+          "declaration": "struct MediaFileMatchBinding",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaFileMatchBinding"
+          ]
+        },
+        {
+          "declaration": "let confidence: Double",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV10confidenceSdvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFileMatchBinding",
+            "confidence"
+          ]
+        },
+        {
+          "declaration": "let entityKind: ParsedMediaKind",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV10entityKindAA06ParsedbH0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFileMatchBinding",
+            "entityKind"
+          ]
+        },
+        {
+          "declaration": "let canonicalTitle: String",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV14canonicalTitleSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFileMatchBinding",
+            "canonicalTitle"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaFileMatchBinding",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let role: MediaMatchBindingRole",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV4roleAA0beF4RoleOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFileMatchBinding",
+            "role"
+          ]
+        },
+        {
+          "declaration": "let method: MediaMatchMethod",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV6methodAA0bE6MethodOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFileMatchBinding",
+            "method"
+          ]
+        },
+        {
+          "declaration": "let fileUID: String",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV7fileUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFileMatchBinding",
+            "fileUID"
+          ]
+        },
+        {
+          "declaration": "let isLocked: Bool",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV8isLockedSbvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFileMatchBinding",
+            "isLocked"
+          ]
+        },
+        {
+          "declaration": "let entityUID: String",
+          "identifier": "s:19StellarMediaLibrary0B16FileMatchBindingV9entityUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFileMatchBinding",
+            "entityUID"
+          ]
+        },
+        {
+          "declaration": "struct MediaFilenameAnalysis",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameAnalysisV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaFilenameAnalysis"
+          ]
+        },
+        {
+          "declaration": "init(parserVersion: Int, parsed: ParsedMediaFilename, evidence: MediaFilenameEvidence) throws",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameAnalysisV13parserVersion6parsed8evidenceACSi_AA06ParsedbD0VAA0bD8EvidenceVtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaFilenameAnalysis",
+            "init(parserVersion:parsed:evidence:)"
+          ]
+        },
+        {
+          "declaration": "let parserVersion: Int",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameAnalysisV13parserVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameAnalysis",
+            "parserVersion"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameAnalysisV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaFilenameAnalysis",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let parsed: ParsedMediaFilename",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameAnalysisV6parsedAA06ParsedbD0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameAnalysis",
+            "parsed"
+          ]
+        },
+        {
+          "declaration": "let evidence: MediaFilenameEvidence",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameAnalysisV8evidenceAA0bD8EvidenceVvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameAnalysis",
+            "evidence"
+          ]
+        },
+        {
+          "declaration": "struct MediaFilenameEvidence",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaFilenameEvidence"
+          ]
+        },
+        {
+          "declaration": "let confidence: Double",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV10confidenceSdvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameEvidence",
+            "confidence"
+          ]
+        },
+        {
+          "declaration": "let noiseTokens: [String]",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV11noiseTokensSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameEvidence",
+            "noiseTokens"
+          ]
+        },
+        {
+          "declaration": "let languageHint: String?",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV12languageHintSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameEvidence",
+            "languageHint"
+          ]
+        },
+        {
+          "declaration": "let releaseGroup: String?",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV12releaseGroupSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameEvidence",
+            "releaseGroup"
+          ]
+        },
+        {
+          "declaration": "let providerHints: [FilenameProviderHint]",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV13providerHintsSayAA0D12ProviderHintVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameEvidence",
+            "providerHints"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaFilenameEvidence",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "init(rawTokens: [String], noiseTokens: [String], releaseGroup: String? = nil, languageHint: String? = nil, providerHints: [FilenameProviderHint] = [], confidence: Double) throws",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV9rawTokens05noiseG012releaseGroup12languageHint13providerHints10confidenceACSaySSG_AJSSSgAKSayAA0d8ProviderL0VGSdtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaFilenameEvidence",
+            "init(rawTokens:noiseTokens:releaseGroup:languageHint:providerHints:confidence:)"
+          ]
+        },
+        {
+          "declaration": "let rawTokens: [String]",
+          "identifier": "s:19StellarMediaLibrary0B16FilenameEvidenceV9rawTokensSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaFilenameEvidence",
+            "rawTokens"
+          ]
+        },
+        {
+          "declaration": "enum MediaMatchBindingRole",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaMatchBindingRole"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaMatchBindingRole",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case extra",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO5extrayA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchBindingRole",
+            "extra"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaMatchBindingRole",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case primary",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO7primaryyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchBindingRole",
+            "primary"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchBindingRole",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "case version",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO7versionyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchBindingRole",
+            "version"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaMatchBindingRole",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case contained",
+          "identifier": "s:19StellarMediaLibrary0B16MatchBindingRoleO9containedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchBindingRole",
+            "contained"
           ]
         },
         {
@@ -3187,6 +3782,68 @@
           ]
         },
         {
+          "declaration": "struct MediaMetadataIntakeBatch",
+          "identifier": "s:19StellarMediaLibrary0B19MetadataIntakeBatchV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaMetadataIntakeBatch"
+          ]
+        },
+        {
+          "declaration": "let technicalProbe: MediaTechnicalProbeResult?",
+          "identifier": "s:19StellarMediaLibrary0B19MetadataIntakeBatchV14technicalProbeAA0b9TechnicalH6ResultVSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaMetadataIntakeBatch",
+            "technicalProbe"
+          ]
+        },
+        {
+          "declaration": "let mediaRelativePath: String",
+          "identifier": "s:19StellarMediaLibrary0B19MetadataIntakeBatchV17mediaRelativePathSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaMetadataIntakeBatch",
+            "mediaRelativePath"
+          ]
+        },
+        {
+          "declaration": "let filename: MediaFilenameAnalysis",
+          "identifier": "s:19StellarMediaLibrary0B19MetadataIntakeBatchV8filenameAA0B16FilenameAnalysisVvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaMetadataIntakeBatch",
+            "filename"
+          ]
+        },
+        {
+          "declaration": "let sidecars: [MediaSidecarIntake]",
+          "identifier": "s:19StellarMediaLibrary0B19MetadataIntakeBatchV8sidecarsSayAA0b7SidecarE0VGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaMetadataIntakeBatch",
+            "sidecars"
+          ]
+        },
+        {
+          "declaration": "init(sourceUID: String, mediaRelativePath: String, filename: MediaFilenameAnalysis, sidecars: [MediaSidecarIntake], technicalProbe: MediaTechnicalProbeResult? = nil) throws",
+          "identifier": "s:19StellarMediaLibrary0B19MetadataIntakeBatchV9sourceUID17mediaRelativePath8filename8sidecars14technicalProbeACSS_SSAA0B16FilenameAnalysisVSayAA0b7SidecarE0VGAA0b9TechnicalO6ResultVSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaMetadataIntakeBatch",
+            "init(sourceUID:mediaRelativePath:filename:sidecars:technicalProbe:)"
+          ]
+        },
+        {
+          "declaration": "let sourceUID: String",
+          "identifier": "s:19StellarMediaLibrary0B19MetadataIntakeBatchV9sourceUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaMetadataIntakeBatch",
+            "sourceUID"
+          ]
+        },
+        {
           "declaration": "enum MediaTechnicalStreamKind",
           "identifier": "s:19StellarMediaLibrary0B19TechnicalStreamKindO",
           "kind": "swift.enum",
@@ -3373,6 +4030,95 @@
           ]
         },
         {
+          "declaration": "enum MediaMatchPersistenceState",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaMatchPersistenceState"
+          ]
+        },
+        {
+          "declaration": "case automaticBound",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO14automaticBoundyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchPersistenceState",
+            "automaticBound"
+          ]
+        },
+        {
+          "declaration": "case reviewRequired",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO14reviewRequiredyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchPersistenceState",
+            "reviewRequired"
+          ]
+        },
+        {
+          "declaration": "case detailsRequired",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO15detailsRequiredyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchPersistenceState",
+            "detailsRequired"
+          ]
+        },
+        {
+          "declaration": "case lockedBindingPreserved",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO22lockedBindingPreservedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchPersistenceState",
+            "lockedBindingPreserved"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaMatchPersistenceState",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaMatchPersistenceState",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case unknown",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO7unknownyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchPersistenceState",
+            "unknown"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaMatchPersistenceState",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case unmatched",
+          "identifier": "s:19StellarMediaLibrary0B21MatchPersistenceStateO9unmatchedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaMatchPersistenceState",
+            "unmatched"
+          ]
+        },
+        {
           "declaration": "struct MediaTechnicalProbeRequest",
           "identifier": "s:19StellarMediaLibrary0B21TechnicalProbeRequestV",
           "kind": "swift.struct",
@@ -3432,6 +4178,50 @@
           "path": [
             "MediaTechnicalProbeRequest",
             "sizeBytes"
+          ]
+        },
+        {
+          "declaration": "struct MediaMatchPersistenceResult",
+          "identifier": "s:19StellarMediaLibrary0B22MatchPersistenceResultV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaMatchPersistenceResult"
+          ]
+        },
+        {
+          "declaration": "let candidates: [ScoredMediaMetadataCandidate]",
+          "identifier": "s:19StellarMediaLibrary0B22MatchPersistenceResultV10candidatesSayAA06ScoredB17MetadataCandidateVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaMatchPersistenceResult",
+            "candidates"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary0B22MatchPersistenceResultV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaMatchPersistenceResult",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let state: MediaMatchPersistenceState",
+          "identifier": "s:19StellarMediaLibrary0B22MatchPersistenceResultV5stateAA0bdE5StateOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaMatchPersistenceResult",
+            "state"
+          ]
+        },
+        {
+          "declaration": "let binding: MediaFileMatchBinding?",
+          "identifier": "s:19StellarMediaLibrary0B22MatchPersistenceResultV7bindingAA0b4FileD7BindingVSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaMatchPersistenceResult",
+            "binding"
           ]
         },
         {
@@ -3770,6 +4560,50 @@
           ]
         },
         {
+          "declaration": "struct FilenameProviderHint",
+          "identifier": "s:19StellarMediaLibrary20FilenameProviderHintV",
+          "kind": "swift.struct",
+          "path": [
+            "FilenameProviderHint"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary20FilenameProviderHintV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "FilenameProviderHint",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let value: String",
+          "identifier": "s:19StellarMediaLibrary20FilenameProviderHintV5valueSSvp",
+          "kind": "swift.property",
+          "path": [
+            "FilenameProviderHint",
+            "value"
+          ]
+        },
+        {
+          "declaration": "init(provider: String, value: String) throws",
+          "identifier": "s:19StellarMediaLibrary20FilenameProviderHintV8provider5valueACSS_SStKcfc",
+          "kind": "swift.init",
+          "path": [
+            "FilenameProviderHint",
+            "init(provider:value:)"
+          ]
+        },
+        {
+          "declaration": "let provider: String",
+          "identifier": "s:19StellarMediaLibrary20FilenameProviderHintV8providerSSvp",
+          "kind": "swift.property",
+          "path": [
+            "FilenameProviderHint",
+            "provider"
+          ]
+        },
+        {
           "declaration": "struct LocalMetadataArtwork",
           "identifier": "s:19StellarMediaLibrary20LocalMetadataArtworkV",
           "kind": "swift.struct",
@@ -4043,6 +4877,41 @@
           "path": [
             "LocalMetadataExternalID",
             "namespace"
+          ]
+        },
+        {
+          "declaration": "struct LocalMetadataJSONParser",
+          "identifier": "s:19StellarMediaLibrary23LocalMetadataJSONParserV",
+          "kind": "swift.struct",
+          "path": [
+            "LocalMetadataJSONParser"
+          ]
+        },
+        {
+          "declaration": "init(maximumDocumentBytes: Int = 2 * 1024 * 1024)",
+          "identifier": "s:19StellarMediaLibrary23LocalMetadataJSONParserV20maximumDocumentBytesACSi_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "LocalMetadataJSONParser",
+            "init(maximumDocumentBytes:)"
+          ]
+        },
+        {
+          "declaration": "let maximumDocumentBytes: Int",
+          "identifier": "s:19StellarMediaLibrary23LocalMetadataJSONParserV20maximumDocumentBytesSivp",
+          "kind": "swift.property",
+          "path": [
+            "LocalMetadataJSONParser",
+            "maximumDocumentBytes"
+          ]
+        },
+        {
+          "declaration": "func parse(_ data: Data) throws -> LocalMetadataDocument",
+          "identifier": "s:19StellarMediaLibrary23LocalMetadataJSONParserV5parseyAA0dE8DocumentV10Foundation4DataVKF",
+          "kind": "swift.method",
+          "path": [
+            "LocalMetadataJSONParser",
+            "parse(_:)"
           ]
         },
         {
@@ -6770,6 +7639,32 @@
           ]
         },
         {
+          "declaration": "struct MetadataCacheStore",
+          "identifier": "s:14StellarStorage18MetadataCacheStoreV",
+          "kind": "swift.struct",
+          "path": [
+            "MetadataCacheStore"
+          ]
+        },
+        {
+          "declaration": "let database: StorageDatabase",
+          "identifier": "s:14StellarStorage18MetadataCacheStoreV8databaseAA0B8DatabaseCvp",
+          "kind": "swift.property",
+          "path": [
+            "MetadataCacheStore",
+            "database"
+          ]
+        },
+        {
+          "declaration": "init(database: StorageDatabase) throws",
+          "identifier": "s:14StellarStorage18MetadataCacheStoreV8databaseAcA0B8DatabaseC_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MetadataCacheStore",
+            "init(database:)"
+          ]
+        },
+        {
           "declaration": "struct AccountOutboxRecord",
           "identifier": "s:14StellarStorage19AccountOutboxRecordV",
           "kind": "swift.struct",
@@ -7089,6 +7984,22 @@
           ]
         },
         {
+          "declaration": "typealias SQLiteMediaMetadataStore = SQLiteMediaMetadataStore",
+          "identifier": "s:19StellarUserMediaSDK06SQLiteC13MetadataStorea",
+          "kind": "swift.typealias",
+          "path": [
+            "SQLiteMediaMetadataStore"
+          ]
+        },
+        {
+          "declaration": "typealias SQLiteMediaMatcher = SQLiteMediaMatcher",
+          "identifier": "s:19StellarUserMediaSDK06SQLiteC7Matchera",
+          "kind": "swift.typealias",
+          "path": [
+            "SQLiteMediaMatcher"
+          ]
+        },
+        {
           "declaration": "typealias SQLiteMediaScanSink = SQLiteMediaScanSink",
           "identifier": "s:19StellarUserMediaSDK06SQLiteC8ScanSinka",
           "kind": "swift.typealias",
@@ -7118,6 +8029,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaScanResult"
+          ]
+        },
+        {
+          "declaration": "typealias MediaMatchMethod = MediaMatchMethod",
+          "identifier": "s:19StellarUserMediaSDK0C11MatchMethoda",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaMatchMethod"
           ]
         },
         {
@@ -7166,6 +8085,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaScanEventKind"
+          ]
+        },
+        {
+          "declaration": "typealias MediaSidecarIntake = MediaSidecarIntake",
+          "identifier": "s:19StellarUserMediaSDK0C13SidecarIntakea",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSidecarIntake"
           ]
         },
         {
@@ -7222,6 +8149,38 @@
           "kind": "swift.typealias",
           "path": [
             "MediaTechnicalStream"
+          ]
+        },
+        {
+          "declaration": "typealias MediaFileMatchBinding = MediaFileMatchBinding",
+          "identifier": "s:19StellarUserMediaSDK0C16FileMatchBindinga",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaFileMatchBinding"
+          ]
+        },
+        {
+          "declaration": "typealias MediaFilenameAnalysis = MediaFilenameAnalysis",
+          "identifier": "s:19StellarUserMediaSDK0C16FilenameAnalysisa",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaFilenameAnalysis"
+          ]
+        },
+        {
+          "declaration": "typealias MediaFilenameEvidence = MediaFilenameEvidence",
+          "identifier": "s:19StellarUserMediaSDK0C16FilenameEvidencea",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaFilenameEvidence"
+          ]
+        },
+        {
+          "declaration": "typealias MediaMatchBindingRole = MediaMatchBindingRole",
+          "identifier": "s:19StellarUserMediaSDK0C16MatchBindingRolea",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaMatchBindingRole"
           ]
         },
         {
@@ -7313,6 +8272,14 @@
           ]
         },
         {
+          "declaration": "typealias MediaMetadataIntakeBatch = MediaMetadataIntakeBatch",
+          "identifier": "s:19StellarUserMediaSDK0C19MetadataIntakeBatcha",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaMetadataIntakeBatch"
+          ]
+        },
+        {
           "declaration": "typealias MediaTechnicalStreamKind = MediaTechnicalStreamKind",
           "identifier": "s:19StellarUserMediaSDK0C19TechnicalStreamKinda",
           "kind": "swift.typealias",
@@ -7337,11 +8304,27 @@
           ]
         },
         {
+          "declaration": "typealias MediaMatchPersistenceState = MediaMatchPersistenceState",
+          "identifier": "s:19StellarUserMediaSDK0C21MatchPersistenceStatea",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaMatchPersistenceState"
+          ]
+        },
+        {
           "declaration": "typealias MediaTechnicalProbeRequest = MediaTechnicalProbeRequest",
           "identifier": "s:19StellarUserMediaSDK0C21TechnicalProbeRequesta",
           "kind": "swift.typealias",
           "path": [
             "MediaTechnicalProbeRequest"
+          ]
+        },
+        {
+          "declaration": "typealias MediaMatchPersistenceResult = MediaMatchPersistenceResult",
+          "identifier": "s:19StellarUserMediaSDK0C22MatchPersistenceResulta",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaMatchPersistenceResult"
           ]
         },
         {
@@ -7633,6 +8616,14 @@
           ]
         },
         {
+          "declaration": "typealias MetadataCacheStore = MetadataCacheStore",
+          "identifier": "s:19StellarUserMediaSDK18MetadataCacheStorea",
+          "kind": "swift.typealias",
+          "path": [
+            "MetadataCacheStore"
+          ]
+        },
+        {
           "declaration": "typealias RedactingSDKLogger = RedactingSDKLogger",
           "identifier": "s:19StellarUserMediaSDK18RedactingSDKLoggera",
           "kind": "swift.typealias",
@@ -7686,6 +8677,14 @@
           "kind": "swift.typealias",
           "path": [
             "StorageDatabaseKind"
+          ]
+        },
+        {
+          "declaration": "typealias FilenameProviderHint = FilenameProviderHint",
+          "identifier": "s:19StellarUserMediaSDK20FilenameProviderHinta",
+          "kind": "swift.typealias",
+          "path": [
+            "FilenameProviderHint"
           ]
         },
         {
@@ -7750,6 +8749,14 @@
           "kind": "swift.typealias",
           "path": [
             "LocalMetadataExternalID"
+          ]
+        },
+        {
+          "declaration": "typealias LocalMetadataJSONParser = LocalMetadataJSONParser",
+          "identifier": "s:19StellarUserMediaSDK23LocalMetadataJSONParsera",
+          "kind": "swift.typealias",
+          "path": [
+            "LocalMetadataJSONParser"
           ]
         },
         {

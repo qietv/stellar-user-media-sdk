@@ -133,11 +133,274 @@ public struct LibrarySnapshot: Codable, Equatable, Sendable {
   }
 }
 
+/// A normalized filename parse result ready for the library database.
+package struct LibraryFilenameParseRecord: Equatable, Sendable {
+  public let mediaKind: String
+  public let cleanTitle: String?
+  public let sortTitle: String?
+  public let hintYear: Int?
+  public let seasonNumber: Int?
+  public let episodeStart: Int?
+  public let episodeEnd: Int?
+  public let edition: String?
+  public let releaseGroup: String?
+  public let languageHint: String?
+  public let providerHintsJSON: String?
+  public let rawTokensJSON: String?
+  public let confidence: Double
+  public let parserVersion: Int
+
+  public init(
+    mediaKind: String,
+    cleanTitle: String? = nil,
+    sortTitle: String? = nil,
+    hintYear: Int? = nil,
+    seasonNumber: Int? = nil,
+    episodeStart: Int? = nil,
+    episodeEnd: Int? = nil,
+    edition: String? = nil,
+    releaseGroup: String? = nil,
+    languageHint: String? = nil,
+    providerHintsJSON: String? = nil,
+    rawTokensJSON: String? = nil,
+    confidence: Double,
+    parserVersion: Int
+  ) throws {
+    let kinds = ["movie", "episode", "extra", "unknown"]
+    let strings = [
+      cleanTitle, sortTitle, edition, releaseGroup, languageHint, providerHintsJSON, rawTokensJSON,
+    ]
+    guard kinds.contains(mediaKind), strings.allSatisfy({ $0?.contains("\0") != true }),
+      hintYear.map({ (1000...9999).contains($0) }) ?? true,
+      seasonNumber.map({ $0 >= 0 }) ?? true,
+      episodeStart.map({ $0 >= 0 }) ?? true,
+      episodeEnd.map({ $0 >= 0 }) ?? true,
+      episodeEnd == nil || episodeStart != nil,
+      episodeEnd.map({ $0 >= (episodeStart ?? 0) }) ?? true,
+      confidence.isFinite, (0...1).contains(confidence), parserVersion > 0
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "filename parse record is invalid")
+    }
+    self.mediaKind = mediaKind
+    self.cleanTitle = cleanTitle
+    self.sortTitle = sortTitle
+    self.hintYear = hintYear
+    self.seasonNumber = seasonNumber
+    self.episodeStart = episodeStart
+    self.episodeEnd = episodeEnd
+    self.edition = edition
+    self.releaseGroup = releaseGroup
+    self.languageHint = languageHint
+    self.providerHintsJSON = providerHintsJSON
+    self.rawTokensJSON = rawTokensJSON
+    self.confidence = confidence
+    self.parserVersion = parserVersion
+  }
+}
+
+/// One sidecar row to associate with a scanned media file.
+package struct LibrarySidecarRecord: Equatable, Sendable {
+  public let kind: String
+  public let relativePath: String
+  public let language: String
+  public let isForced: Bool
+  public let modifiedAtMilliseconds: Int64?
+  public let sha256: String?
+  public let parsedJSON: String?
+
+  public init(
+    kind: String,
+    relativePath: String,
+    language: String = "und",
+    isForced: Bool = false,
+    modifiedAtMilliseconds: Int64? = nil,
+    sha256: String? = nil,
+    parsedJSON: String? = nil
+  ) throws {
+    let kinds = [
+      "nfo", "metadata_json", "poster", "backdrop", "logo", "subtitle", "chapters", "other",
+    ]
+    let sha256Pattern = #"^[0-9a-f]{64}$"#
+    guard kinds.contains(kind), !relativePath.isEmpty, !relativePath.contains("\0"),
+      !language.isEmpty, !language.contains("\0"),
+      sha256.map({ $0.range(of: sha256Pattern, options: .regularExpression) != nil }) ?? true,
+      parsedJSON?.contains("\0") != true
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "sidecar record is invalid")
+    }
+    self.kind = kind
+    self.relativePath = relativePath
+    self.language = language
+    self.isForced = isForced
+    self.modifiedAtMilliseconds = modifiedAtMilliseconds
+    self.sha256 = sha256
+    self.parsedJSON = parsedJSON
+  }
+}
+
+/// The storage projection of one successful technical probe.
+package struct LibraryTechnicalProbeRecord: Equatable, Sendable {
+  public let summary: LibraryTechnicalSummaryRecord
+  public let streams: [LibraryTechnicalStreamRecord]
+  public let probeProvider: String
+  public let probeVersion: Int
+
+  public init(
+    summary: LibraryTechnicalSummaryRecord,
+    streams: [LibraryTechnicalStreamRecord],
+    probeProvider: String,
+    probeVersion: Int
+  ) throws {
+    guard !probeProvider.isEmpty, !probeProvider.contains("\0"), probeVersion > 0,
+      Set(streams.map(\.streamIndex)).count == streams.count
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "technical probe record is invalid")
+    }
+    self.summary = summary
+    self.streams = streams.sorted { $0.streamIndex < $1.streamIndex }
+    self.probeProvider = probeProvider
+    self.probeVersion = probeVersion
+  }
+}
+
+/// Compact technical columns stored for one media file.
+package struct LibraryTechnicalSummaryRecord: Equatable, Sendable {
+  public let container: String?
+  public let durationMilliseconds: Int64?
+  public let overallBitrate: Int64?
+  public let videoCodec: String?
+  public let width: Int?
+  public let height: Int?
+  public let frameRate: Double?
+  public let hdrProfile: String?
+  public let audioCodec: String?
+  public let audioChannels: Double?
+  public let hasEmbeddedCover: Bool
+
+  public init(
+    container: String? = nil,
+    durationMilliseconds: Int64? = nil,
+    overallBitrate: Int64? = nil,
+    videoCodec: String? = nil,
+    width: Int? = nil,
+    height: Int? = nil,
+    frameRate: Double? = nil,
+    hdrProfile: String? = nil,
+    audioCodec: String? = nil,
+    audioChannels: Double? = nil,
+    hasEmbeddedCover: Bool = false
+  ) {
+    self.container = container
+    self.durationMilliseconds = durationMilliseconds
+    self.overallBitrate = overallBitrate
+    self.videoCodec = videoCodec
+    self.width = width
+    self.height = height
+    self.frameRate = frameRate
+    self.hdrProfile = hdrProfile
+    self.audioCodec = audioCodec
+    self.audioChannels = audioChannels
+    self.hasEmbeddedCover = hasEmbeddedCover
+  }
+}
+
+/// Technical columns stored for one media stream.
+package struct LibraryTechnicalStreamRecord: Equatable, Sendable {
+  public let streamIndex: Int
+  public let kind: String
+  public let codec: String?
+  public let language: String
+  public let title: String?
+  public let bitrate: Int64?
+  public let width: Int?
+  public let height: Int?
+  public let frameRate: Double?
+  public let hdrProfile: String?
+  public let channelCount: Double?
+  public let channelLayout: String?
+  public let sampleRate: Int?
+  public let isDefault: Bool
+  public let isForced: Bool
+
+  public init(
+    streamIndex: Int,
+    kind: String,
+    codec: String? = nil,
+    language: String = "und",
+    title: String? = nil,
+    bitrate: Int64? = nil,
+    width: Int? = nil,
+    height: Int? = nil,
+    frameRate: Double? = nil,
+    hdrProfile: String? = nil,
+    channelCount: Double? = nil,
+    channelLayout: String? = nil,
+    sampleRate: Int? = nil,
+    isDefault: Bool = false,
+    isForced: Bool = false
+  ) throws {
+    let kinds = ["video", "audio", "subtitle", "attachment"]
+    guard streamIndex >= 0, kinds.contains(kind), !language.isEmpty, !language.contains("\0") else {
+      throw SDKError(code: .invalidConfiguration, message: "technical stream record is invalid")
+    }
+    self.streamIndex = streamIndex
+    self.kind = kind
+    self.codec = codec
+    self.language = language
+    self.title = title
+    self.bitrate = bitrate
+    self.width = width
+    self.height = height
+    self.frameRate = frameRate
+    self.hdrProfile = hdrProfile
+    self.channelCount = channelCount
+    self.channelLayout = channelLayout
+    self.sampleRate = sampleRate
+    self.isDefault = isDefault
+    self.isForced = isForced
+  }
+}
+
+/// A complete local-metadata transaction for one scanned media file.
+package struct LibraryMetadataIntakeBatch: Sendable {
+  public let sourceUID: String
+  public let mediaRelativePath: String
+  public let parseResult: LibraryFilenameParseRecord
+  public let sidecars: [LibrarySidecarRecord]
+  public let technicalProbe: LibraryTechnicalProbeRecord?
+
+  public init(
+    sourceUID: String,
+    mediaRelativePath: String,
+    parseResult: LibraryFilenameParseRecord,
+    sidecars: [LibrarySidecarRecord],
+    technicalProbe: LibraryTechnicalProbeRecord? = nil
+  ) throws {
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0"), !mediaRelativePath.isEmpty,
+      !mediaRelativePath.contains("\0"), Set(sidecars.map(\.relativePath)).count == sidecars.count
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "metadata intake batch is invalid")
+    }
+    self.sourceUID = sourceUID
+    self.mediaRelativePath = mediaRelativePath
+    self.parseResult = parseResult
+    self.sidecars = sidecars.sorted { $0.relativePath < $1.relativePath }
+    self.technicalProbe = technicalProbe
+  }
+}
+
+/// A deterministic read-back projection for metadata intake verification.
+package struct LibraryMetadataIntakeSnapshot: Equatable, Sendable {
+  public let parseResult: LibraryFilenameParseRecord
+  public let sidecars: [LibrarySidecarRecord]
+  public let technicalProbe: LibraryTechnicalProbeRecord?
+}
+
 /// Scanner-oriented repository over a migrated `library.sqlite` database.
 public struct LibraryStore: Sendable {
   public let database: StorageDatabase
-  private let clock: any SDKClock
-  private let uuidGenerator: any SDKUUIDGenerating
+  package let clock: any SDKClock
+  package let uuidGenerator: any SDKUUIDGenerating
 
   public init(
     database: StorageDatabase,
@@ -354,6 +617,305 @@ public struct LibraryStore: Sendable {
     } catch {
       throw SDKError(code: .storageFailure, message: "library snapshot read failed")
     }
+  }
+
+  /// Atomically replaces filename, sidecar, and any newly successful probe results.
+  package func commitMetadataIntake(_ batch: LibraryMetadataIntakeBatch) async throws {
+    let now = clock.nowMilliseconds()
+    let generatedUIDs = batch.sidecars.map { _ in uuidGenerator.makeUUID().uuidString.lowercased() }
+    do {
+      try await database.write { database in
+        guard
+          let mediaFileID = try Int64.fetchOne(
+            database,
+            sql: """
+              SELECT f.id
+              FROM media_file f
+              JOIN library_source s ON s.id = f.source_id
+              WHERE s.uid = ? AND f.relative_path = ? AND f.deleted_at_ms IS NULL
+              """,
+            arguments: [batch.sourceUID, batch.mediaRelativePath]
+          )
+        else {
+          throw SDKError(code: .metadataNotFound, message: "scanned media file was not found")
+        }
+
+        let parse = batch.parseResult
+        try database.execute(
+          sql: """
+            INSERT INTO parse_result(
+              media_file_id, media_kind, clean_title, sort_title, hint_year, season_number,
+              episode_start, episode_end, edition, release_group, language_hint,
+              provider_hints_json, raw_tokens_json, confidence, parser_version, updated_at_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(media_file_id) DO UPDATE SET
+              media_kind = excluded.media_kind,
+              clean_title = excluded.clean_title,
+              sort_title = excluded.sort_title,
+              hint_year = excluded.hint_year,
+              season_number = excluded.season_number,
+              episode_start = excluded.episode_start,
+              episode_end = excluded.episode_end,
+              edition = excluded.edition,
+              release_group = excluded.release_group,
+              language_hint = excluded.language_hint,
+              provider_hints_json = excluded.provider_hints_json,
+              raw_tokens_json = excluded.raw_tokens_json,
+              confidence = excluded.confidence,
+              parser_version = excluded.parser_version,
+              updated_at_ms = excluded.updated_at_ms
+            """,
+          arguments: [
+            mediaFileID, parse.mediaKind, parse.cleanTitle, parse.sortTitle, parse.hintYear,
+            parse.seasonNumber, parse.episodeStart, parse.episodeEnd, parse.edition,
+            parse.releaseGroup, parse.languageHint, parse.providerHintsJSON, parse.rawTokensJSON,
+            parse.confidence, parse.parserVersion, now,
+          ]
+        )
+
+        if batch.sidecars.isEmpty {
+          try database.execute(
+            sql: "DELETE FROM sidecar WHERE media_file_id = ?",
+            arguments: [mediaFileID]
+          )
+        } else {
+          let retainedPaths = Set(batch.sidecars.map(\.relativePath))
+          let existingPaths = try String.fetchAll(
+            database,
+            sql: "SELECT relative_path FROM sidecar WHERE media_file_id = ?",
+            arguments: [mediaFileID]
+          )
+          for path in existingPaths where !retainedPaths.contains(path) {
+            try database.execute(
+              sql: "DELETE FROM sidecar WHERE media_file_id = ? AND relative_path = ?",
+              arguments: [mediaFileID, path]
+            )
+          }
+          for (sidecar, generatedUID) in zip(batch.sidecars, generatedUIDs) {
+            try database.execute(
+              sql: """
+                INSERT INTO sidecar(
+                  uid, media_file_id, kind, relative_path, language, forced,
+                  modified_at_ms, sha256, parsed_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(media_file_id, relative_path) DO UPDATE SET
+                  kind = excluded.kind,
+                  language = excluded.language,
+                  forced = excluded.forced,
+                  modified_at_ms = excluded.modified_at_ms,
+                  sha256 = excluded.sha256,
+                  parsed_json = excluded.parsed_json
+                """,
+              arguments: [
+                generatedUID, mediaFileID, sidecar.kind, sidecar.relativePath, sidecar.language,
+                sidecar.isForced ? 1 : 0, sidecar.modifiedAtMilliseconds, sidecar.sha256,
+                sidecar.parsedJSON,
+              ]
+            )
+          }
+        }
+
+        if let probe = batch.technicalProbe {
+          let summary = probe.summary
+          try database.execute(
+            sql: """
+              INSERT INTO technical_summary(
+                media_file_id, container, duration_ms, overall_bitrate, video_codec,
+                width, height, frame_rate, hdr_profile, audio_codec, audio_channels,
+                embedded_cover, probe_provider, probe_version, probed_at_ms
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(media_file_id) DO UPDATE SET
+                container = excluded.container,
+                duration_ms = excluded.duration_ms,
+                overall_bitrate = excluded.overall_bitrate,
+                video_codec = excluded.video_codec,
+                width = excluded.width,
+                height = excluded.height,
+                frame_rate = excluded.frame_rate,
+                hdr_profile = excluded.hdr_profile,
+                audio_codec = excluded.audio_codec,
+                audio_channels = excluded.audio_channels,
+                embedded_cover = excluded.embedded_cover,
+                probe_provider = excluded.probe_provider,
+                probe_version = excluded.probe_version,
+                probed_at_ms = excluded.probed_at_ms
+              """,
+            arguments: [
+              mediaFileID, summary.container, summary.durationMilliseconds, summary.overallBitrate,
+              summary.videoCodec, summary.width, summary.height, summary.frameRate,
+              summary.hdrProfile, summary.audioCodec, summary.audioChannels,
+              summary.hasEmbeddedCover ? 1 : 0, probe.probeProvider, probe.probeVersion, now,
+            ]
+          )
+          try database.execute(
+            sql: "DELETE FROM media_stream WHERE media_file_id = ?",
+            arguments: [mediaFileID]
+          )
+          for stream in probe.streams {
+            try database.execute(
+              sql: """
+                INSERT INTO media_stream(
+                  media_file_id, stream_index, kind, codec, language, title, bit_rate,
+                  width, height, frame_rate, hdr_profile, channel_count, channel_layout,
+                  sample_rate, is_default, is_forced
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+              arguments: [
+                mediaFileID, stream.streamIndex, stream.kind, stream.codec, stream.language,
+                stream.title, stream.bitrate, stream.width, stream.height, stream.frameRate,
+                stream.hdrProfile, stream.channelCount, stream.channelLayout, stream.sampleRate,
+                stream.isDefault ? 1 : 0, stream.isForced ? 1 : 0,
+              ]
+            )
+          }
+        }
+
+        try database.execute(
+          sql: """
+            UPDATE media_file SET
+              parser_version = ?,
+              probe_version = CASE WHEN ? IS NULL THEN probe_version ELSE ? END,
+              updated_at_ms = ?
+            WHERE id = ?
+            """,
+          arguments: [
+            parse.parserVersion, batch.technicalProbe?.probeVersion,
+            batch.technicalProbe?.probeVersion, now, mediaFileID,
+          ]
+        )
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "metadata intake transaction failed")
+    }
+  }
+
+  /// Reads normalized local metadata for one scanned media file.
+  package func metadataIntakeSnapshot(
+    sourceUID: String,
+    mediaRelativePath: String
+  ) async throws -> LibraryMetadataIntakeSnapshot? {
+    do {
+      return try await database.read { database in
+        guard
+          let file = try Row.fetchOne(
+            database,
+            sql: """
+              SELECT f.id
+              FROM media_file f
+              JOIN library_source s ON s.id = f.source_id
+              WHERE s.uid = ? AND f.relative_path = ? AND f.deleted_at_ms IS NULL
+              """,
+            arguments: [sourceUID, mediaRelativePath]
+          )
+        else { return nil }
+        let mediaFileID: Int64 = file["id"]
+        guard
+          let parseRow = try Row.fetchOne(
+            database,
+            sql: "SELECT * FROM parse_result WHERE media_file_id = ?",
+            arguments: [mediaFileID]
+          )
+        else { return nil }
+        let parse = try LibraryFilenameParseRecord(
+          mediaKind: parseRow["media_kind"],
+          cleanTitle: parseRow["clean_title"],
+          sortTitle: parseRow["sort_title"],
+          hintYear: parseRow["hint_year"],
+          seasonNumber: parseRow["season_number"],
+          episodeStart: parseRow["episode_start"],
+          episodeEnd: parseRow["episode_end"],
+          edition: parseRow["edition"],
+          releaseGroup: parseRow["release_group"],
+          languageHint: parseRow["language_hint"],
+          providerHintsJSON: parseRow["provider_hints_json"],
+          rawTokensJSON: parseRow["raw_tokens_json"],
+          confidence: parseRow["confidence"],
+          parserVersion: parseRow["parser_version"]
+        )
+        let sidecars = try Row.fetchAll(
+          database,
+          sql: "SELECT * FROM sidecar WHERE media_file_id = ? ORDER BY relative_path",
+          arguments: [mediaFileID]
+        ).map { row in
+          try LibrarySidecarRecord(
+            kind: row["kind"],
+            relativePath: row["relative_path"],
+            language: row["language"],
+            isForced: (row["forced"] as Int) == 1,
+            modifiedAtMilliseconds: row["modified_at_ms"],
+            sha256: row["sha256"],
+            parsedJSON: row["parsed_json"]
+          )
+        }
+        let technical = try Self.readTechnicalProbe(mediaFileID: mediaFileID, database: database)
+        return LibraryMetadataIntakeSnapshot(
+          parseResult: parse,
+          sidecars: sidecars,
+          technicalProbe: technical
+        )
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "metadata intake read failed")
+    }
+  }
+
+  private static func readTechnicalProbe(
+    mediaFileID: Int64,
+    database: Database
+  ) throws -> LibraryTechnicalProbeRecord? {
+    guard
+      let row = try Row.fetchOne(
+        database,
+        sql: "SELECT * FROM technical_summary WHERE media_file_id = ?",
+        arguments: [mediaFileID]
+      )
+    else { return nil }
+    let summary = LibraryTechnicalSummaryRecord(
+      container: row["container"],
+      durationMilliseconds: row["duration_ms"],
+      overallBitrate: row["overall_bitrate"],
+      videoCodec: row["video_codec"],
+      width: row["width"],
+      height: row["height"],
+      frameRate: row["frame_rate"],
+      hdrProfile: row["hdr_profile"],
+      audioCodec: row["audio_codec"],
+      audioChannels: row["audio_channels"],
+      hasEmbeddedCover: (row["embedded_cover"] as Int) == 1
+    )
+    let streams = try Row.fetchAll(
+      database,
+      sql: "SELECT * FROM media_stream WHERE media_file_id = ? ORDER BY stream_index",
+      arguments: [mediaFileID]
+    ).map { stream in
+      try LibraryTechnicalStreamRecord(
+        streamIndex: stream["stream_index"],
+        kind: stream["kind"],
+        codec: stream["codec"],
+        language: stream["language"],
+        title: stream["title"],
+        bitrate: stream["bit_rate"],
+        width: stream["width"],
+        height: stream["height"],
+        frameRate: stream["frame_rate"],
+        hdrProfile: stream["hdr_profile"],
+        channelCount: stream["channel_count"],
+        channelLayout: stream["channel_layout"],
+        sampleRate: stream["sample_rate"],
+        isDefault: (stream["is_default"] as Int) == 1,
+        isForced: (stream["is_forced"] as Int) == 1
+      )
+    }
+    return try LibraryTechnicalProbeRecord(
+      summary: summary,
+      streams: streams,
+      probeProvider: row["probe_provider"],
+      probeVersion: row["probe_version"]
+    )
   }
 
   private static func upsert(

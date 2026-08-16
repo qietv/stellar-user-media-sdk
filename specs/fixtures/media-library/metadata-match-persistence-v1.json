@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "source_uid": "match-source",
+  "files": {
+    "first_version": "Movies/Blade Runner/Blade.Runner.1982.1080p.mkv",
+    "second_version": "Movies/Blade Runner/Blade.Runner.1982.2160p.mkv",
+    "review": "Movies/Spirited Away/Spirited.Away.2001.mkv",
+    "episode": "Shows/Wednesday/Season 01/Wednesday.S01E01.mkv"
+  },
+  "review_lock_case": {
+    "query": {
+      "kind": "movie",
+      "title": "Spirited Away",
+      "year": 2001,
+      "external_ids": []
+    },
+    "review_candidate": {
+      "provider": "tmdb",
+      "candidate_id": "129",
+      "kind": "movie",
+      "title": "Sen to Chihiro no Kamikakushi",
+      "aliases": ["Spirited Away"],
+      "year": 2001,
+      "available_episodes": [],
+      "external_ids": [],
+      "popularity": 0
+    },
+    "replacement_candidate": {
+      "provider": "tmdb",
+      "candidate_id": "999",
+      "kind": "movie",
+      "title": "Spirited Away",
+      "aliases": [],
+      "year": 2001,
+      "available_episodes": [],
+      "external_ids": [],
+      "popularity": 0
+    },
+    "review_state": "review_required",
+    "review_score": 0.8,
+    "confirmed_role": "primary",
+    "confirmed_method": "manual",
+    "preserved_state": "locked_binding_preserved"
+  },
+  "multiple_versions_case": {
+    "query": {
+      "kind": "movie",
+      "title": "Blade Runner",
+      "year": 1982,
+      "external_ids": []
+    },
+    "candidate": {
+      "provider": "tmdb",
+      "candidate_id": "78",
+      "kind": "movie",
+      "title": "Blade Runner",
+      "aliases": [],
+      "year": 1982,
+      "available_episodes": [],
+      "external_ids": [],
+      "popularity": 0
+    },
+    "state": "automatic_bound",
+    "first_role": "primary",
+    "second_role": "version"
+  },
+  "episode_case": {
+    "query": {
+      "kind": "episode",
+      "title": "Wednesday",
+      "season": 1,
+      "episode": 1,
+      "external_ids": []
+    },
+    "candidate": {
+      "provider": "tmdb",
+      "candidate_id": "119051",
+      "kind": "series",
+      "title": "Wednesday",
+      "aliases": [],
+      "available_episodes": [
+        {
+          "season": 1,
+          "episode": 1
+        }
+      ],
+      "external_ids": [],
+      "popularity": 0
+    },
+    "state": "automatic_bound",
+    "entity_kind": "episode",
+    "canonical_title": "Episode 1"
+  }
+}

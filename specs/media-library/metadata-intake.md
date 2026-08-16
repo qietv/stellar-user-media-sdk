@@ -2,6 +2,10 @@
 
 本合同固定文件名解析之后、在线 provider 匹配之前的本地摄取边界。三端可以使用不同的 XML、容器和字幕实现，但必须对公共 fixture 产生相同的规范结果。
 
+## 文件名证据
+
+文件名 parser 除规范化媒体类型、标题、年份与季集号外，还要保留可解释证据：原始 token、已识别的画质/来源/编码噪声 token、release group、语言提示和文件名内显式 provider ID。噪声识别不能改变原始 token；后续匹配使用规范化字段，同时可用这些证据解释候选查询和评分。parser 版本随结果持久化。
+
 ## Sidecar 关联
 
 sidecar 只按同目录媒体文件关联，不递归继承。候选路径必须是规范化的来源相对路径，包含 NUL、`.` 或 `..` 路径段的输入必须拒绝。
@@ -33,6 +37,14 @@ v1 读取 Kodi 风格的 `movie`、`tvshow`、`season` 和 `episodedetails` 根�
 - 读取 poster/backdrop/logo 等图片位置，但不在解析阶段发起网络请求或打开本地文件。
 
 NFO 是候选证据，不得覆盖用户锁定字段。未知根元素、畸形 XML、DOCTYPE、超限输入或没有可用字段的文档返回 `parse_failure`。
+
+## 本地 JSON
+
+同名 `.json`、`movie.json`、`tvshow.json` 与 `season.json` 使用 `LocalMetadataDocument` 的 JSON 形式，并与 NFO 产生相同的规范字段。本地 JSON 同样限制为 2 MiB；未知字段忽略以支持前向兼容，畸形、超限或没有标题、external ID、artwork 中任何可用证据的文档返回 `parse_failure`。
+
+## SQLite 原子边界
+
+一次文件摄取事务必须共同写入 filename `parse_result`、该文件的完整 sidecar 集及本次成功的 `technical_summary`/`media_stream`。sidecar 的规范化 NFO/JSON 内容写入 `parsed_json`。probe 在事务外执行；没有新的成功 probe 时不得删除或覆盖上一次成功结果。任何一行写入失败时，本次 filename、sidecar 与 probe 变化必须全部回滚。
 
 ## 技术探测边界
 

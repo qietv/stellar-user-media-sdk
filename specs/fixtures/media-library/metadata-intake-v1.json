@@ -1,5 +1,43 @@
 {
   "schema_version": 1,
+  "filename_evidence_cases": [
+    {
+      "input": "Movie.Title.2024.2160p.WEB-DL.x265.DV.en-US.{tmdb-12345}-GROUP.mkv",
+      "expected": {
+        "parser_version": 2,
+        "parsed": {
+          "kind": "movie",
+          "title": "Movie Title",
+          "year": 2024,
+          "source_name": "Movie.Title.2024.2160p.WEB-DL.x265.DV.en-US.{tmdb-12345}-GROUP.mkv"
+        },
+        "evidence": {
+          "raw_tokens": [
+            "Movie",
+            "Title",
+            "2024",
+            "2160p",
+            "WEB-DL",
+            "x265",
+            "DV",
+            "en-US",
+            "tmdb-12345",
+            "GROUP"
+          ],
+          "noise_tokens": ["2160p", "WEB-DL", "x265", "DV"],
+          "release_group": "GROUP",
+          "language_hint": "en-US",
+          "provider_hints": [
+            {
+              "provider": "tmdb",
+              "value": "12345"
+            }
+          ],
+          "confidence": 0.85
+        }
+      }
+    }
+  ],
   "sidecar_cases": [
     {
       "media_path": "Movies/Blade Runner (1982)/Blade Runner (1982).mkv",
@@ -128,6 +166,34 @@
           }
         ],
         "artwork": []
+      }
+    }
+  ],
+  "local_json_cases": [
+    {
+      "name": "movie_with_forward_compatible_field",
+      "json": "{\"kind\":\"movie\",\"title\":\"Arrival\",\"original_title\":\"Arrival\",\"year\":2016,\"overview\":\"A linguist meets visitors.\",\"runtime_ms\":6960000,\"external_ids\":[{\"provider\":\"tmdb\",\"namespace\":\"movie\",\"value\":\"329865\",\"is_primary\":true}],\"artwork\":[{\"kind\":\"poster\",\"location\":\"poster.jpg\"}],\"future_field\":true}",
+      "expected": {
+        "kind": "movie",
+        "title": "Arrival",
+        "original_title": "Arrival",
+        "year": 2016,
+        "overview": "A linguist meets visitors.",
+        "runtime_ms": 6960000,
+        "external_ids": [
+          {
+            "provider": "tmdb",
+            "namespace": "movie",
+            "value": "329865",
+            "is_primary": true
+          }
+        ],
+        "artwork": [
+          {
+            "kind": "poster",
+            "location": "poster.jpg"
+          }
+        ]
       }
     }
   ],

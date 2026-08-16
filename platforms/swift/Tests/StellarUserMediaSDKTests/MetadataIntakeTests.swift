@@ -9,9 +9,15 @@ struct MetadataIntakeTests {
   func matchesSharedFixture() throws {
     let fixture = try loadFixture()
     let classifier = MediaSidecarClassifier()
-    let parser = NFOParser()
+    let filenameParser = MediaFilenameParser()
+    let nfoParser = NFOParser()
+    let jsonParser = LocalMetadataJSONParser()
 
     #expect(fixture.schemaVersion == 1)
+    for testCase in fixture.filenameEvidenceCases {
+      let actual = try filenameParser.analyze(testCase.input)
+      #expect(actual == testCase.expected, "Filename: \(testCase.input)")
+    }
     for testCase in fixture.sidecarCases {
       let actual = try classifier.classify(
         mediaPath: testCase.mediaPath,
@@ -20,8 +26,12 @@ struct MetadataIntakeTests {
       #expect(actual == testCase.expected, "Sidecar: \(testCase.candidatePath)")
     }
     for testCase in fixture.nfoCases {
-      let actual = try parser.parse(Data(testCase.xml.utf8))
+      let actual = try nfoParser.parse(Data(testCase.xml.utf8))
       #expect(actual == testCase.expected, "NFO: \(testCase.name)")
+    }
+    for testCase in fixture.localJSONCases {
+      let actual = try jsonParser.parse(Data(testCase.json.utf8))
+      #expect(actual == testCase.expected, "Local JSON: \(testCase.name)")
     }
   }
 
@@ -52,6 +62,21 @@ struct MetadataIntakeTests {
     }
     #expect(throws: SDKError.self) {
       try parser.parse(Data("<movie><title>Broken</movie>".utf8))
+    }
+    #expect(throws: SDKError.self) {
+      try parser.parse(Data(repeating: 0x20, count: 65))
+    }
+  }
+
+  @Test("Local JSON parser rejects empty, malformed, and oversized documents")
+  func rejectsInvalidLocalJSON() {
+    let parser = LocalMetadataJSONParser(maximumDocumentBytes: 64)
+
+    #expect(throws: SDKError.self) {
+      try parser.parse(Data(#"{"kind":"movie","external_ids":[],"artwork":[]}"#.utf8))
+    }
+    #expect(throws: SDKError.self) {
+      try parser.parse(Data(#"{"kind":"movie""#.utf8))
     }
     #expect(throws: SDKError.self) {
       try parser.parse(Data(repeating: 0x20, count: 65))
@@ -104,16 +129,25 @@ struct MetadataIntakeTests {
 
 private struct MetadataIntakeFixture: Decodable {
   let schemaVersion: Int
+  let filenameEvidenceCases: [FilenameEvidenceFixtureCase]
   let sidecarCases: [SidecarFixtureCase]
   let nfoCases: [NFOFixtureCase]
+  let localJSONCases: [LocalJSONFixtureCase]
   let technicalProbe: MediaTechnicalProbeResult
 
   private enum CodingKeys: String, CodingKey {
     case schemaVersion = "schema_version"
+    case filenameEvidenceCases = "filename_evidence_cases"
     case sidecarCases = "sidecar_cases"
     case nfoCases = "nfo_cases"
+    case localJSONCases = "local_json_cases"
     case technicalProbe = "technical_probe"
   }
+}
+
+private struct FilenameEvidenceFixtureCase: Decodable {
+  let input: String
+  let expected: MediaFilenameAnalysis
 }
 
 private struct SidecarFixtureCase: Decodable {
@@ -131,5 +165,11 @@ private struct SidecarFixtureCase: Decodable {
 private struct NFOFixtureCase: Decodable {
   let name: String
   let xml: String
+  let expected: LocalMetadataDocument
+}
+
+private struct LocalJSONFixtureCase: Decodable {
+  let name: String
+  let json: String
   let expected: LocalMetadataDocument
 }

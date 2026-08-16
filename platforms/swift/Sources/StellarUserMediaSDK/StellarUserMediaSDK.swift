@@ -143,6 +143,12 @@ public typealias SQLiteMediaScanSink = StellarMediaLibrary.SQLiteMediaScanSink
 public typealias ParsedMediaKind = StellarMediaLibrary.ParsedMediaKind
 /// Compatibility alias for a normalized filename parse result.
 public typealias ParsedMediaFilename = StellarMediaLibrary.ParsedMediaFilename
+/// Compatibility alias for a provider ID embedded in a filename.
+public typealias FilenameProviderHint = StellarMediaLibrary.FilenameProviderHint
+/// Compatibility alias for explainable filename matching evidence.
+public typealias MediaFilenameEvidence = StellarMediaLibrary.MediaFilenameEvidence
+/// Compatibility alias for a parsed filename and its matching evidence.
+public typealias MediaFilenameAnalysis = StellarMediaLibrary.MediaFilenameAnalysis
 /// Compatibility alias for the deterministic filename parser.
 public typealias MediaFilenameParser = StellarMediaLibrary.MediaFilenameParser
 /// Compatibility alias for a classified media sidecar kind.
@@ -161,6 +167,14 @@ public typealias LocalMetadataArtwork = StellarMediaLibrary.LocalMetadataArtwork
 public typealias LocalMetadataDocument = StellarMediaLibrary.LocalMetadataDocument
 /// Compatibility alias for the bounded NFO parser.
 public typealias NFOParser = StellarMediaLibrary.NFOParser
+/// Compatibility alias for the bounded local JSON metadata parser.
+public typealias LocalMetadataJSONParser = StellarMediaLibrary.LocalMetadataJSONParser
+/// Compatibility alias for one classified and parsed sidecar.
+public typealias MediaSidecarIntake = StellarMediaLibrary.MediaSidecarIntake
+/// Compatibility alias for one file's complete local metadata intake.
+public typealias MediaMetadataIntakeBatch = StellarMediaLibrary.MediaMetadataIntakeBatch
+/// Compatibility alias for atomic SQLite local-metadata persistence.
+public typealias SQLiteMediaMetadataStore = StellarMediaLibrary.SQLiteMediaMetadataStore
 /// Compatibility alias for a source-independent technical probe request.
 public typealias MediaTechnicalProbeRequest = StellarMediaLibrary.MediaTechnicalProbeRequest
 /// Compatibility alias for the compact technical media summary.
@@ -193,6 +207,18 @@ public typealias ScoredMediaMetadataCandidate = StellarMediaLibrary.ScoredMediaM
 public typealias MediaMatchScoringPolicy = StellarMediaLibrary.MediaMatchScoringPolicy
 /// Compatibility alias for the deterministic metadata candidate scorer.
 public typealias MediaMetadataCandidateScorer = StellarMediaLibrary.MediaMetadataCandidateScorer
+/// Compatibility alias for a file's role in a logical media entity.
+public typealias MediaMatchBindingRole = StellarMediaLibrary.MediaMatchBindingRole
+/// Compatibility alias for the evidence source behind a persisted match.
+public typealias MediaMatchMethod = StellarMediaLibrary.MediaMatchMethod
+/// Compatibility alias for a stable file-to-entity binding projection.
+public typealias MediaFileMatchBinding = StellarMediaLibrary.MediaFileMatchBinding
+/// Compatibility alias for a persisted metadata match state transition.
+public typealias MediaMatchPersistenceState = StellarMediaLibrary.MediaMatchPersistenceState
+/// Compatibility alias for a persisted metadata match result.
+public typealias MediaMatchPersistenceResult = StellarMediaLibrary.MediaMatchPersistenceResult
+/// Compatibility alias for SQLite-backed matching, review, and binding persistence.
+public typealias SQLiteMediaMatcher = StellarMediaLibrary.SQLiteMediaMatcher
 /// Compatibility alias for a versioned local database kind.
 public typealias StorageDatabaseKind = StellarStorage.StorageDatabaseKind
 /// Compatibility alias for an opened and migrated SQLite database.
@@ -201,6 +227,8 @@ public typealias StorageDatabase = StellarStorage.StorageDatabase
 public typealias StorageVerificationReport = StellarStorage.StorageVerificationReport
 /// Compatibility alias for the encrypted credential and account outbox repository.
 public typealias AccountStore = StellarStorage.AccountStore
+/// Compatibility alias for the disposable provider and matching cache repository.
+public typealias MetadataCacheStore = StellarStorage.MetadataCacheStore
 /// Compatibility alias for non-secret account outbox metadata.
 public typealias AccountOutboxRecord = StellarStorage.AccountOutboxRecord
 /// Compatibility alias for media-source kinds stored in library.sqlite.
