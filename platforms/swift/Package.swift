@@ -5,6 +5,7 @@ import PackageDescription
 var cliDependencies: [Target.Dependency] = ["StellarUserMediaSDK"]
 var testDependencies: [Target.Dependency] = [
   "StellarCore",
+  "StellarAuth",
   "StellarRemoteMedia",
   "StellarLocalMedia",
   "StellarWebDAV",
@@ -25,6 +26,10 @@ var testDependencies: [Target.Dependency] = [
 var packageTargets: [Target] = [
   .target(
     name: "StellarCore"
+  ),
+  .target(
+    name: "StellarAuth",
+    dependencies: ["StellarCore"]
   ),
   .target(
     name: "StellarRemoteMedia",
@@ -65,7 +70,8 @@ var packageTargets: [Target] = [
   .target(
     name: "StellarUserMediaSDK",
     dependencies: [
-      "StellarCore", "StellarRemoteMedia", "StellarLocalMedia", "StellarMediaLibrary",
+      "StellarCore", "StellarAuth", "StellarRemoteMedia", "StellarLocalMedia",
+      "StellarMediaLibrary",
       "StellarPosterWall", "StellarStorage", "StellarWebDAV",
     ]
   ),

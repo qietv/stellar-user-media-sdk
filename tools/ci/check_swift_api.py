@@ -13,6 +13,7 @@ from typing import Any
 
 DEFAULT_MODULES = (
     "StellarCore",
+    "StellarAuth",
     "StellarRemoteMedia",
     "StellarLocalMedia",
     "StellarWebDAV",

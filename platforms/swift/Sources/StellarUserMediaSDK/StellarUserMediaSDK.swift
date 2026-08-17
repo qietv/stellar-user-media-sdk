@@ -1,3 +1,4 @@
+import StellarAuth
 import StellarCore
 import StellarLocalMedia
 import StellarMediaLibrary
@@ -54,6 +55,28 @@ public typealias RedactingSDKLogger = StellarCore.RedactingSDKLogger
 public typealias RetryPolicy = StellarCore.RetryPolicy
 /// Compatibility alias for retry execution.
 public typealias RetryExecutor = StellarCore.RetryExecutor
+/// Compatibility alias for observable OAuth session states.
+public typealias OAuthSessionState = StellarAuth.OAuthSessionState
+/// Compatibility alias for the non-secret Stellar account session.
+public typealias UserSession = StellarAuth.UserSession
+/// Compatibility alias for non-secret OAuth session events.
+public typealias OAuthSessionEvent = StellarAuth.OAuthSessionEvent
+/// Compatibility alias for a trusted Stellar OAuth deployment profile.
+public typealias StellarOAuthConfiguration = StellarAuth.StellarOAuthConfiguration
+/// Compatibility alias for device-bound OAuth token accessibility.
+public typealias OAuthTokenAccessibility = StellarAuth.OAuthTokenAccessibility
+/// Compatibility alias for a system-browser authorization presentation request.
+public typealias OAuthAuthorizationPresentationRequest =
+  StellarAuth.OAuthAuthorizationPresentationRequest
+/// Compatibility alias for the host-provided system-browser authorization boundary.
+public typealias OAuthAuthorizationPresenting = StellarAuth.OAuthAuthorizationPresenting
+/// Compatibility alias for a closure-backed system-browser authorization presenter.
+public typealias ClosureOAuthAuthorizationPresenter = StellarAuth.ClosureOAuthAuthorizationPresenter
+/// Compatibility alias for Apple system-browser OAuth presentation.
+public typealias AppleWebAuthenticationSessionPresenter =
+  StellarAuth.AppleWebAuthenticationSessionPresenter
+/// Compatibility alias for the actor-isolated Stellar OAuth coordinator.
+public typealias OAuthSessionManager = StellarAuth.OAuthSessionManager
 /// Compatibility alias for the synchronized credential category.
 public typealias CredentialKind = StellarRemoteMedia.CredentialKind
 /// Compatibility alias for credential payload protection metadata.

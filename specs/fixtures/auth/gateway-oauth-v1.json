@@ -1,0 +1,52 @@
+{
+  "authorization_callback": {
+    "code": "fixture-authorization-code",
+    "redirect_uri": "http://127.0.0.1:49152/oauth/callback"
+  },
+  "metadata": {
+    "authorization_endpoint": "https://dev-gateway.2dland.cn/oauth/authorize",
+    "code_challenge_methods_supported": [
+      "S256"
+    ],
+    "device_authorization_endpoint": "https://dev-gateway.2dland.cn/oauth/device_authorization",
+    "grant_types_supported": [
+      "authorization_code",
+      "refresh_token",
+      "urn:ietf:params:oauth:grant-type:device_code"
+    ],
+    "issuer": "https://dev-gateway.2dland.cn/",
+    "jwks_uri": "https://dev-gateway.2dland.cn/.well-known/jwks.json",
+    "response_modes_supported": [
+      "query"
+    ],
+    "response_types_supported": [
+      "code"
+    ],
+    "revocation_endpoint": "https://dev-gateway.2dland.cn/oauth/revoke",
+    "revocation_endpoint_auth_methods_supported": [
+      "none"
+    ],
+    "scopes_supported": [
+      "account.delete",
+      "profile.read",
+      "profile.update"
+    ],
+    "token_endpoint": "https://dev-gateway.2dland.cn/oauth/token",
+    "token_endpoint_auth_methods_supported": [
+      "none"
+    ]
+  },
+  "profile": {
+    "avatar_url": "https://cdn.example/avatar.png",
+    "nickname": "Fixture User",
+    "subject_id": "b878a24a-6c42-4ae6-95e3-40101c92402d"
+  },
+  "schema_version": 1,
+  "token": {
+    "access_token": "fixture-access-token",
+    "expires_in": 600,
+    "refresh_token": "fixture-refresh-token",
+    "scope": "profile.read",
+    "token_type": "Bearer"
+  }
+}

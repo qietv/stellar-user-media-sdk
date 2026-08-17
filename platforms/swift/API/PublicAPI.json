@@ -1,5 +1,635 @@
 {
   "modules": {
+    "StellarAuth": {
+      "symbols": [
+        {
+          "declaration": "struct StellarOAuthConfiguration",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV",
+          "kind": "swift.struct",
+          "path": [
+            "StellarOAuthConfiguration"
+          ]
+        },
+        {
+          "declaration": "let redirectURI: URL",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV11redirectURI10Foundation3URLVvp",
+          "kind": "swift.property",
+          "path": [
+            "StellarOAuthConfiguration",
+            "redirectURI"
+          ]
+        },
+        {
+          "declaration": "let profileEndpoint: URL",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV15profileEndpoint10Foundation3URLVvp",
+          "kind": "swift.property",
+          "path": [
+            "StellarOAuthConfiguration",
+            "profileEndpoint"
+          ]
+        },
+        {
+          "declaration": "static func developmentGatewayDesktop(redirectURI: URL, scopes: [String] = [\"profile.read\"]) throws -> StellarOAuthConfiguration",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV25developmentGatewayDesktop11redirectURI6scopesAC10Foundation3URLV_SaySSGtKFZ",
+          "kind": "swift.type.method",
+          "path": [
+            "StellarOAuthConfiguration",
+            "developmentGatewayDesktop(redirectURI:scopes:)"
+          ]
+        },
+        {
+          "declaration": "let refreshLeewayMilliseconds: Int64",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV25refreshLeewayMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "StellarOAuthConfiguration",
+            "refreshLeewayMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let issuer: URL",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV6issuer10Foundation3URLVvp",
+          "kind": "swift.property",
+          "path": [
+            "StellarOAuthConfiguration",
+            "issuer"
+          ]
+        },
+        {
+          "declaration": "init(issuer: URL, clientID: String, redirectURI: URL, scopes: [String], profileEndpoint: URL, refreshLeewayMilliseconds: Int64 = 120_000) throws",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV6issuer8clientID11redirectURI6scopes15profileEndpoint25refreshLeewayMillisecondsAC10Foundation3URLV_SSALSaySSGALs5Int64VtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "StellarOAuthConfiguration",
+            "init(issuer:clientID:redirectURI:scopes:profileEndpoint:refreshLeewayMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "let scopes: [String]",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV6scopesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "StellarOAuthConfiguration",
+            "scopes"
+          ]
+        },
+        {
+          "declaration": "let clientID: String",
+          "identifier": "s:11StellarAuth0A18OAuthConfigurationV8clientIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "StellarOAuthConfiguration",
+            "clientID"
+          ]
+        },
+        {
+          "declaration": "struct UserSession",
+          "identifier": "s:11StellarAuth11UserSessionV",
+          "kind": "swift.struct",
+          "path": [
+            "UserSession"
+          ]
+        },
+        {
+          "declaration": "init(accountUID: String, subject: String, issuer: String, displayName: String?, avatarURL: String?, scopes: [String], accessExpiresAtMilliseconds: Int64, profileRevision: String? = nil, schemaVersion: Int = 1) throws",
+          "identifier": "s:11StellarAuth11UserSessionV10accountUID7subject6issuer11displayName9avatarURL6scopes27accessExpiresAtMilliseconds15profileRevision13schemaVersionACSS_S3SSgAMSaySSGs5Int64VAMSitKcfc",
+          "kind": "swift.init",
+          "path": [
+            "UserSession",
+            "init(accountUID:subject:issuer:displayName:avatarURL:scopes:accessExpiresAtMilliseconds:profileRevision:schemaVersion:)"
+          ]
+        },
+        {
+          "declaration": "let accountUID: String",
+          "identifier": "s:11StellarAuth11UserSessionV10accountUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "accountUID"
+          ]
+        },
+        {
+          "declaration": "let displayName: String?",
+          "identifier": "s:11StellarAuth11UserSessionV11displayNameSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "displayName"
+          ]
+        },
+        {
+          "declaration": "let schemaVersion: Int",
+          "identifier": "s:11StellarAuth11UserSessionV13schemaVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "schemaVersion"
+          ]
+        },
+        {
+          "declaration": "let profileRevision: String?",
+          "identifier": "s:11StellarAuth11UserSessionV15profileRevisionSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "profileRevision"
+          ]
+        },
+        {
+          "declaration": "let accessExpiresAtMilliseconds: Int64",
+          "identifier": "s:11StellarAuth11UserSessionV27accessExpiresAtMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "accessExpiresAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:11StellarAuth11UserSessionV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "UserSession",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let issuer: String",
+          "identifier": "s:11StellarAuth11UserSessionV6issuerSSvp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "issuer"
+          ]
+        },
+        {
+          "declaration": "let scopes: [String]",
+          "identifier": "s:11StellarAuth11UserSessionV6scopesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "scopes"
+          ]
+        },
+        {
+          "declaration": "let subject: String",
+          "identifier": "s:11StellarAuth11UserSessionV7subjectSSvp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "subject"
+          ]
+        },
+        {
+          "declaration": "let avatarURL: String?",
+          "identifier": "s:11StellarAuth11UserSessionV9avatarURLSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "UserSession",
+            "avatarURL"
+          ]
+        },
+        {
+          "declaration": "struct OAuthSessionEvent",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV",
+          "kind": "swift.struct",
+          "path": [
+            "OAuthSessionEvent"
+          ]
+        },
+        {
+          "declaration": "let accountUID: String?",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV10accountUIDSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthSessionEvent",
+            "accountUID"
+          ]
+        },
+        {
+          "declaration": "let occurredAtMilliseconds: Int64",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV22occurredAtMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthSessionEvent",
+            "occurredAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "enum Kind",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4KindO",
+          "kind": "swift.enum",
+          "path": [
+            "OAuthSessionEvent",
+            "Kind"
+          ]
+        },
+        {
+          "declaration": "case profileChanged",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4KindO14profileChangedyA2EmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionEvent",
+            "Kind",
+            "profileChanged"
+          ]
+        },
+        {
+          "declaration": "case sessionStateChanged",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4KindO19sessionStateChangedyA2EmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionEvent",
+            "Kind",
+            "sessionStateChanged"
+          ]
+        },
+        {
+          "declaration": "case activeAccountChanged",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4KindO20activeAccountChangedyA2EmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionEvent",
+            "Kind",
+            "activeAccountChanged"
+          ]
+        },
+        {
+          "declaration": "case reauthenticationRequired",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4KindO24reauthenticationRequiredyA2EmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionEvent",
+            "Kind",
+            "reauthenticationRequired"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4KindO8rawValueAESgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "OAuthSessionEvent",
+            "Kind",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case signedOut",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4KindO9signedOutyA2EmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionEvent",
+            "Kind",
+            "signedOut"
+          ]
+        },
+        {
+          "declaration": "init(kind: OAuthSessionEvent.Kind, accountUID: String?, occurredAtMilliseconds: Int64, traceID: String) throws",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4kind10accountUID22occurredAtMilliseconds7traceIDA2C4KindO_SSSgs5Int64VSStKcfc",
+          "kind": "swift.init",
+          "path": [
+            "OAuthSessionEvent",
+            "init(kind:accountUID:occurredAtMilliseconds:traceID:)"
+          ]
+        },
+        {
+          "declaration": "let kind: OAuthSessionEvent.Kind",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV4kindAC4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthSessionEvent",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let traceID: String",
+          "identifier": "s:11StellarAuth17OAuthSessionEventV7traceIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthSessionEvent",
+            "traceID"
+          ]
+        },
+        {
+          "declaration": "enum OAuthSessionState",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO",
+          "kind": "swift.enum",
+          "path": [
+            "OAuthSessionState"
+          ]
+        },
+        {
+          "declaration": "case refreshing(UserSession)",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO10refreshingyAcA04UserD0VcACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionState",
+            "refreshing(_:)"
+          ]
+        },
+        {
+          "declaration": "case signingOut(UserSession)",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO10signingOutyAcA04UserD0VcACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionState",
+            "signingOut(_:)"
+          ]
+        },
+        {
+          "declaration": "case authorizing",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO11authorizingyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionState",
+            "authorizing"
+          ]
+        },
+        {
+          "declaration": "case needsReauthentication(UserSession)",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO21needsReauthenticationyAcA04UserD0VcACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionState",
+            "needsReauthentication(_:)"
+          ]
+        },
+        {
+          "declaration": "var session: UserSession? { get }",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO7sessionAA04UserD0VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthSessionState",
+            "session"
+          ]
+        },
+        {
+          "declaration": "var rawValue: String { get }",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO8rawValueSSvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthSessionState",
+            "rawValue"
+          ]
+        },
+        {
+          "declaration": "case signedIn(UserSession)",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO8signedInyAcA04UserD0VcACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionState",
+            "signedIn(_:)"
+          ]
+        },
+        {
+          "declaration": "case signedOut",
+          "identifier": "s:11StellarAuth17OAuthSessionStateO9signedOutyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthSessionState",
+            "signedOut"
+          ]
+        },
+        {
+          "declaration": "actor OAuthSessionManager",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC",
+          "kind": "swift.class",
+          "path": [
+            "OAuthSessionManager"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func restoreSession() async throws -> UserSession?",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC07restoreD0AA04UserD0VSgyYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthSessionManager",
+            "restoreSession()"
+          ]
+        },
+        {
+          "declaration": "func listAccounts() async throws -> [UserSession]",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC12listAccountsSayAA04UserD0VGyYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthSessionManager",
+            "listAccounts()"
+          ]
+        },
+        {
+          "declaration": "init(configuration: StellarOAuthConfiguration, authorizationPresenter: any OAuthAuthorizationPresenting, tokenAccessibility: OAuthTokenAccessibility = .whenUnlockedThisDeviceOnly, runtime: SDKRuntimeDependencies = .live)",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC13configuration22authorizationPresenter18tokenAccessibility7runtimeAcA0aC13ConfigurationV_AA0C23AuthorizationPresenting_pAA0c5TokenJ0O0A4Core22SDKRuntimeDependenciesVtcfc",
+          "kind": "swift.init",
+          "path": [
+            "OAuthSessionManager",
+            "init(configuration:authorizationPresenter:tokenAccessibility:runtime:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func switchAccount(accountUID: String) async throws -> UserSession",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC13switchAccount10accountUIDAA04UserD0VSS_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthSessionManager",
+            "switchAccount(accountUID:)"
+          ]
+        },
+        {
+          "declaration": "func getAccessToken(minValidityMilliseconds: Int64 = 0) async throws -> String",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC14getAccessToken23minValidityMillisecondsSSs5Int64V_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthSessionManager",
+            "getAccessToken(minValidityMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func refreshProfile() async throws -> UserSession",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC14refreshProfileAA04UserD0VyYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthSessionManager",
+            "refreshProfile()"
+          ]
+        },
+        {
+          "declaration": "var state: OAuthSessionState { get }",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC5stateAA0cD5StateOvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthSessionManager",
+            "state"
+          ]
+        },
+        {
+          "declaration": "func events() -> AsyncStream<OAuthSessionEvent>",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC6eventsScSyAA0cD5EventVGyF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthSessionManager",
+            "events()"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func signIn() async throws -> UserSession",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC6signInAA04UserD0VyYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthSessionManager",
+            "signIn()"
+          ]
+        },
+        {
+          "declaration": "func signOut(accountUID: String, revokeRemote: Bool = true) async throws",
+          "identifier": "s:11StellarAuth19OAuthSessionManagerC7signOut10accountUID12revokeRemoteySS_SbtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthSessionManager",
+            "signOut(accountUID:revokeRemote:)"
+          ]
+        },
+        {
+          "declaration": "enum OAuthTokenAccessibility",
+          "identifier": "s:11StellarAuth23OAuthTokenAccessibilityO",
+          "kind": "swift.enum",
+          "path": [
+            "OAuthTokenAccessibility"
+          ]
+        },
+        {
+          "declaration": "case whenUnlockedThisDeviceOnly",
+          "identifier": "s:11StellarAuth23OAuthTokenAccessibilityO26whenUnlockedThisDeviceOnlyyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthTokenAccessibility",
+            "whenUnlockedThisDeviceOnly"
+          ]
+        },
+        {
+          "declaration": "case afterFirstUnlockThisDeviceOnly",
+          "identifier": "s:11StellarAuth23OAuthTokenAccessibilityO30afterFirstUnlockThisDeviceOnlyyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "OAuthTokenAccessibility",
+            "afterFirstUnlockThisDeviceOnly"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:11StellarAuth23OAuthTokenAccessibilityO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "OAuthTokenAccessibility",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "protocol OAuthAuthorizationPresenting : Sendable",
+          "identifier": "s:11StellarAuth28OAuthAuthorizationPresentingP",
+          "kind": "swift.protocol",
+          "path": [
+            "OAuthAuthorizationPresenting"
+          ]
+        },
+        {
+          "declaration": "@MainActor func authorize(_ request: OAuthAuthorizationPresentationRequest) async throws -> URL",
+          "identifier": "s:11StellarAuth28OAuthAuthorizationPresentingP9authorizey10Foundation3URLVAA0cD19PresentationRequestVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OAuthAuthorizationPresenting",
+            "authorize(_:)"
+          ]
+        },
+        {
+          "declaration": "struct ClosureOAuthAuthorizationPresenter",
+          "identifier": "s:11StellarAuth34ClosureOAuthAuthorizationPresenterV",
+          "kind": "swift.struct",
+          "path": [
+            "ClosureOAuthAuthorizationPresenter"
+          ]
+        },
+        {
+          "declaration": "init(handler: @escaping @MainActor @Sendable (OAuthAuthorizationPresentationRequest) async throws -> URL)",
+          "identifier": "s:11StellarAuth34ClosureOAuthAuthorizationPresenterV7handlerAC10Foundation3URLVAA0dE19PresentationRequestVYaYbKScMYcc_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "ClosureOAuthAuthorizationPresenter",
+            "init(handler:)"
+          ]
+        },
+        {
+          "declaration": "@MainActor func authorize(_ request: OAuthAuthorizationPresentationRequest) async throws -> URL",
+          "identifier": "s:11StellarAuth34ClosureOAuthAuthorizationPresenterV9authorizey10Foundation3URLVAA0dE19PresentationRequestVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "ClosureOAuthAuthorizationPresenter",
+            "authorize(_:)"
+          ]
+        },
+        {
+          "declaration": "struct OAuthAuthorizationPresentationRequest",
+          "identifier": "s:11StellarAuth37OAuthAuthorizationPresentationRequestV",
+          "kind": "swift.struct",
+          "path": [
+            "OAuthAuthorizationPresentationRequest"
+          ]
+        },
+        {
+          "declaration": "let redirectURI: URL",
+          "identifier": "s:11StellarAuth37OAuthAuthorizationPresentationRequestV11redirectURI10Foundation3URLVvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthAuthorizationPresentationRequest",
+            "redirectURI"
+          ]
+        },
+        {
+          "declaration": "let authorizationURL: URL",
+          "identifier": "s:11StellarAuth37OAuthAuthorizationPresentationRequestV16authorizationURL10Foundation0H0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "OAuthAuthorizationPresentationRequest",
+            "authorizationURL"
+          ]
+        },
+        {
+          "declaration": "init(authorizationURL: URL, redirectURI: URL)",
+          "identifier": "s:11StellarAuth37OAuthAuthorizationPresentationRequestV16authorizationURL11redirectURIAC10Foundation0H0V_AHtcfc",
+          "kind": "swift.init",
+          "path": [
+            "OAuthAuthorizationPresentationRequest",
+            "init(authorizationURL:redirectURI:)"
+          ]
+        },
+        {
+          "declaration": "struct AppleWebAuthenticationSessionPresenter",
+          "identifier": "s:11StellarAuth38AppleWebAuthenticationSessionPresenterV",
+          "kind": "swift.struct",
+          "path": [
+            "AppleWebAuthenticationSessionPresenter"
+          ]
+        },
+        {
+          "declaration": "init(prefersEphemeralSession: Bool = false, presentationAnchorProvider: @escaping @MainActor @Sendable () -> AnyObject)",
+          "identifier": "s:11StellarAuth38AppleWebAuthenticationSessionPresenterV016prefersEphemeralF026presentationAnchorProviderACSb_yXlyYbScMYcctcfc",
+          "kind": "swift.init",
+          "path": [
+            "AppleWebAuthenticationSessionPresenter",
+            "init(prefersEphemeralSession:presentationAnchorProvider:)"
+          ]
+        },
+        {
+          "declaration": "@MainActor func authorize(_ request: OAuthAuthorizationPresentationRequest) async throws -> URL",
+          "identifier": "s:11StellarAuth38AppleWebAuthenticationSessionPresenterV9authorizey10Foundation3URLVAA37OAuthAuthorizationPresentationRequestVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "AppleWebAuthenticationSessionPresenter",
+            "authorize(_:)"
+          ]
+        }
+      ]
+    },
     "StellarCore": {
       "symbols": [
         {
@@ -11600,6 +12230,22 @@
           ]
         },
         {
+          "declaration": "typealias StellarOAuthConfiguration = StellarOAuthConfiguration",
+          "identifier": "s:19StellarUserMediaSDK0A18OAuthConfigurationa",
+          "kind": "swift.typealias",
+          "path": [
+            "StellarOAuthConfiguration"
+          ]
+        },
+        {
+          "declaration": "typealias UserSession = UserSession",
+          "identifier": "s:19StellarUserMediaSDK0B7Sessiona",
+          "kind": "swift.typealias",
+          "path": [
+            "UserSession"
+          ]
+        },
+        {
           "declaration": "typealias MediaMatchQuery = MediaMatchQuery",
           "identifier": "s:19StellarUserMediaSDK0C10MatchQuerya",
           "kind": "swift.typealias",
@@ -12384,6 +13030,22 @@
           ]
         },
         {
+          "declaration": "typealias OAuthSessionEvent = OAuthSessionEvent",
+          "identifier": "s:19StellarUserMediaSDK17OAuthSessionEventa",
+          "kind": "swift.typealias",
+          "path": [
+            "OAuthSessionEvent"
+          ]
+        },
+        {
+          "declaration": "typealias OAuthSessionState = OAuthSessionState",
+          "identifier": "s:19StellarUserMediaSDK17OAuthSessionStatea",
+          "kind": "swift.typealias",
+          "path": [
+            "OAuthSessionState"
+          ]
+        },
+        {
           "declaration": "typealias PosterWallArtwork = PosterWallArtwork",
           "identifier": "s:19StellarUserMediaSDK17PosterWallArtworka",
           "kind": "swift.typealias",
@@ -12461,6 +13123,14 @@
           "kind": "swift.typealias",
           "path": [
             "AccountOutboxRecord"
+          ]
+        },
+        {
+          "declaration": "typealias OAuthSessionManager = OAuthSessionManager",
+          "identifier": "s:19StellarUserMediaSDK19OAuthSessionManagera",
+          "kind": "swift.typealias",
+          "path": [
+            "OAuthSessionManager"
           ]
         },
         {
@@ -12624,6 +13294,14 @@
           ]
         },
         {
+          "declaration": "typealias OAuthTokenAccessibility = OAuthTokenAccessibility",
+          "identifier": "s:19StellarUserMediaSDK23OAuthTokenAccessibilitya",
+          "kind": "swift.typealias",
+          "path": [
+            "OAuthTokenAccessibility"
+          ]
+        },
+        {
           "declaration": "typealias SDKCancellationChecking = SDKCancellationChecking",
           "identifier": "s:19StellarUserMediaSDK23SDKCancellationCheckinga",
           "kind": "swift.typealias",
@@ -12736,6 +13414,14 @@
           ]
         },
         {
+          "declaration": "typealias OAuthAuthorizationPresenting = OAuthAuthorizationPresenting",
+          "identifier": "s:19StellarUserMediaSDK28OAuthAuthorizationPresentinga",
+          "kind": "swift.typealias",
+          "path": [
+            "OAuthAuthorizationPresenting"
+          ]
+        },
+        {
           "declaration": "typealias PosterWallArtworkCacheRecord = PosterWallArtworkCacheRecord",
           "identifier": "s:19StellarUserMediaSDK28PosterWallArtworkCacheRecorda",
           "kind": "swift.typealias",
@@ -12792,11 +13478,35 @@
           ]
         },
         {
+          "declaration": "typealias ClosureOAuthAuthorizationPresenter = ClosureOAuthAuthorizationPresenter",
+          "identifier": "s:19StellarUserMediaSDK34ClosureOAuthAuthorizationPresentera",
+          "kind": "swift.typealias",
+          "path": [
+            "ClosureOAuthAuthorizationPresenter"
+          ]
+        },
+        {
           "declaration": "typealias InMemoryPosterWallArtworkCacheIndex = InMemoryPosterWallArtworkCacheIndex",
           "identifier": "s:19StellarUserMediaSDK35InMemoryPosterWallArtworkCacheIndexa",
           "kind": "swift.typealias",
           "path": [
             "InMemoryPosterWallArtworkCacheIndex"
+          ]
+        },
+        {
+          "declaration": "typealias OAuthAuthorizationPresentationRequest = OAuthAuthorizationPresentationRequest",
+          "identifier": "s:19StellarUserMediaSDK37OAuthAuthorizationPresentationRequesta",
+          "kind": "swift.typealias",
+          "path": [
+            "OAuthAuthorizationPresentationRequest"
+          ]
+        },
+        {
+          "declaration": "typealias AppleWebAuthenticationSessionPresenter = AppleWebAuthenticationSessionPresenter",
+          "identifier": "s:19StellarUserMediaSDK38AppleWebAuthenticationSessionPresentera",
+          "kind": "swift.typealias",
+          "path": [
+            "AppleWebAuthenticationSessionPresenter"
           ]
         },
         {
