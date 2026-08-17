@@ -170,6 +170,19 @@ public struct AppleWebAuthenticationSessionPresenter: OAuthAuthorizationPresenti
       if let authenticationError = error as? ASWebAuthenticationSessionError,
         authenticationError.code == .canceledLogin
       {
+        let failureReason = (authenticationError as NSError).localizedFailureReason
+        if let failureReason,
+          failureReason.localizedCaseInsensitiveContains("associated")
+            || failureReason.localizedCaseInsensitiveContains("webcredentials")
+        {
+          continuation.resume(
+            throwing: SDKError(
+              code: .invalidConfiguration,
+              message: "OAuth HTTPS callback domain is not associated with the app: \(failureReason)"
+            )
+          )
+          return
+        }
         continuation.resume(
           throwing: SDKError(code: .cancelled, message: "OAuth authorization was cancelled")
         )
