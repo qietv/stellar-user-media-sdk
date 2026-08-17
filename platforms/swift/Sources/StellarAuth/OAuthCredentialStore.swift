@@ -104,15 +104,7 @@ actor KeychainOAuthCredentialStore: OAuthCredentialStoring {
       let status = SecItemCopyMatching(query as CFDictionary, &result)
       if status == errSecItemNotFound { return [] }
       guard status == errSecSuccess else { throw storageError(status) }
-      let values: [Data]
-      if let rows = result as? [[String: Any]] {
-        values = rows.compactMap { $0[kSecValueData as String] as? Data }
-        guard values.count == rows.count else { throw storageError(errSecDecode) }
-      } else if let row = result as? [String: Any],
-        let data = row[kSecValueData as String] as? Data
-      {
-        values = [data]
-      } else {
+      guard let values = oauthKeychainDataValues(from: result) else {
         throw storageError(errSecDecode)
       }
       let decoder = JSONDecoder()
@@ -270,11 +262,12 @@ actor KeychainOAuthCredentialStore: OAuthCredentialStoring {
     }
 
     private func storageError(_ status: OSStatus) -> SDKError {
-      SDKError(
+      let statusDescription = SecCopyErrorMessageString(status, nil) as String? ?? "unknown error"
+      return SDKError(
         code: .storageFailure,
         message: status == errSecInteractionNotAllowed
-          ? "OAuth credential requires disallowed Keychain interaction"
-          : "OAuth credential storage failed"
+          ? "OAuth credential requires disallowed Keychain interaction (OSStatus \(status): \(statusDescription))"
+          : "OAuth credential storage failed (OSStatus \(status): \(statusDescription))"
       )
     }
   #endif
@@ -286,6 +279,23 @@ actor KeychainOAuthCredentialStore: OAuthCredentialStoring {
     )
   }
 }
+
+#if canImport(Security) && canImport(LocalAuthentication)
+  func oauthKeychainDataValues(from result: Any?) -> [Data]? {
+    if let values = result as? [Data] { return values }
+    if let value = result as? Data { return [value] }
+    if let rows = result as? [[String: Any]] {
+      let values = rows.compactMap { $0[kSecValueData as String] as? Data }
+      return values.count == rows.count ? values : nil
+    }
+    if let row = result as? [String: Any],
+      let value = row[kSecValueData as String] as? Data
+    {
+      return [value]
+    }
+    return nil
+  }
+#endif
 
 actor InMemoryOAuthCredentialStore: OAuthCredentialStoring {
   private var values: [String: StoredOAuthCredential] = [:]

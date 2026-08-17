@@ -4,8 +4,31 @@ import Testing
 
 @testable import StellarAuth
 
+#if canImport(Security)
+  import Security
+#endif
+
 @Suite("Stellar OAuth session")
 struct OAuthSessionTests {
+  #if canImport(Security)
+    @Test("Keychain data results accept single and multi-item Security shapes")
+    func keychainDataResultShapes() throws {
+      let first = Data([0x01, 0x02])
+      let second = Data([0x03])
+
+      #expect(oauthKeychainDataValues(from: first) == [first])
+      #expect(oauthKeychainDataValues(from: [first, second]) == [first, second])
+      #expect(
+        oauthKeychainDataValues(from: [
+          [kSecValueData as String: first],
+          [kSecValueData as String: second],
+        ]) == [first, second]
+      )
+      #expect(oauthKeychainDataValues(from: [kSecValueData as String: first]) == [first])
+      #expect(oauthKeychainDataValues(from: ["unexpected": first]) == nil)
+    }
+  #endif
+
   @Test("PKCE uses the RFC 7636 S256 vector and emits the Gateway request shape")
   func pkceRequest() throws {
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
