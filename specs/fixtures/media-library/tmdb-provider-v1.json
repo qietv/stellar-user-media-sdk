@@ -1,0 +1,254 @@
+{
+  "exchanges": [
+    {
+      "name": "movie_search",
+      "request": {
+        "method": "GET",
+        "path": "/3/search/movie",
+        "query": {
+          "include_adult": "false",
+          "language": "zh-CN",
+          "page": "1",
+          "primary_release_year": "2016",
+          "query": "Arrival"
+        }
+      },
+      "response": {
+        "body": {
+          "page": 1,
+          "results": [
+            {
+              "id": 329865,
+              "original_title": "Arrival",
+              "overview": "A linguist meets visitors.",
+              "popularity": 42.5,
+              "poster_path": "/arrival-search.jpg",
+              "release_date": "2016-11-10",
+              "title": "Arrival"
+            },
+            {
+              "id": 10001,
+              "original_title": "The Arrival",
+              "popularity": 4.0,
+              "release_date": "1996-05-31",
+              "title": "The Arrival"
+            }
+          ],
+          "total_pages": 1,
+          "total_results": 2
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "status_code": 200
+      }
+    },
+    {
+      "name": "movie_find_by_imdb",
+      "request": {
+        "method": "GET",
+        "path": "/3/find/tt2543164",
+        "query": {
+          "external_source": "imdb_id",
+          "language": "zh-CN"
+        }
+      },
+      "response": {
+        "body": {
+          "movie_results": [
+            {
+              "id": 329865,
+              "original_title": "Arrival",
+              "popularity": 42.5,
+              "release_date": "2016-11-10",
+              "title": "Arrival"
+            }
+          ],
+          "person_results": [],
+          "tv_episode_results": [],
+          "tv_results": [],
+          "tv_season_results": []
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "status_code": 200
+      }
+    },
+    {
+      "name": "series_search",
+      "request": {
+        "method": "GET",
+        "path": "/3/search/tv",
+        "query": {
+          "first_air_date_year": "2022",
+          "include_adult": "false",
+          "language": "zh-CN",
+          "page": "1",
+          "query": "Wednesday"
+        }
+      },
+      "response": {
+        "body": {
+          "page": 1,
+          "results": [
+            {
+              "first_air_date": "2022-11-23",
+              "id": 119051,
+              "name": "Wednesday",
+              "original_name": "Wednesday",
+              "popularity": 88.0,
+              "poster_path": "/wednesday-search.jpg"
+            }
+          ],
+          "total_pages": 1,
+          "total_results": 1
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "status_code": 200
+      }
+    },
+    {
+      "name": "episode_exists",
+      "request": {
+        "method": "GET",
+        "path": "/3/tv/119051/season/2/episode/3",
+        "query": {
+          "language": "zh-CN"
+        }
+      },
+      "response": {
+        "body": {
+          "air_date": "2025-08-06",
+          "episode_number": 3,
+          "id": 6165594,
+          "name": "Call of the Woe",
+          "overview": "A synthetic fixture episode.",
+          "runtime": 53,
+          "season_number": 2,
+          "show_id": 119051,
+          "still_path": "/wednesday-s02e03.jpg"
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "status_code": 200
+      }
+    },
+    {
+      "name": "movie_details",
+      "request": {
+        "method": "GET",
+        "path": "/3/movie/329865",
+        "query": {
+          "append_to_response": "external_ids,images,alternative_titles",
+          "include_image_language": "en,null,zh",
+          "language": "zh-CN"
+        }
+      },
+      "response": {
+        "body": {
+          "alternative_titles": {
+            "titles": [
+              {
+                "iso_3166_1": "TW",
+                "title": "異星入境"
+              },
+              {
+                "iso_3166_1": "CN",
+                "title": "降临"
+              }
+            ]
+          },
+          "external_ids": {
+            "imdb_id": "tt2543164",
+            "wikidata_id": "Q18009031"
+          },
+          "id": 329865,
+          "images": {
+            "backdrops": [
+              {
+                "file_path": "/arrival-backdrop.jpg",
+                "height": 1080,
+                "iso_639_1": null,
+                "vote_average": 7.8,
+                "width": 1920
+              }
+            ],
+            "logos": [],
+            "posters": [
+              {
+                "file_path": "/arrival-poster.jpg",
+                "height": 1500,
+                "iso_639_1": "en",
+                "vote_average": 8.2,
+                "width": 1000
+              }
+            ]
+          },
+          "original_title": "Arrival",
+          "overview": "A linguist meets visitors.",
+          "release_date": "2016-11-10",
+          "runtime": 116,
+          "tagline": "Why are they here?",
+          "title": "Arrival"
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "status_code": 200
+      }
+    },
+    {
+      "name": "image_configuration",
+      "request": {
+        "method": "GET",
+        "path": "/3/configuration",
+        "query": {}
+      },
+      "response": {
+        "body": {
+          "change_keys": [
+            "images"
+          ],
+          "images": {
+            "backdrop_sizes": [
+              "w300",
+              "w780",
+              "original"
+            ],
+            "base_url": "http://image.tmdb.org/t/p/",
+            "logo_sizes": [
+              "w45",
+              "w500",
+              "original"
+            ],
+            "poster_sizes": [
+              "w342",
+              "w780",
+              "original"
+            ],
+            "profile_sizes": [
+              "w185",
+              "original"
+            ],
+            "secure_base_url": "https://image.tmdb.org/t/p/",
+            "still_sizes": [
+              "w300",
+              "original"
+            ]
+          }
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "status_code": 200
+      }
+    }
+  ],
+  "provider": "tmdb",
+  "recording_policy": "sanitized_response_only",
+  "schema_version": 1
+}

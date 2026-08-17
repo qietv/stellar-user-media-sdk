@@ -4587,6 +4587,324 @@
           ]
         },
         {
+          "declaration": "protocol TMDBTransport : Sendable",
+          "identifier": "s:19StellarMediaLibrary13TMDBTransportP",
+          "kind": "swift.protocol",
+          "path": [
+            "TMDBTransport"
+          ]
+        },
+        {
+          "declaration": "func send(_ request: TMDBHTTPRequest) async throws -> TMDBHTTPResponse",
+          "identifier": "s:19StellarMediaLibrary13TMDBTransportP4sendyAA16TMDBHTTPResponseVAA15TMDBHTTPRequestVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "TMDBTransport",
+            "send(_:)"
+          ]
+        },
+        {
+          "declaration": "struct TMDBCredential",
+          "identifier": "s:19StellarMediaLibrary14TMDBCredentialV",
+          "kind": "swift.struct",
+          "path": [
+            "TMDBCredential"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:19StellarMediaLibrary14TMDBCredentialV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBCredential",
+            "description"
+          ]
+        },
+        {
+          "declaration": "init(readAccessToken: String) throws",
+          "identifier": "s:19StellarMediaLibrary14TMDBCredentialV15readAccessTokenACSS_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBCredential",
+            "init(readAccessToken:)"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:19StellarMediaLibrary14TMDBCredentialV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBCredential",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "init(apiKey: String) throws",
+          "identifier": "s:19StellarMediaLibrary14TMDBCredentialV6apiKeyACSS_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBCredential",
+            "init(apiKey:)"
+          ]
+        },
+        {
+          "declaration": "struct TMDBHTTPRequest",
+          "identifier": "s:19StellarMediaLibrary15TMDBHTTPRequestV",
+          "kind": "swift.struct",
+          "path": [
+            "TMDBHTTPRequest"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:19StellarMediaLibrary15TMDBHTTPRequestV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBHTTPRequest",
+            "description"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:19StellarMediaLibrary15TMDBHTTPRequestV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBHTTPRequest",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "let url: URL",
+          "identifier": "s:19StellarMediaLibrary15TMDBHTTPRequestV3url10Foundation3URLVvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBHTTPRequest",
+            "url"
+          ]
+        },
+        {
+          "declaration": "init(method: String, url: URL, headers: [String : String] = [:])",
+          "identifier": "s:19StellarMediaLibrary15TMDBHTTPRequestV6method3url7headersACSS_10Foundation3URLVSDyS2SGtcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBHTTPRequest",
+            "init(method:url:headers:)"
+          ]
+        },
+        {
+          "declaration": "let method: String",
+          "identifier": "s:19StellarMediaLibrary15TMDBHTTPRequestV6methodSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBHTTPRequest",
+            "method"
+          ]
+        },
+        {
+          "declaration": "let headers: [String : String]",
+          "identifier": "s:19StellarMediaLibrary15TMDBHTTPRequestV7headersSDyS2SGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBHTTPRequest",
+            "headers"
+          ]
+        },
+        {
+          "declaration": "struct TMDBArtworkImage",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV",
+          "kind": "swift.struct",
+          "path": [
+            "TMDBArtworkImage"
+          ]
+        },
+        {
+          "declaration": "let remotePath: String",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV10remotePathSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBArtworkImage",
+            "remotePath"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBArtworkImage",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "init(kind: LocalMetadataArtworkKind, remotePath: String, language: String? = nil, width: Int? = nil, height: Int? = nil, score: Double = 0) throws",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV4kind10remotePath8language5width6height5scoreAcA24LocalMetadataArtworkKindO_S2SSgSiSgAMSdtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBArtworkImage",
+            "init(kind:remotePath:language:width:height:score:)"
+          ]
+        },
+        {
+          "declaration": "let kind: LocalMetadataArtworkKind",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV4kindAA24LocalMetadataArtworkKindOvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBArtworkImage",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let score: Double",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV5scoreSdvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBArtworkImage",
+            "score"
+          ]
+        },
+        {
+          "declaration": "let width: Int?",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV5widthSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBArtworkImage",
+            "width"
+          ]
+        },
+        {
+          "declaration": "let height: Int?",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV6heightSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBArtworkImage",
+            "height"
+          ]
+        },
+        {
+          "declaration": "let language: String?",
+          "identifier": "s:19StellarMediaLibrary16TMDBArtworkImageV8languageSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBArtworkImage",
+            "language"
+          ]
+        },
+        {
+          "declaration": "struct TMDBHTTPResponse",
+          "identifier": "s:19StellarMediaLibrary16TMDBHTTPResponseV",
+          "kind": "swift.struct",
+          "path": [
+            "TMDBHTTPResponse"
+          ]
+        },
+        {
+          "declaration": "init(statusCode: Int, headers: [String : String] = [:], body: Data = Data())",
+          "identifier": "s:19StellarMediaLibrary16TMDBHTTPResponseV10statusCode7headers4bodyACSi_SDyS2SG10Foundation4DataVtcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBHTTPResponse",
+            "init(statusCode:headers:body:)"
+          ]
+        },
+        {
+          "declaration": "let statusCode: Int",
+          "identifier": "s:19StellarMediaLibrary16TMDBHTTPResponseV10statusCodeSivp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBHTTPResponse",
+            "statusCode"
+          ]
+        },
+        {
+          "declaration": "let body: Data",
+          "identifier": "s:19StellarMediaLibrary16TMDBHTTPResponseV4body10Foundation4DataVvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBHTTPResponse",
+            "body"
+          ]
+        },
+        {
+          "declaration": "let headers: [String : String]",
+          "identifier": "s:19StellarMediaLibrary16TMDBHTTPResponseV7headersSDyS2SGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBHTTPResponse",
+            "headers"
+          ]
+        },
+        {
+          "declaration": "struct TMDBMediaDetails",
+          "identifier": "s:19StellarMediaLibrary16TMDBMediaDetailsV",
+          "kind": "swift.struct",
+          "path": [
+            "TMDBMediaDetails"
+          ]
+        },
+        {
+          "declaration": "init(providerID: String, kind: ParsedMediaKind, metadata: LocalMetadataDocument, aliases: [String] = [], artwork: [TMDBArtworkImage] = []) throws",
+          "identifier": "s:19StellarMediaLibrary16TMDBMediaDetailsV10providerID4kind8metadata7aliases7artworkACSS_AA06ParsedB4KindOAA21LocalMetadataDocumentVSaySSGSayAA16TMDBArtworkImageVGtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBMediaDetails",
+            "init(providerID:kind:metadata:aliases:artwork:)"
+          ]
+        },
+        {
+          "declaration": "let providerID: String",
+          "identifier": "s:19StellarMediaLibrary16TMDBMediaDetailsV10providerIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBMediaDetails",
+            "providerID"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary16TMDBMediaDetailsV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBMediaDetails",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let kind: ParsedMediaKind",
+          "identifier": "s:19StellarMediaLibrary16TMDBMediaDetailsV4kindAA06ParsedB4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBMediaDetails",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let aliases: [String]",
+          "identifier": "s:19StellarMediaLibrary16TMDBMediaDetailsV7aliasesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBMediaDetails",
+            "aliases"
+          ]
+        },
+        {
+          "declaration": "let artwork: [TMDBArtworkImage]",
+          "identifier": "s:19StellarMediaLibrary16TMDBMediaDetailsV7artworkSayAA16TMDBArtworkImageVGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBMediaDetails",
+            "artwork"
+          ]
+        },
+        {
+          "declaration": "let metadata: LocalMetadataDocument",
+          "identifier": "s:19StellarMediaLibrary16TMDBMediaDetailsV8metadataAA21LocalMetadataDocumentVvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBMediaDetails",
+            "metadata"
+          ]
+        },
+        {
           "declaration": "struct FilenameProviderHint",
           "identifier": "s:19StellarMediaLibrary20FilenameProviderHintV",
           "kind": "swift.struct",
@@ -4672,6 +4990,68 @@
           "path": [
             "LocalMetadataArtwork",
             "location"
+          ]
+        },
+        {
+          "declaration": "struct TMDBMetadataProvider",
+          "identifier": "s:19StellarMediaLibrary20TMDBMetadataProviderV",
+          "kind": "swift.struct",
+          "path": [
+            "TMDBMetadataProvider"
+          ]
+        },
+        {
+          "declaration": "init(credential: TMDBCredential, configuration: TMDBProviderConfiguration, transport: any TMDBTransport = URLSessionTMDBTransport())",
+          "identifier": "s:19StellarMediaLibrary20TMDBMetadataProviderV10credential13configuration9transportAcA14TMDBCredentialV_AA25TMDBProviderConfigurationVAA13TMDBTransport_ptcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBMetadataProvider",
+            "init(credential:configuration:transport:)"
+          ]
+        },
+        {
+          "declaration": "func movieDetails(id: Int64) async throws -> TMDBMediaDetails",
+          "identifier": "s:19StellarMediaLibrary20TMDBMetadataProviderV12movieDetails2idAA09TMDBMediaG0Vs5Int64V_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "TMDBMetadataProvider",
+            "movieDetails(id:)"
+          ]
+        },
+        {
+          "declaration": "func seriesDetails(id: Int64) async throws -> TMDBMediaDetails",
+          "identifier": "s:19StellarMediaLibrary20TMDBMetadataProviderV13seriesDetails2idAA09TMDBMediaG0Vs5Int64V_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "TMDBMetadataProvider",
+            "seriesDetails(id:)"
+          ]
+        },
+        {
+          "declaration": "func episodeDetails(seriesID: Int64, season: Int, episode: Int) async throws -> TMDBMediaDetails",
+          "identifier": "s:19StellarMediaLibrary20TMDBMetadataProviderV14episodeDetails8seriesID6season0F0AA09TMDBMediaG0Vs5Int64V_S2itYaKF",
+          "kind": "swift.method",
+          "path": [
+            "TMDBMetadataProvider",
+            "episodeDetails(seriesID:season:episode:)"
+          ]
+        },
+        {
+          "declaration": "func imageConfiguration() async throws -> TMDBImageConfiguration",
+          "identifier": "s:19StellarMediaLibrary20TMDBMetadataProviderV18imageConfigurationAA09TMDBImageG0VyYaKF",
+          "kind": "swift.method",
+          "path": [
+            "TMDBMetadataProvider",
+            "imageConfiguration()"
+          ]
+        },
+        {
+          "declaration": "func search(_ query: MediaMatchQuery) async throws -> [MediaMetadataCandidate]",
+          "identifier": "s:19StellarMediaLibrary20TMDBMetadataProviderV6searchySayAA0B17MetadataCandidateVGAA0B10MatchQueryVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "TMDBMetadataProvider",
+            "search(_:)"
           ]
         },
         {
@@ -4845,6 +5225,95 @@
           ]
         },
         {
+          "declaration": "struct TMDBImageConfiguration",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV",
+          "kind": "swift.struct",
+          "path": [
+            "TMDBImageConfiguration"
+          ]
+        },
+        {
+          "declaration": "let stillSizes: [String]",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV10stillSizesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBImageConfiguration",
+            "stillSizes"
+          ]
+        },
+        {
+          "declaration": "let posterSizes: [String]",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV11posterSizesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBImageConfiguration",
+            "posterSizes"
+          ]
+        },
+        {
+          "declaration": "let profileSizes: [String]",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV12profileSizesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBImageConfiguration",
+            "profileSizes"
+          ]
+        },
+        {
+          "declaration": "let backdropSizes: [String]",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV13backdropSizesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBImageConfiguration",
+            "backdropSizes"
+          ]
+        },
+        {
+          "declaration": "let secureBaseURL: URL",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV13secureBaseURL10Foundation0H0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBImageConfiguration",
+            "secureBaseURL"
+          ]
+        },
+        {
+          "declaration": "init(secureBaseURL: URL, backdropSizes: [String], logoSizes: [String], posterSizes: [String], profileSizes: [String], stillSizes: [String]) throws",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV13secureBaseURL13backdropSizes04logoJ006posterJ007profileJ005stillJ0AC10Foundation0H0V_SaySSGA4MtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBImageConfiguration",
+            "init(secureBaseURL:backdropSizes:logoSizes:posterSizes:profileSizes:stillSizes:)"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBImageConfiguration",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "func imageURL(remotePath: String, kind: LocalMetadataArtworkKind, size: String = \"original\") throws -> URL",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV8imageURL10remotePath4kind4size10Foundation0G0VSS_AA24LocalMetadataArtworkKindOSStKF",
+          "kind": "swift.method",
+          "path": [
+            "TMDBImageConfiguration",
+            "imageURL(remotePath:kind:size:)"
+          ]
+        },
+        {
+          "declaration": "let logoSizes: [String]",
+          "identifier": "s:19StellarMediaLibrary22TMDBImageConfigurationV9logoSizesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBImageConfiguration",
+            "logoSizes"
+          ]
+        },
+        {
           "declaration": "struct LocalMetadataExternalID",
           "identifier": "s:19StellarMediaLibrary23LocalMetadataExternalIDV",
           "kind": "swift.struct",
@@ -4942,6 +5411,32 @@
           ]
         },
         {
+          "declaration": "struct URLSessionTMDBTransport",
+          "identifier": "s:19StellarMediaLibrary23URLSessionTMDBTransportV",
+          "kind": "swift.struct",
+          "path": [
+            "URLSessionTMDBTransport"
+          ]
+        },
+        {
+          "declaration": "func send(_ request: TMDBHTTPRequest) async throws -> TMDBHTTPResponse",
+          "identifier": "s:19StellarMediaLibrary23URLSessionTMDBTransportV4sendyAA16TMDBHTTPResponseVAA15TMDBHTTPRequestVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "URLSessionTMDBTransport",
+            "send(_:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaLibrary23URLSessionTMDBTransportVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "URLSessionTMDBTransport",
+            "init()"
+          ]
+        },
+        {
           "declaration": "enum LocalMetadataArtworkKind",
           "identifier": "s:19StellarMediaLibrary24LocalMetadataArtworkKindO",
           "kind": "swift.enum",
@@ -5028,6 +5523,59 @@
           "path": [
             "LocalMetadataArtworkKind",
             "thumbnail"
+          ]
+        },
+        {
+          "declaration": "struct TMDBProviderConfiguration",
+          "identifier": "s:19StellarMediaLibrary25TMDBProviderConfigurationV",
+          "kind": "swift.struct",
+          "path": [
+            "TMDBProviderConfiguration"
+          ]
+        },
+        {
+          "declaration": "let includeAdult: Bool",
+          "identifier": "s:19StellarMediaLibrary25TMDBProviderConfigurationV12includeAdultSbvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBProviderConfiguration",
+            "includeAdult"
+          ]
+        },
+        {
+          "declaration": "let artworkLanguage: String",
+          "identifier": "s:19StellarMediaLibrary25TMDBProviderConfigurationV15artworkLanguageSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBProviderConfiguration",
+            "artworkLanguage"
+          ]
+        },
+        {
+          "declaration": "let maximumSearchResults: Int",
+          "identifier": "s:19StellarMediaLibrary25TMDBProviderConfigurationV20maximumSearchResultsSivp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBProviderConfiguration",
+            "maximumSearchResults"
+          ]
+        },
+        {
+          "declaration": "init(language: String = \"en-US\", artworkLanguage: String? = nil, includeAdult: Bool = false, maximumSearchResults: Int = 5) throws",
+          "identifier": "s:19StellarMediaLibrary25TMDBProviderConfigurationV8language15artworkLanguage12includeAdult20maximumSearchResultsACSS_SSSgSbSitKcfc",
+          "kind": "swift.init",
+          "path": [
+            "TMDBProviderConfiguration",
+            "init(language:artworkLanguage:includeAdult:maximumSearchResults:)"
+          ]
+        },
+        {
+          "declaration": "let language: String",
+          "identifier": "s:19StellarMediaLibrary25TMDBProviderConfigurationV8languageSSvp",
+          "kind": "swift.property",
+          "path": [
+            "TMDBProviderConfiguration",
+            "language"
           ]
         },
         {
@@ -7533,6 +8081,337 @@
           ]
         },
         {
+          "declaration": "enum MediaSourceKind",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaSourceKind"
+          ]
+        },
+        {
+          "declaration": "case deviceMedia",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO06deviceC0yA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "deviceMedia"
+          ]
+        },
+        {
+          "declaration": "case cloudDrive",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO10cloudDriveyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "cloudDrive"
+          ]
+        },
+        {
+          "declaration": "case localFolder",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO11localFolderyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "localFolder"
+          ]
+        },
+        {
+          "declaration": "case ftp",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO3ftpyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "ftp"
+          ]
+        },
+        {
+          "declaration": "case nfs",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO3nfsyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "nfs"
+          ]
+        },
+        {
+          "declaration": "case smb",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO3smbyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "smb"
+          ]
+        },
+        {
+          "declaration": "case emby",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO4embyyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "emby"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceKind",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case plex",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO4plexyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "plex"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaSourceKind",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case webdav",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO6webdavyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "webdav"
+          ]
+        },
+        {
+          "declaration": "case unknown(String)",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO7unknownyACSScACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "unknown(_:)"
+          ]
+        },
+        {
+          "declaration": "case jellyfin",
+          "identifier": "s:18StellarRemoteMedia0C10SourceKindO8jellyfinyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceKind",
+            "jellyfin"
+          ]
+        },
+        {
+          "declaration": "struct MediaSourceConfig",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaSourceConfig"
+          ]
+        },
+        {
+          "declaration": "let accountUID: String",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV10accountUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "accountUID"
+          ]
+        },
+        {
+          "declaration": "let scanPolicy: MediaSourceScanPolicy",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV10scanPolicyAA0cd4ScanG0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "scanPolicy"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "description"
+          ]
+        },
+        {
+          "declaration": "let displayName: String",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV11displayNameSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "displayName"
+          ]
+        },
+        {
+          "declaration": "let capabilities: [MediaSourceCapability]",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV12capabilitiesSayAA0cD10CapabilityOGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "capabilities"
+          ]
+        },
+        {
+          "declaration": "let credentialUID: String?",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV13credentialUIDSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "credentialUID"
+          ]
+        },
+        {
+          "declaration": "let excludedPaths: [String]",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV13excludedPathsSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "excludedPaths"
+          ]
+        },
+        {
+          "declaration": "let includedPaths: [String]",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV13includedPathsSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "includedPaths"
+          ]
+        },
+        {
+          "declaration": "let schemaVersion: Int",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV13schemaVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "schemaVersion"
+          ]
+        },
+        {
+          "declaration": "let connectionMode: MediaSourceConnectionMode",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV14connectionModeAA0cd10ConnectionG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "connectionMode"
+          ]
+        },
+        {
+          "declaration": "let credentialMode: MediaSourceCredentialMode",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV14credentialModeAA0cd10CredentialG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "credentialMode"
+          ]
+        },
+        {
+          "declaration": "let metadataPolicy: MediaSourceMetadataPolicy",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV14metadataPolicyAA0cd8MetadataG0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "metadataPolicy"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "let deletedAtMilliseconds: Int64?",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV21deletedAtMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "deletedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let updatedAtMilliseconds: Int64",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV21updatedAtMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "updatedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceConfig",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let kind: MediaSourceKind",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV4kindAA0cD4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let endpoint: MediaSourceEndpoint",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV8endpointAA0cD8EndpointVvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "endpoint"
+          ]
+        },
+        {
+          "declaration": "let revision: Int64",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV8revisions5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "revision"
+          ]
+        },
+        {
+          "declaration": "let rootPath: String",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV8rootPathSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "rootPath"
+          ]
+        },
+        {
+          "declaration": "init(sourceUID: String, accountUID: String, kind: MediaSourceKind, displayName: String, endpoint: MediaSourceEndpoint, rootPath: String, includedPaths: [String] = [\"\"], excludedPaths: [String] = [], scanPolicy: MediaSourceScanPolicy, metadataPolicy: MediaSourceMetadataPolicy, connectionMode: MediaSourceConnectionMode = .automatic, credentialMode: MediaSourceCredentialMode, credentialUID: String? = nil, capabilities: [MediaSourceCapability] = [], revision: Int64, updatedAtMilliseconds: Int64, deletedAtMilliseconds: Int64? = nil, schemaVersion: Int = 1) throws",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV9sourceUID07accountG04kind11displayName8endpoint8rootPath13includedPaths08excludedP010scanPolicy08metadataS014connectionMode010credentialV00wG012capabilities8revision21updatedAtMilliseconds21deletedAtMilliseconds13schemaVersionACSS_SSAA0cD4KindOSSAA0cD8EndpointVSSSaySSGAzA0cd4ScanS0VAA0cd8MetadataS0VAA0cd10ConnectionV0OAA0cd10CredentialV0OSSSgSayAA0cD10CapabilityOGs5Int64VA12_A12_SgSitKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceConfig",
+            "init(sourceUID:accountUID:kind:displayName:endpoint:rootPath:includedPaths:excludedPaths:scanPolicy:metadataPolicy:connectionMode:credentialMode:credentialUID:capabilities:revision:updatedAtMilliseconds:deletedAtMilliseconds:schemaVersion:)"
+          ]
+        },
+        {
+          "declaration": "let sourceUID: String",
+          "identifier": "s:18StellarRemoteMedia0C12SourceConfigV9sourceUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceConfig",
+            "sourceUID"
+          ]
+        },
+        {
           "declaration": "protocol MediaSourceSession : Sendable",
           "identifier": "s:18StellarRemoteMedia0C13SourceSessionP",
           "kind": "swift.protocol",
@@ -7595,6 +8474,95 @@
           ]
         },
         {
+          "declaration": "struct MediaSourceEndpoint",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaSourceEndpoint"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceEndpoint",
+            "description"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceEndpoint",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "let serviceIdentifier: String?",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV17serviceIdentifierSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceEndpoint",
+            "serviceIdentifier"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceEndpoint",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let host: String?",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV4hostSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceEndpoint",
+            "host"
+          ]
+        },
+        {
+          "declaration": "let port: Int?",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV4portSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceEndpoint",
+            "port"
+          ]
+        },
+        {
+          "declaration": "init(scheme: String, host: String? = nil, port: Int? = nil, usesTLS: Bool, serviceIdentifier: String? = nil) throws",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV6scheme4host4port7usesTLS17serviceIdentifierACSS_SSSgSiSgSbAItKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceEndpoint",
+            "init(scheme:host:port:usesTLS:serviceIdentifier:)"
+          ]
+        },
+        {
+          "declaration": "let scheme: String",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV6schemeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceEndpoint",
+            "scheme"
+          ]
+        },
+        {
+          "declaration": "let usesTLS: Bool",
+          "identifier": "s:18StellarRemoteMedia0C14SourceEndpointV7usesTLSSbvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceEndpoint",
+            "usesTLS"
+          ]
+        },
+        {
           "declaration": "protocol MediaSourceConnector : Sendable",
           "identifier": "s:18StellarRemoteMedia0C15SourceConnectorP",
           "kind": "swift.protocol",
@@ -7609,6 +8577,157 @@
           "path": [
             "MediaSourceConnector",
             "connect()"
+          ]
+        },
+        {
+          "declaration": "enum MediaSourceCapability",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaSourceCapability"
+          ]
+        },
+        {
+          "declaration": "case changeCursor",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO12changeCursoryA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCapability",
+            "changeCursor"
+          ]
+        },
+        {
+          "declaration": "case serverSearch",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO12serverSearchyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCapability",
+            "serverSearch"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceCapability",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case list",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO4listyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCapability",
+            "list"
+          ]
+        },
+        {
+          "declaration": "case read",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO4readyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCapability",
+            "read"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaSourceCapability",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case unknown(String)",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO7unknownyACSScACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCapability",
+            "unknown(_:)"
+          ]
+        },
+        {
+          "declaration": "case stableID",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO8stableIDyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCapability",
+            "stableID"
+          ]
+        },
+        {
+          "declaration": "case rangeRead",
+          "identifier": "s:18StellarRemoteMedia0C16SourceCapabilityO9rangeReadyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCapability",
+            "rangeRead"
+          ]
+        },
+        {
+          "declaration": "struct MediaSourceScanPolicy",
+          "identifier": "s:18StellarRemoteMedia0C16SourceScanPolicyV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaSourceScanPolicy"
+          ]
+        },
+        {
+          "declaration": "let externalPowerOnly: Bool",
+          "identifier": "s:18StellarRemoteMedia0C16SourceScanPolicyV17externalPowerOnlySbvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceScanPolicy",
+            "externalPowerOnly"
+          ]
+        },
+        {
+          "declaration": "let intervalMilliseconds: Int64?",
+          "identifier": "s:18StellarRemoteMedia0C16SourceScanPolicyV20intervalMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceScanPolicy",
+            "intervalMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let unmeteredNetworkOnly: Bool",
+          "identifier": "s:18StellarRemoteMedia0C16SourceScanPolicyV20unmeteredNetworkOnlySbvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceScanPolicy",
+            "unmeteredNetworkOnly"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C16SourceScanPolicyV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceScanPolicy",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "init(automatic: Bool = true, intervalMilliseconds: Int64? = nil, unmeteredNetworkOnly: Bool = false, externalPowerOnly: Bool = false) throws",
+          "identifier": "s:18StellarRemoteMedia0C16SourceScanPolicyV9automatic20intervalMilliseconds20unmeteredNetworkOnly013externalPowerL0ACSb_s5Int64VSgS2btKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceScanPolicy",
+            "init(automatic:intervalMilliseconds:unmeteredNetworkOnly:externalPowerOnly:)"
+          ]
+        },
+        {
+          "declaration": "let automatic: Bool",
+          "identifier": "s:18StellarRemoteMedia0C16SourceScanPolicyV9automaticSbvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceScanPolicy",
+            "automatic"
           ]
         },
         {
@@ -7692,6 +8811,201 @@
           ]
         },
         {
+          "declaration": "enum MediaSourceConnectionMode",
+          "identifier": "s:18StellarRemoteMedia0C20SourceConnectionModeO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaSourceConnectionMode"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C20SourceConnectionModeO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceConnectionMode",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case relay",
+          "identifier": "s:18StellarRemoteMedia0C20SourceConnectionModeO5relayyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceConnectionMode",
+            "relay"
+          ]
+        },
+        {
+          "declaration": "case direct",
+          "identifier": "s:18StellarRemoteMedia0C20SourceConnectionModeO6directyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceConnectionMode",
+            "direct"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C20SourceConnectionModeO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaSourceConnectionMode",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case unknown(String)",
+          "identifier": "s:18StellarRemoteMedia0C20SourceConnectionModeO7unknownyACSScACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceConnectionMode",
+            "unknown(_:)"
+          ]
+        },
+        {
+          "declaration": "case automatic",
+          "identifier": "s:18StellarRemoteMedia0C20SourceConnectionModeO9automaticyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceConnectionMode",
+            "automatic"
+          ]
+        },
+        {
+          "declaration": "enum MediaSourceCredentialMode",
+          "identifier": "s:18StellarRemoteMedia0C20SourceCredentialModeO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaSourceCredentialMode"
+          ]
+        },
+        {
+          "declaration": "case deviceLocal",
+          "identifier": "s:18StellarRemoteMedia0C20SourceCredentialModeO11deviceLocalyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCredentialMode",
+            "deviceLocal"
+          ]
+        },
+        {
+          "declaration": "case serverManaged",
+          "identifier": "s:18StellarRemoteMedia0C20SourceCredentialModeO13serverManagedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCredentialMode",
+            "serverManaged"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C20SourceCredentialModeO4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceCredentialMode",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "case none",
+          "identifier": "s:18StellarRemoteMedia0C20SourceCredentialModeO4noneyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCredentialMode",
+            "none"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C20SourceCredentialModeO6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaSourceCredentialMode",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "case synced",
+          "identifier": "s:18StellarRemoteMedia0C20SourceCredentialModeO6syncedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCredentialMode",
+            "synced"
+          ]
+        },
+        {
+          "declaration": "case unknown(String)",
+          "identifier": "s:18StellarRemoteMedia0C20SourceCredentialModeO7unknownyACSScACmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaSourceCredentialMode",
+            "unknown(_:)"
+          ]
+        },
+        {
+          "declaration": "struct MediaSourceMetadataPolicy",
+          "identifier": "s:18StellarRemoteMedia0C20SourceMetadataPolicyV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaSourceMetadataPolicy"
+          ]
+        },
+        {
+          "declaration": "let preferLocalMetadata: Bool",
+          "identifier": "s:18StellarRemoteMedia0C20SourceMetadataPolicyV011preferLocalE0Sbvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceMetadataPolicy",
+            "preferLocalMetadata"
+          ]
+        },
+        {
+          "declaration": "let preferredProviders: [String]",
+          "identifier": "s:18StellarRemoteMedia0C20SourceMetadataPolicyV18preferredProvidersSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceMetadataPolicy",
+            "preferredProviders"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia0C20SourceMetadataPolicyV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceMetadataPolicy",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let region: String?",
+          "identifier": "s:18StellarRemoteMedia0C20SourceMetadataPolicyV6regionSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceMetadataPolicy",
+            "region"
+          ]
+        },
+        {
+          "declaration": "init(language: String = \"und\", region: String? = nil, preferredProviders: [String] = [], preferLocalMetadata: Bool = true) throws",
+          "identifier": "s:18StellarRemoteMedia0C20SourceMetadataPolicyV8language6region18preferredProviders011preferLocalE0ACSS_SSSgSaySSGSbtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaSourceMetadataPolicy",
+            "init(language:region:preferredProviders:preferLocalMetadata:)"
+          ]
+        },
+        {
+          "declaration": "let language: String",
+          "identifier": "s:18StellarRemoteMedia0C20SourceMetadataPolicyV8languageSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaSourceMetadataPolicy",
+            "language"
+          ]
+        },
+        {
           "declaration": "enum CredentialKind",
           "identifier": "s:18StellarRemoteMedia14CredentialKindO",
           "kind": "swift.enum",
@@ -7769,6 +9083,113 @@
           "path": [
             "CredentialKind",
             "password"
+          ]
+        },
+        {
+          "declaration": "struct CredentialCookie",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV",
+          "kind": "swift.struct",
+          "path": [
+            "CredentialCookie"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "description"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "let expiresAtMilliseconds: Int64?",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV21expiresAtMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "expiresAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CredentialCookie",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "init(name: String, value: String, domain: String, path: String = \"/\", secure: Bool = true, httpOnly: Bool = true, expiresAtMilliseconds: Int64? = nil) throws",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV4name5value6domain4path6secure8httpOnly21expiresAtMillisecondsACSS_S3SS2bs5Int64VSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CredentialCookie",
+            "init(name:value:domain:path:secure:httpOnly:expiresAtMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "let name: String",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV4nameSSvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "name"
+          ]
+        },
+        {
+          "declaration": "let path: String",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV4pathSSvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "path"
+          ]
+        },
+        {
+          "declaration": "let value: String",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV5valueSSvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "value"
+          ]
+        },
+        {
+          "declaration": "let domain: String",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV6domainSSvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "domain"
+          ]
+        },
+        {
+          "declaration": "let secure: Bool",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV6secureSbvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "secure"
+          ]
+        },
+        {
+          "declaration": "let httpOnly: Bool",
+          "identifier": "s:18StellarRemoteMedia16CredentialCookieV8httpOnlySbvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialCookie",
+            "httpOnly"
           ]
         },
         {
@@ -7951,6 +9372,212 @@
           ]
         },
         {
+          "declaration": "struct CredentialPayload",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV",
+          "kind": "swift.struct",
+          "path": [
+            "CredentialPayload"
+          ]
+        },
+        {
+          "declaration": "init(jsonString: String) throws",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV10jsonStringACSS_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CredentialPayload",
+            "init(jsonString:)"
+          ]
+        },
+        {
+          "declaration": "let passphrase: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV10passphraseSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "passphrase"
+          ]
+        },
+        {
+          "declaration": "let accessToken: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV11accessTokenSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "accessToken"
+          ]
+        },
+        {
+          "declaration": "var description: String { get }",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV11descriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "description"
+          ]
+        },
+        {
+          "declaration": "let publicKeyPEM: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV12publicKeyPEMSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "publicKeyPEM"
+          ]
+        },
+        {
+          "declaration": "let refreshToken: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV12refreshTokenSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "refreshToken"
+          ]
+        },
+        {
+          "declaration": "let privateKeyPEM: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV13privateKeyPEMSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "privateKeyPEM"
+          ]
+        },
+        {
+          "declaration": "let schemaVersion: Int",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV13schemaVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "schemaVersion"
+          ]
+        },
+        {
+          "declaration": "var credentialKind: CredentialKind { get }",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV14credentialKindAA0dG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "credentialKind"
+          ]
+        },
+        {
+          "declaration": "var debugDescription: String { get }",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV16debugDescriptionSSvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "debugDescription"
+          ]
+        },
+        {
+          "declaration": "init(authenticationType: CredentialAuthenticationType, username: String? = nil, password: String? = nil, domain: String? = nil, refreshToken: String? = nil, accessToken: String? = nil, expiresAtMilliseconds: Int64? = nil, scope: String? = nil, token: String? = nil, cookies: [CredentialCookie]? = nil, privateKeyPEM: String? = nil, publicKeyPEM: String? = nil, passphrase: String? = nil, schemaVersion: Int = 1) throws",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV18authenticationType8username8password6domain12refreshToken06accessL021expiresAtMilliseconds5scope5token7cookies13privateKeyPEM06publicuV010passphrase13schemaVersionAcA0d14AuthenticationG0O_SSSgA4Ts5Int64VSgA2TSayAA0D6CookieVGSgA3TSitKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CredentialPayload",
+            "init(authenticationType:username:password:domain:refreshToken:accessToken:expiresAtMilliseconds:scope:token:cookies:privateKeyPEM:publicKeyPEM:passphrase:schemaVersion:)"
+          ]
+        },
+        {
+          "declaration": "let authenticationType: CredentialAuthenticationType",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV18authenticationTypeAA0d14AuthenticationG0Ovp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "authenticationType"
+          ]
+        },
+        {
+          "declaration": "func canonicalJSONString() throws -> String",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV19canonicalJSONStringSSyKF",
+          "kind": "swift.method",
+          "path": [
+            "CredentialPayload",
+            "canonicalJSONString()"
+          ]
+        },
+        {
+          "declaration": "let expiresAtMilliseconds: Int64?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV21expiresAtMillisecondss5Int64VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "expiresAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CredentialPayload",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let scope: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV5scopeSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "scope"
+          ]
+        },
+        {
+          "declaration": "let token: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV5tokenSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "token"
+          ]
+        },
+        {
+          "declaration": "let domain: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV6domainSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "domain"
+          ]
+        },
+        {
+          "declaration": "func encode(to encoder: any Encoder) throws",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV6encode2toys7Encoder_p_tKF",
+          "kind": "swift.method",
+          "path": [
+            "CredentialPayload",
+            "encode(to:)"
+          ]
+        },
+        {
+          "declaration": "let cookies: [CredentialCookie]?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV7cookiesSayAA0D6CookieVGSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "cookies"
+          ]
+        },
+        {
+          "declaration": "let password: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV8passwordSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "password"
+          ]
+        },
+        {
+          "declaration": "let username: String?",
+          "identifier": "s:18StellarRemoteMedia17CredentialPayloadV8usernameSSSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CredentialPayload",
+            "username"
+          ]
+        },
+        {
           "declaration": "enum CredentialProtectionMode",
           "identifier": "s:18StellarRemoteMedia24CredentialProtectionModeO",
           "kind": "swift.enum",
@@ -8010,6 +9637,68 @@
           "path": [
             "CredentialProtectionMode",
             "plaintext"
+          ]
+        },
+        {
+          "declaration": "enum CredentialAuthenticationType",
+          "identifier": "s:18StellarRemoteMedia28CredentialAuthenticationTypeO",
+          "kind": "swift.enum",
+          "path": [
+            "CredentialAuthenticationType"
+          ]
+        },
+        {
+          "declaration": "case oauthToken",
+          "identifier": "s:18StellarRemoteMedia28CredentialAuthenticationTypeO10oauthTokenyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialAuthenticationType",
+            "oauthToken"
+          ]
+        },
+        {
+          "declaration": "case usernamePassword",
+          "identifier": "s:18StellarRemoteMedia28CredentialAuthenticationTypeO16usernamePasswordyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialAuthenticationType",
+            "usernamePassword"
+          ]
+        },
+        {
+          "declaration": "case cookie",
+          "identifier": "s:18StellarRemoteMedia28CredentialAuthenticationTypeO6cookieyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialAuthenticationType",
+            "cookie"
+          ]
+        },
+        {
+          "declaration": "case keyPair",
+          "identifier": "s:18StellarRemoteMedia28CredentialAuthenticationTypeO7keyPairyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialAuthenticationType",
+            "keyPair"
+          ]
+        },
+        {
+          "declaration": "case apiToken",
+          "identifier": "s:18StellarRemoteMedia28CredentialAuthenticationTypeO8apiTokenyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CredentialAuthenticationType",
+            "apiToken"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:18StellarRemoteMedia28CredentialAuthenticationTypeO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "CredentialAuthenticationType",
+            "init(rawValue:)"
           ]
         }
       ]
@@ -9170,12 +10859,30 @@
           ]
         },
         {
+          "declaration": "func mediaSourceConfigs(accountUID: String, includingDeleted: Bool = false) async throws -> [MediaSourceConfig]",
+          "identifier": "s:14StellarStorage12AccountStoreV18mediaSourceConfigs10accountUID16includingDeletedSay0A11RemoteMedia0mF6ConfigVGSS_SbtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "AccountStore",
+            "mediaSourceConfigs(accountUID:includingDeleted:)"
+          ]
+        },
+        {
           "declaration": "func saveCredentialRecord(_ record: CredentialRecord, baseRevision: Int64, operationUID suppliedOperationUID: String? = nil) async throws",
           "identifier": "s:14StellarStorage12AccountStoreV20saveCredentialRecord_12baseRevision12operationUIDy0A11RemoteMedia0fG0V_s5Int64VSSSgtYaKF",
           "kind": "swift.method",
           "path": [
             "AccountStore",
             "saveCredentialRecord(_:baseRevision:operationUID:)"
+          ]
+        },
+        {
+          "declaration": "func saveMediaSourceConfig(_ config: MediaSourceConfig, baseRevision: Int64, operationUID suppliedOperationUID: String? = nil) async throws",
+          "identifier": "s:14StellarStorage12AccountStoreV21saveMediaSourceConfig_12baseRevision12operationUIDy0a6RemoteF00fgH0V_s5Int64VSSSgtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "AccountStore",
+            "saveMediaSourceConfig(_:baseRevision:operationUID:)"
           ]
         },
         {
@@ -9220,6 +10927,15 @@
           "path": [
             "LibraryStore",
             "registerSource(_:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func rebuildSearchDocuments() async throws -> Int",
+          "identifier": "s:14StellarStorage12LibraryStoreV22rebuildSearchDocumentsSiyYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "rebuildSearchDocuments()"
           ]
         },
         {
@@ -9900,6 +11616,14 @@
           ]
         },
         {
+          "declaration": "typealias MediaSourceKind = MediaSourceKind",
+          "identifier": "s:19StellarUserMediaSDK0C10SourceKinda",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSourceKind"
+          ]
+        },
+        {
           "declaration": "typealias MediaMatchMethod = MediaMatchMethod",
           "identifier": "s:19StellarUserMediaSDK0C11MatchMethoda",
           "kind": "swift.typealias",
@@ -9937,6 +11661,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaScanObserver"
+          ]
+        },
+        {
+          "declaration": "typealias MediaSourceConfig = MediaSourceConfig",
+          "identifier": "s:19StellarUserMediaSDK0C12SourceConfiga",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSourceConfig"
           ]
         },
         {
@@ -10004,6 +11736,14 @@
           ]
         },
         {
+          "declaration": "typealias MediaSourceEndpoint = MediaSourceEndpoint",
+          "identifier": "s:19StellarUserMediaSDK0C14SourceEndpointa",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSourceEndpoint"
+          ]
+        },
+        {
           "declaration": "typealias MediaSourceConnector = MediaSourceConnector",
           "identifier": "s:19StellarUserMediaSDK0C15SourceConnectora",
           "kind": "swift.typealias",
@@ -10057,6 +11797,22 @@
           "kind": "swift.typealias",
           "path": [
             "MediaScanRootIdentity"
+          ]
+        },
+        {
+          "declaration": "typealias MediaSourceCapability = MediaSourceCapability",
+          "identifier": "s:19StellarUserMediaSDK0C16SourceCapabilitya",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSourceCapability"
+          ]
+        },
+        {
+          "declaration": "typealias MediaSourceScanPolicy = MediaSourceScanPolicy",
+          "identifier": "s:19StellarUserMediaSDK0C16SourceScanPolicya",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSourceScanPolicy"
           ]
         },
         {
@@ -10161,6 +11917,30 @@
           "kind": "swift.typealias",
           "path": [
             "MediaScannerConfiguration"
+          ]
+        },
+        {
+          "declaration": "typealias MediaSourceConnectionMode = MediaSourceConnectionMode",
+          "identifier": "s:19StellarUserMediaSDK0C20SourceConnectionModea",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSourceConnectionMode"
+          ]
+        },
+        {
+          "declaration": "typealias MediaSourceCredentialMode = MediaSourceCredentialMode",
+          "identifier": "s:19StellarUserMediaSDK0C20SourceCredentialModea",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSourceCredentialMode"
+          ]
+        },
+        {
+          "declaration": "typealias MediaSourceMetadataPolicy = MediaSourceMetadataPolicy",
+          "identifier": "s:19StellarUserMediaSDK0C20SourceMetadataPolicya",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaSourceMetadataPolicy"
           ]
         },
         {
@@ -10380,6 +12160,14 @@
           ]
         },
         {
+          "declaration": "typealias TMDBTransport = TMDBTransport",
+          "identifier": "s:19StellarUserMediaSDK13TMDBTransporta",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBTransport"
+          ]
+        },
+        {
           "declaration": "typealias CredentialKind = CredentialKind",
           "identifier": "s:19StellarUserMediaSDK14CredentialKinda",
           "kind": "swift.typealias",
@@ -10417,6 +12205,14 @@
           "kind": "swift.typealias",
           "path": [
             "SystemSDKClock"
+          ]
+        },
+        {
+          "declaration": "typealias TMDBCredential = TMDBCredential",
+          "identifier": "s:19StellarUserMediaSDK14TMDBCredentiala",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBCredential"
           ]
         },
         {
@@ -10476,11 +12272,27 @@
           ]
         },
         {
+          "declaration": "typealias TMDBHTTPRequest = TMDBHTTPRequest",
+          "identifier": "s:19StellarUserMediaSDK15TMDBHTTPRequesta",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBHTTPRequest"
+          ]
+        },
+        {
           "declaration": "typealias WebDAVTransport = WebDAVTransport",
           "identifier": "s:19StellarUserMediaSDK15WebDAVTransporta",
           "kind": "swift.typealias",
           "path": [
             "WebDAVTransport"
+          ]
+        },
+        {
+          "declaration": "typealias CredentialCookie = CredentialCookie",
+          "identifier": "s:19StellarUserMediaSDK16CredentialCookiea",
+          "kind": "swift.typealias",
+          "path": [
+            "CredentialCookie"
           ]
         },
         {
@@ -10516,11 +12328,43 @@
           ]
         },
         {
+          "declaration": "typealias TMDBArtworkImage = TMDBArtworkImage",
+          "identifier": "s:19StellarUserMediaSDK16TMDBArtworkImagea",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBArtworkImage"
+          ]
+        },
+        {
+          "declaration": "typealias TMDBHTTPResponse = TMDBHTTPResponse",
+          "identifier": "s:19StellarUserMediaSDK16TMDBHTTPResponsea",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBHTTPResponse"
+          ]
+        },
+        {
+          "declaration": "typealias TMDBMediaDetails = TMDBMediaDetails",
+          "identifier": "s:19StellarUserMediaSDK16TMDBMediaDetailsa",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBMediaDetails"
+          ]
+        },
+        {
           "declaration": "typealias WebDAVCredential = WebDAVCredential",
           "identifier": "s:19StellarUserMediaSDK16WebDAVCredentiala",
           "kind": "swift.typealias",
           "path": [
             "WebDAVCredential"
+          ]
+        },
+        {
+          "declaration": "typealias CredentialPayload = CredentialPayload",
+          "identifier": "s:19StellarUserMediaSDK17CredentialPayloada",
+          "kind": "swift.typealias",
+          "path": [
+            "CredentialPayload"
           ]
         },
         {
@@ -10676,6 +12520,14 @@
           ]
         },
         {
+          "declaration": "typealias TMDBMetadataProvider = TMDBMetadataProvider",
+          "identifier": "s:19StellarUserMediaSDK20TMDBMetadataProvidera",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBMetadataProvider"
+          ]
+        },
+        {
           "declaration": "typealias LocalMetadataDocument = LocalMetadataDocument",
           "identifier": "s:19StellarUserMediaSDK21LocalMetadataDocumenta",
           "kind": "swift.typealias",
@@ -10740,6 +12592,14 @@
           ]
         },
         {
+          "declaration": "typealias TMDBImageConfiguration = TMDBImageConfiguration",
+          "identifier": "s:19StellarUserMediaSDK22TMDBImageConfigurationa",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBImageConfiguration"
+          ]
+        },
+        {
           "declaration": "typealias LibrarySourceDefinition = LibrarySourceDefinition",
           "identifier": "s:19StellarUserMediaSDK23LibrarySourceDefinitiona",
           "kind": "swift.typealias",
@@ -10777,6 +12637,14 @@
           "kind": "swift.typealias",
           "path": [
             "TaskCancellationChecker"
+          ]
+        },
+        {
+          "declaration": "typealias URLSessionTMDBTransport = URLSessionTMDBTransport",
+          "identifier": "s:19StellarUserMediaSDK23URLSessionTMDBTransporta",
+          "kind": "swift.typealias",
+          "path": [
+            "URLSessionTMDBTransport"
           ]
         },
         {
@@ -10820,6 +12688,14 @@
           ]
         },
         {
+          "declaration": "typealias TMDBProviderConfiguration = TMDBProviderConfiguration",
+          "identifier": "s:19StellarUserMediaSDK25TMDBProviderConfigurationa",
+          "kind": "swift.typealias",
+          "path": [
+            "TMDBProviderConfiguration"
+          ]
+        },
+        {
           "declaration": "typealias URLSessionWebDAVTransport = URLSessionWebDAVTransport",
           "identifier": "s:19StellarUserMediaSDK25URLSessionWebDAVTransporta",
           "kind": "swift.typealias",
@@ -10849,6 +12725,14 @@
           "kind": "swift.typealias",
           "path": [
             "WebDAVMediaSourceConnector"
+          ]
+        },
+        {
+          "declaration": "typealias CredentialAuthenticationType = CredentialAuthenticationType",
+          "identifier": "s:19StellarUserMediaSDK28CredentialAuthenticationTypea",
+          "kind": "swift.typealias",
+          "path": [
+            "CredentialAuthenticationType"
           ]
         },
         {

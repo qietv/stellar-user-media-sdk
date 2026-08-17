@@ -1,8 +1,8 @@
 # Swift Reference Implementation Plan
 
-最后核对日期：2026-08-16
+最后核对日期：2026-08-17
 
-当前阶段：**S5 — 媒体物化、元数据与 PosterWall**
+当前阶段：**S6 — OAuth、来源配置与凭据同步**
 
 目标工具链：Swift 6.3.x、Swift 6 language mode  
 最低 Apple 平台：iOS/iPadOS 17、macOS 14、tvOS 17
@@ -65,9 +65,9 @@ v1 不包含：
 - 公共错误模型、`CredentialRecord` wire model；
 - 最小电影/剧集文件名 parser；
 - repository-wide parser fixture；
-- 83 个 Swift Testing 测试，macOS debug/release 构建已通过；
+- 97 个 Swift Testing 测试，macOS debug/release 构建已通过；
 - GitHub Actions 已在 macOS 26 与 Ubuntu 24.04 首次实际通过对等验证，并固定第三方 Action SHA；
-- SwiftPM exact/revision 依赖锁定门禁，以及 9 个公开模块、1288 个 symbol 的 API compatibility 基线；
+- SwiftPM exact/revision 依赖锁定门禁，以及 9 个公开模块、1502 个 symbol 的 API compatibility 基线；
 - libsmb2 来源/ABI/私有静态链接 ADR、机器可读 lock、全符号前缀和 C ABI smoke guard；
 - 不依赖真实服务器的 `SMB2Transport` / `SMB2Session` seam、只读值模型和 fake transport 合同测试；
 - allowlisted C wrapper、Linux `LinuxSMB2Transport`、有界 blocking executor，以及连接、枚举、`stat`、range read 和确定性释放实现；
@@ -79,13 +79,16 @@ v1 不包含：
 - 本地元数据摄取合同 v1、sidecar 分类、受限 Kodi NFO 解析，以及可注入的技术探测模型与协议。
 - 文件名噪声/provider 证据、本地 JSON 解析，以及 filename/sidecar/NFO/JSON/probe 的 SQLite 原子摄取。
 - provider 查询协议、NFO/文件名查询证据合并，以及可由公共 fixture 重放的确定性候选评分与决策。
+- 具体 TMDB v3 adapter、details/图片配置模型、运行时 `api_key`/Bearer 鉴权与录制响应清洗流程。
+- 原子 search document 重建，以及人工锁、播放状态和未上传 outbox 保全测试。
+- `MediaSourceConfig` v1、配置/墓碑原子 outbox，以及受限 `CredentialPayload` v1 和跨语言 fixtures。
 
 尚未完成：
 
-- 尚未产生真实代码的 Auth、Sync 与平台 backend targets；
+- 尚未产生独立 target 的 Auth、Sync 与平台 backend；
 - Windows compile check；
 - SMB3 encryption 的客户端合同与 server-free 测试已经完成；当前没有可用的隔离加密服务，真实服务验收推迟到 release candidate，不阻断 S2；
-- OAuth、配置/凭据同步和服务端 transport；
+- OAuth、同步 transport、远端 apply/conflict 与服务端验收；
 - StellarPlayer iOS 正式集成。
 
 ## 4. 目标 Package 架构
@@ -264,7 +267,7 @@ stellar-media smb scan
 
 完成定义：macOS/Linux 使用同一 DDL checksum；同一 scanner fixture 产生一致的规范化数据库 snapshot；迁移失败不覆盖旧库；`foreign_key_check` 为零。
 
-### S5 — 媒体物化、元数据与 PosterWall ⬜
+### S5 — 媒体物化、元数据与 PosterWall ✅
 
 目标：从文件事实生成电影/剧集实体，并提供播放器需要的媒体库查询。
 
@@ -275,9 +278,9 @@ stellar-media smb scan
   - [x] 实现 2 MiB 上限、拒绝 DTD/entity 的 Kodi NFO parser，规范化标题、季集、外部 ID 与 artwork；
   - [x] 实现来源无关的技术摘要、轨道结果与可注入 range-read probe 协议；
   - [x] 扩展文件名候选/噪声证据，实现本地 JSON，并把 sidecar/NFO/probe 结果原子写入 SQLite；
-- [ ] provider 查询通过协议注入，单元测试使用录制/合成响应，不要求真实 TMDB key；
+- [x] provider 查询通过协议注入，单元测试使用录制/合成响应，不要求真实 TMDB key；
   - [x] 固定 `MediaMetadataProviding` 搜索协议与合成 provider 测试，不持有或要求真实 TMDB key；
-  - [ ] 实现具体 provider adapter、details/图片响应模型和录制响应脱敏流程；
+  - [x] 实现具体 provider adapter、details/图片响应模型和录制响应脱敏流程；
 - [x] 实现候选生成、评分、低置信度队列、人工锁定和多版本绑定；
   - [x] 固定 local metadata/文件名查询优先级、外部 ID 直达、类型/标题/年份/剧集存在性评分与三档决策；
   - [x] 持久化低置信度队列，保护人工锁定，并实现同实体多版本绑定；
@@ -287,7 +290,7 @@ stellar-media smb scan
 - [x] provider 失败不能删除本地文件事实，也不能覆盖人工匹配；
 - [x] CLI 新增 `library list/search/show`，输出与 PosterWall fixture 对齐。
 
-进行中证据：`metadata-intake-v1.json` 已固定文件名噪声/provider 证据、6 个 sidecar 关联样本、2 个 NFO、1 个本地 JSON 规范化样本和 1 组多轨技术结果；`metadata-matching-v1.json` 固定电影、alias、剧集存在性、缺集拒绝和外部 ID 直达结果；`metadata-match-persistence-v1.json` 固定 review → 人工锁定、锁定保护、同实体 primary/version 绑定、series → season → episode 物化，以及 extra 幂等继承。`SQLiteMediaMetadataStore` 原子写入 parse、完整 sidecar 集与成功 probe，任一行失败时整体回滚且无新成功 probe 时保留上次结果。`SQLiteMediaMatcher` 把 review 候选写入可删除缓存，把自动/人工决定写入核心库；事务内再次保护人工锁，provider 失败不改变已有绑定。`StellarPosterWall` 已成为独立 target；`poster-wall-v1.json` 固定 title pagination、最近添加、继续观看、搜索、类型、片单、选图、剧集详情和轨道投影。cursor 绑定规范化查询与内容 revision，库变化后失败关闭；电影/剧集聚合多版本可用性，详情返回 playable files 与 season/episode 层级。artwork variant identity 包含 provider/reference/尺寸/transform，签名 URL 被拒绝，缓存索引与 prefetch seam 可替换。CLI 已复用同一 API 提供 `library list/search/show`。当前 macOS 共 83 个测试；公共 API baseline 包含 9 个 portable 模块、1288 个 symbol。
+完成证据：`metadata-intake-v1.json` 已固定文件名噪声/provider 证据、6 个 sidecar 关联样本、2 个 NFO、1 个本地 JSON 规范化样本和 1 组多轨技术结果；`metadata-matching-v1.json` 固定电影、alias、剧集存在性、缺集拒绝和外部 ID 直达结果；`metadata-match-persistence-v1.json` 固定 review → 人工锁定、锁定保护、同实体 primary/version 绑定、series → season → episode 物化，以及 extra 幂等继承。`SQLiteMediaMetadataStore` 原子写入 parse、完整 sidecar 集与成功 probe，任一行失败时整体回滚且无新成功 probe 时保留上次结果。`SQLiteMediaMatcher` 把 review 候选写入可删除缓存，把自动/人工决定写入核心库；事务内再次保护人工锁，provider 失败不改变已有绑定。`TMDBMetadataProvider` 使用可注入 transport，支持运行时 v3 `api_key` query 与兼容 Bearer header，覆盖 movie/TV 搜索、外部 ID、episode 存在性、details 和图片配置；`tmdb-provider-v1.json` 只包含经脚本去除 Authorization、Cookie、`api_key` 和 token 字段的响应。`StellarPosterWall` 已成为独立 target；`poster-wall-v1.json` 固定 title pagination、最近添加、继续观看、搜索、类型、片单、选图、剧集详情和轨道投影。cursor 绑定规范化查询与内容 revision，库变化后失败关闭；电影/剧集聚合多版本可用性，详情返回 playable files 与 season/episode 层级。`LibraryStore.rebuildSearchDocuments()` 在单一事务重建派生搜索索引，成功与注入失败测试均证明人工锁、播放状态和待上传 change log 不变。离线纵向测试已贯通 fake SMB connector → scanner → SQLite → 电影物化 → PosterWall JSON。CLI 复用同一 API 提供 `library list/search/show`。当前 macOS 共 90 个测试；debug tests、release build、format、1360-symbol API baseline、依赖、schema、secret、portable import、libsmb2 provenance 和 fixture 清洗幂等门禁均通过。
 
 完成定义：从 SMB fixture 扫描到数据库，再到海报墙 JSON 查询形成完整离线纵向路径；重建派生索引不会丢失人工状态、播放状态或 outbox。
 
@@ -299,13 +302,16 @@ stellar-media smb scan
 
 - [ ] 实现 Authorization Code + PKCE、`state` 校验、session actor、单飞 refresh、退出/撤销和 reauthentication；只有服务升级为 OIDC 并返回 ID token 时才增加 `nonce`、issuer 和 audience 校验；
 - [ ] Stellar OAuth token 每设备独立，不进入来源凭据同步：access token 优先只驻留内存，refresh token 进入平台安全存储；Apple backend 全程使用 Data Protection Keychain、默认私有 access group、`ThisDeviceOnly`、非交互 `LAContext`，禁止 `kSecAttrAccessControl`/LocalAuthentication evaluate/共享 entitlement 依赖，确保零 Face ID/Touch ID/设备密码弹框和零运行时权限请求；
-- [ ] 实现 `MediaSourceConfig`、revision、tombstone、冲突和 config outbox；
+- [x] 实现 `MediaSourceConfig` v1、revision、tombstone、SQLite repository 和 config outbox；
+- [ ] 实现远端配置 apply、冲突保存/解决和配置变更触发 scanner；
 - [x] 采用 ADR-0005，固定 v1 `CredentialRecord` 为应用层明文，并保留 `protection_mode`、稳定 UID、revision、tombstone 和可选受保护字段作为未来迁移边界；
-- [ ] 实现受限 `payload_json` schema、record repository、字段大小限制和 redaction；当前客户端只创建/使用 `plaintext`，遇到未来未知或受保护模式必须失败关闭且不得覆盖远端记录；
+- [x] 实现受限 `payload_json` schema、record repository、字段大小限制和 redaction；当前客户端只创建/使用 `plaintext`，遇到未来未知或受保护模式失败关闭且不产生 outbox；
 - [ ] 新设备完成 Stellar OAuth 后直接拉取来源配置和凭据，不需要旧设备批准、恢复口令、Vault key 或生物识别；
 - [ ] 实现可替换 sync transport 与 deterministic fake server；staging 服务可用后执行真实 pull/push/revoke 验收；
 - [ ] 建立跨语言 fixtures，覆盖创建、更新、冲突、删除、未知 schema/protection mode 和幂等重放；
 - [ ] 验证本地 SQLite、同步请求和服务端受限存储可以正确读取测试 payload；同时验证普通日志、崩溃报告、分析事件、URL 和非受限诊断导出不出现凭据。
+
+阶段性证据：`source-config-sync-v1.json` 固定 SMB 来源配置、未知 capability 保留、规范排序和删除墓碑；`AccountStore.saveMediaSourceConfig` 在单一事务写配置与完整 outbox payload，重复 operation 幂等，跨 entity operation UID、配置改绑账户和 payload 冲突均回滚。`credential-payload-v1.json` 固定 username/password、OAuth token、API token、cookie 和 key pair 五种 allowlisted shape，以及未知字段/auth/schema、混合字段、重复 cookie scope 和缺失必填值的拒绝行为。repository 在写 SQLite 前复核 payload、record kind、64 KiB 上限与 plaintext-only 边界，公开 description 不返回 payload、endpoint 或路径。远端 transport、cursor apply、冲突记录和 OAuth 尚未完成，因此 S6 仍保持未完成。
 
 完成定义：用户在第二台隔离设备完成 Stellar OAuth 后，无额外操作即可同步并使用 SMB 凭据；服务端按账户授权隔离且可以读取 v1 明文；Apple 首次保存、冷启动恢复、前后台刷新、登出和遗留受保护 item 均不弹认证 UI、不申请运行时权限；密码更新、冲突、删除、登出和未知保护模式均通过。
 

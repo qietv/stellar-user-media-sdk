@@ -21,7 +21,7 @@ struct AccountStoreTests {
       credentialUID: "credential-1",
       accountUID: "account-1",
       sourceUID: "source-1",
-      kind: .unknown("future_credential"),
+      kind: .password,
       payloadJSON:
         #"{"auth_type":"username_password","password":"secret","schema_version":1,"username":"alice"}"#,
       revision: 1,

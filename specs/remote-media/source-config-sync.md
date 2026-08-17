@@ -31,6 +31,22 @@
 
 `endpoint` MUST 进行协议级规范化，但不得把用户名或密码嵌入 URL。`root_path` 的大小写和 Unicode 规范化策略由连接器声明，不能全局假定大小写不敏感。
 
+`endpoint` v1 字段固定为：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `scheme` | string | 小写协议名；必须匹配 `[a-z][a-z0-9+.-]{0,31}` |
+| `host` | string? | 非敏感主机；禁止 userinfo、路径和完整 URL |
+| `port` | int? | `1...65535` |
+| `uses_tls` | bool | 连接器是否要求 TLS |
+| `service_identifier` | string? | 不使用主机定位时的非敏感服务 ID |
+
+`scan_policy` v1 包含 `automatic`、可选且不小于 60 秒的 `interval_ms`、`unmetered_network_only` 和 `external_power_only`；`automatic=false` 时不得携带间隔。`metadata_policy` v1 包含 BCP-47 子集 `language`、可选两字母 `region`、去重的 `preferred_providers` 和 `prefer_local_metadata`。
+
+v1 已知 `capabilities` 为 `list`、`read`、`range_read`、`change_cursor`、`server_search` 和 `stable_id`。客户端 MUST 保留未知 capability 以支持前向兼容，但当前 repository 遇到未知 `kind`、`connection_mode` 或 `credential_mode` 时必须失败关闭且不得产生 outbox。
+
+路径统一使用 `/` 分隔并禁止 `..` segment；排序和去重后的 `included_paths`、`excluded_paths`、`capabilities` 构成规范表示。`credential_mode=synced` 必须带 `credential_uid`，其他模式不得带该引用。公开 description/debug description 不得暴露账户、来源、host、service ID 或路径。
+
 ## 配置与凭据分离
 
 ```mermaid
@@ -97,6 +113,7 @@ flowchart LR
 
 ## 验收条件
 
+- 公共 [`source-config-sync-v1.json`](../fixtures/remote-media/source-config-sync-v1.json) 必须在三端产生相同的规范路径、能力顺序、upsert/delete outbox 和墓碑可见性；
 - 同一配置重复上传不会生成重复媒体源。
 - 新设备完成 Stellar OAuth 后可以使用同步的第三方凭据，无需旧设备批准、恢复口令或重新输入。
 - 云端和本地 SQLite 中存在应用层明文凭据；访问控制、备份、诊断和删除流程按敏感凭据处理，产品不得声称 E2EE。

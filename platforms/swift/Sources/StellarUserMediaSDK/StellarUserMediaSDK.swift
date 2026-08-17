@@ -58,8 +58,30 @@ public typealias RetryExecutor = StellarCore.RetryExecutor
 public typealias CredentialKind = StellarRemoteMedia.CredentialKind
 /// Compatibility alias for credential payload protection metadata.
 public typealias CredentialProtectionMode = StellarRemoteMedia.CredentialProtectionMode
+/// Compatibility alias for strict credential payload authentication types.
+public typealias CredentialAuthenticationType = StellarRemoteMedia.CredentialAuthenticationType
+/// Compatibility alias for a bounded synchronized HTTP cookie.
+public typealias CredentialCookie = StellarRemoteMedia.CredentialCookie
+/// Compatibility alias for a strict, redacted plaintext credential payload.
+public typealias CredentialPayload = StellarRemoteMedia.CredentialPayload
 /// Compatibility alias for the synchronized credential record.
 public typealias CredentialRecord = StellarRemoteMedia.CredentialRecord
+/// Compatibility alias for synchronized media-source categories.
+public typealias MediaSourceKind = StellarRemoteMedia.MediaSourceKind
+/// Compatibility alias for synchronized source connection routing.
+public typealias MediaSourceConnectionMode = StellarRemoteMedia.MediaSourceConnectionMode
+/// Compatibility alias for synchronized source credential resolution.
+public typealias MediaSourceCredentialMode = StellarRemoteMedia.MediaSourceCredentialMode
+/// Compatibility alias for synchronized source capabilities.
+public typealias MediaSourceCapability = StellarRemoteMedia.MediaSourceCapability
+/// Compatibility alias for a non-secret synchronized source endpoint.
+public typealias MediaSourceEndpoint = StellarRemoteMedia.MediaSourceEndpoint
+/// Compatibility alias for synchronized source scan scheduling.
+public typealias MediaSourceScanPolicy = StellarRemoteMedia.MediaSourceScanPolicy
+/// Compatibility alias for synchronized source metadata preferences.
+public typealias MediaSourceMetadataPolicy = StellarRemoteMedia.MediaSourceMetadataPolicy
+/// Compatibility alias for the synchronized media-source configuration.
+public typealias MediaSourceConfig = StellarRemoteMedia.MediaSourceConfig
 /// Compatibility alias for source path case-sensitivity semantics.
 public typealias RemotePathCaseSensitivity = StellarRemoteMedia.RemotePathCaseSensitivity
 /// Compatibility alias for source Unicode normalization semantics.
@@ -200,6 +222,26 @@ public typealias MediaMatchQueryBuilder = StellarMediaLibrary.MediaMatchQueryBui
 public typealias MediaMetadataCandidate = StellarMediaLibrary.MediaMetadataCandidate
 /// Compatibility alias for the injectable metadata provider boundary.
 public typealias MediaMetadataProviding = StellarMediaLibrary.MediaMetadataProviding
+/// Compatibility alias for a redacted TMDB application credential.
+public typealias TMDBCredential = StellarMediaLibrary.TMDBCredential
+/// Compatibility alias for bounded TMDB locale and search policy.
+public typealias TMDBProviderConfiguration = StellarMediaLibrary.TMDBProviderConfiguration
+/// Compatibility alias for a redacted TMDB transport request.
+public typealias TMDBHTTPRequest = StellarMediaLibrary.TMDBHTTPRequest
+/// Compatibility alias for a bounded TMDB transport response.
+public typealias TMDBHTTPResponse = StellarMediaLibrary.TMDBHTTPResponse
+/// Compatibility alias for the injectable TMDB transport boundary.
+public typealias TMDBTransport = StellarMediaLibrary.TMDBTransport
+/// Compatibility alias for the live URLSession TMDB transport.
+public typealias URLSessionTMDBTransport = StellarMediaLibrary.URLSessionTMDBTransport
+/// Compatibility alias for normalized TMDB artwork metadata.
+public typealias TMDBArtworkImage = StellarMediaLibrary.TMDBArtworkImage
+/// Compatibility alias for normalized TMDB media details.
+public typealias TMDBMediaDetails = StellarMediaLibrary.TMDBMediaDetails
+/// Compatibility alias for TMDB image host and size configuration.
+public typealias TMDBImageConfiguration = StellarMediaLibrary.TMDBImageConfiguration
+/// Compatibility alias for the concrete TMDB metadata adapter.
+public typealias TMDBMetadataProvider = StellarMediaLibrary.TMDBMetadataProvider
 /// Compatibility alias for a metadata match policy decision.
 public typealias MediaMatchDecision = StellarMediaLibrary.MediaMatchDecision
 /// Compatibility alias for a deterministic metadata scoring signal.

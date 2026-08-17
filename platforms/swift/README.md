@@ -2,7 +2,7 @@
 
 面向 iOS、iPadOS、macOS 和 tvOS 的原生 Swift 实现。
 
-完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S4 已完成 SQLite v1、迁移、扫描入库与跨平台 CI；S5 已完成本地元数据/NFO/JSON/probe 原子入库、候选评分、review 缓存、人工锁保护、多版本/extra 物化，以及 PosterWall 查询、详情、稳定分页、选图和缓存接口，当前剩余具体 provider adapter 与派生索引重建保全测试。
+完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S5 已完成本地元数据/NFO/JSON/probe 原子入库、TMDB adapter 与清洗 fixture、候选评分、review 缓存、人工锁保护、多版本/extra 物化、派生搜索索引安全重建，以及 PosterWall 查询、详情、稳定分页、选图和缓存接口。当前阶段为 S6 OAuth、来源配置与凭据同步；首个 S6 切片已实现 `MediaSourceConfig`、配置/墓碑原子 outbox 和受限 `CredentialPayload` v1。
 
 ## 工具链与兼容基线
 
@@ -32,7 +32,7 @@ Sources/StellarMediaCLI/
 Tests/StellarUserMediaSDKTests/
 ```
 
-当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、版本化明文 `CredentialRecord`、来源无关的 locator/entry/connector 合同、可恢复且有界并发的 scanner、SQLite v1 迁移/校验/扫描入库、扩展文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。Scanner 在每个成功目录页把 entries 与 checkpoint 作为同一批次提交，只有最终 completion 才携带 missing 协调资格。Core、RemoteMedia、LocalMedia、WebDAV、Storage、MediaLibrary 和 SMB2Core 已是独立 target；其余 target 在第一次产生真实代码时加入。
+当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、版本化明文 `CredentialRecord`、严格受限的五种 `CredentialPayload`、版本化 `MediaSourceConfig` 与账户级原子 outbox、来源无关的 locator/entry/connector 合同、可恢复且有界并发的 scanner、SQLite v1 迁移/校验/扫描入库、扩展文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。Scanner 在每个成功目录页把 entries 与 checkpoint 作为同一批次提交，只有最终 completion 才携带 missing 协调资格。Core、RemoteMedia、LocalMedia、WebDAV、Storage、MediaLibrary 和 SMB2Core 已是独立 target；其余 target 在第一次产生真实代码时加入。
 
 `StellarSMB2Core` 提供不泄漏 C pointer 的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。`CStellarLibsmb2Private` 只在 Linux Package graph 中存在，解析项目私有静态 archive；archive 中所有已定义全局 symbol 均添加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀并从动态导出表隐藏。`CStellarSMB2Wrapper` 是唯一可调用该私有 module 的 target，对 Swift 只暴露项目自有 opaque client 和值记录；`StellarSMB2Linux` 在有界 blocking executor 上实现连接、枚举、`stat` 和 range read。
 
@@ -61,6 +61,7 @@ swift run stellar-media library search /path/to/library.sqlite "space opera"
 swift run stellar-media library show /path/to/library.sqlite <media-uid> --profile <profile-uid>
 python3 ../../tools/ci/check_swift_dependencies.py --package-root .
 python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
+python3 ../../tools/metadata/sanitize_tmdb_fixture.py raw-tmdb.json sanitized-tmdb.json
 ```
 
 Linux 构建完成后可用只读 SMB 命令。密码只能通过 stdin 提供，不支持密码参数或带 userinfo 的 SMB URL：
@@ -89,7 +90,7 @@ python3 ../../tools/ci/check_swift_api.py \
 - 对外 API 采用 `async throws`；持续状态采用 `AsyncSequence`，按需提供 Combine 适配。
 - 会话、数据库写入和扫描协调器分别由 actor 串行化。
 - OAuth 使用 `ASWebAuthenticationSession`。access token 优先只驻留内存，refresh token 使用 Data Protection Keychain 的 `ThisDeviceOnly` 可访问级别；所有操作显式启用 `kSecUseDataProtectionKeychain`，默认私有 access group 且不同步 iCloud。不得写入 `kSecAttrAccessControl` 或调用 LocalAuthentication evaluate；读取使用禁止交互的 context，因此 Keychain 不弹 Face ID/Touch ID/设备密码，也不要求 Keychain Sharing 或运行时权限。
-- 第三方连接凭据以应用层明文 `CredentialRecord` 进入 `account.sqlite` 并参与账户同步；系统 data protection 属于透明外围保护，不等于 E2EE。当前只写入 `plaintext`，同时保留未来受保护模式的版本化字段。
+- 第三方连接凭据以应用层明文 `CredentialRecord` 进入 `account.sqlite` 并参与账户同步；系统 data protection 属于透明外围保护，不等于 E2EE。当前只写入 `plaintext`，同时保留未来受保护模式的版本化字段。写入前必须通过 `CredentialPayload` v1 的字段 allowlist、大小、auth type 与 record kind 一致性校验。
 - SQLite 使用精确固定的 GRDB 7.11.1，支持 WAL、外键、迁移事务和取消；跨平台 DDL 所有权仍位于 `specs/storage/sql/`。
 - 远程媒体读取抽象为可取消、支持 range 的字节流，不让播放器依赖具体连接器。
 - 图片缓存与系统缓存目录集成；不把可再下载图片放入备份。

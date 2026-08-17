@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import StellarCore
 import StellarMediaLibrary
 import StellarRemoteMedia
@@ -161,6 +162,142 @@ struct SQLiteMediaMatcherTests {
         sourceUID: fixture.sourceUID,
         mediaRelativePath: fixture.extraPath
       ) == first
+    )
+  }
+
+  @Test("Search index rebuild preserves manual bindings, playback, and pending outbox")
+  func rebuildPreservesDurableState() async throws {
+    let contract = try loadFixture()
+    let fixture = try await makeFixture(contract)
+    defer { fixture.remove() }
+    let testCase = contract.reviewLockCase
+    let manual = try await fixture.matcher.confirm(
+      query: testCase.query,
+      candidate: testCase.reviewCandidate,
+      sourceUID: fixture.sourceUID,
+      mediaRelativePath: fixture.reviewPath
+    )
+
+    try await fixture.matcher.libraryStore.database.write { database in
+      guard
+        let entityID = try Int64.fetchOne(
+          database,
+          sql: "SELECT id FROM media_entity WHERE uid = ?",
+          arguments: [manual.entityUID]
+        )
+      else {
+        throw SDKError(code: .storageFailure, message: "rebuild entity fixture is missing")
+      }
+      try database.execute(
+        sql: """
+          INSERT INTO playback_profile(
+            uid, display_name, is_default, created_at_ms, updated_at_ms
+          ) VALUES ('profile-rebuild', 'Rebuild Fixture', 1, 1700000000000, 1700000000000)
+          """
+      )
+      guard
+        let profileID = try Int64.fetchOne(
+          database,
+          sql: "SELECT id FROM playback_profile WHERE uid = 'profile-rebuild'"
+        )
+      else {
+        throw SDKError(code: .storageFailure, message: "rebuild profile fixture is missing")
+      }
+      try database.execute(
+        sql: """
+          INSERT INTO playback_state(
+            profile_id, entity_id, position_ms, duration_ms, completed,
+            play_count, last_played_at_ms, updated_at_ms, revision
+          ) VALUES (?, ?, 42000, 6960000, 0, 1, 1700000000000, 1700000000000, 1)
+          """,
+        arguments: [profileID, entityID]
+      )
+      try database.execute(
+        sql: """
+          INSERT INTO change_log(
+            event_uid, entity_type, entity_uid, operation, payload_json,
+            device_uid, modified_at_ms
+          ) VALUES (
+            'event-rebuild', 'playback_state', ?, 'upsert', '{"position_ms":42000}',
+            'device-rebuild', 1700000000000
+          )
+          """,
+        arguments: [manual.entityUID]
+      )
+      try database.execute(
+        sql: """
+          INSERT INTO search_document(
+            entity_id, title, aliases, people, genres, romanized, updated_at_ms
+          ) VALUES (?, 'stale title', '', '', '', '', 1)
+          """,
+        arguments: [entityID]
+      )
+      try database.execute(
+        sql: """
+          CREATE TRIGGER fail_search_document_rebuild
+          BEFORE INSERT ON search_document
+          BEGIN
+            SELECT RAISE(ABORT, 'synthetic rebuild failure');
+          END
+          """
+      )
+    }
+
+    await #expect(throws: SDKError.self) {
+      try await fixture.matcher.libraryStore.rebuildSearchDocuments()
+    }
+    let titleAfterFailure = try await fixture.matcher.libraryStore.database.read { database in
+      try String.fetchOne(
+        database,
+        sql:
+          "SELECT title FROM search_document WHERE entity_id = (SELECT id FROM media_entity WHERE uid = ?)",
+        arguments: [manual.entityUID]
+      )
+    }
+    #expect(titleAfterFailure == "stale title")
+    try await fixture.matcher.libraryStore.database.write { database in
+      try database.execute(sql: "DROP TRIGGER fail_search_document_rebuild")
+    }
+
+    let rebuiltCount = try await fixture.matcher.libraryStore.rebuildSearchDocuments()
+    let durable = try await fixture.matcher.libraryStore.database.read { database in
+      guard
+        let row = try Row.fetchOne(
+          database,
+          sql: """
+              SELECT sd.title,
+                     fb.locked,
+                     ps.position_ms,
+                     (SELECT COUNT(*) FROM change_log WHERE uploaded_at_ms IS NULL) AS pending_count
+              FROM media_entity e
+              JOIN search_document sd ON sd.entity_id = e.id
+              JOIN file_binding fb ON fb.entity_id = e.id
+              JOIN playback_state ps ON ps.entity_id = e.id
+              WHERE e.uid = ?
+            """,
+          arguments: [manual.entityUID]
+        )
+      else {
+        throw SDKError(code: .storageFailure, message: "rebuilt state fixture is missing")
+      }
+      return RebuildDurableSnapshot(
+        title: row["title"],
+        locked: (row["locked"] as Int) == 1,
+        positionMilliseconds: row["position_ms"],
+        pendingOutboxCount: row["pending_count"]
+      )
+    }
+
+    #expect(rebuiltCount == 1)
+    #expect(durable.title == manual.canonicalTitle)
+    #expect(durable.locked)
+    #expect(durable.positionMilliseconds == 42_000)
+    #expect(durable.pendingOutboxCount == 1)
+    #expect(
+      try await fixture.matcher.binding(
+        sourceUID: fixture.sourceUID,
+        mediaRelativePath: fixture.reviewPath
+      ) == manual
     )
   }
 
@@ -391,6 +528,13 @@ private struct MatchTestClock: SDKClock {
   func nowMilliseconds() -> Int64 { 1_700_000_000_000 }
 
   func sleep(forMilliseconds _: Int64) async throws {}
+}
+
+private struct RebuildDurableSnapshot: Sendable {
+  let title: String
+  let locked: Bool
+  let positionMilliseconds: Int64
+  let pendingOutboxCount: Int
 }
 
 private struct FailingMetadataProvider: MediaMetadataProviding {

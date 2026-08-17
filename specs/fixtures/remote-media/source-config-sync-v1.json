@@ -1,0 +1,115 @@
+{
+  "active": {
+    "account_uid": "account-1",
+    "capabilities": [
+      "stable_id",
+      "read",
+      "future_delta",
+      "list",
+      "range_read"
+    ],
+    "connection_mode": "automatic",
+    "credential_mode": "synced",
+    "credential_uid": "credential-1",
+    "display_name": "Media NAS",
+    "endpoint": {
+      "host": "nas.example.test",
+      "port": 445,
+      "scheme": "smb",
+      "uses_tls": false
+    },
+    "excluded_paths": [
+      "Samples"
+    ],
+    "included_paths": [
+      "TV",
+      "Movies"
+    ],
+    "kind": "smb",
+    "metadata_policy": {
+      "language": "zh-Hans",
+      "prefer_local_metadata": true,
+      "preferred_providers": [
+        "tmdb"
+      ],
+      "region": "HK"
+    },
+    "revision": 1,
+    "root_path": "Media",
+    "scan_policy": {
+      "automatic": true,
+      "external_power_only": false,
+      "interval_ms": 900000,
+      "unmetered_network_only": true
+    },
+    "schema_version": 1,
+    "source_uid": "source-1",
+    "updated_at_ms": 1700000000000
+  },
+  "expected": {
+    "canonical_capabilities": [
+      "future_delta",
+      "list",
+      "range_read",
+      "read",
+      "stable_id"
+    ],
+    "canonical_included_paths": [
+      "Movies",
+      "TV"
+    ],
+    "operations": [
+      "upsert",
+      "delete"
+    ]
+  },
+  "schema_version": 1,
+  "tombstone": {
+    "account_uid": "account-1",
+    "capabilities": [
+      "future_delta",
+      "list",
+      "range_read",
+      "read",
+      "stable_id"
+    ],
+    "connection_mode": "automatic",
+    "credential_mode": "synced",
+    "credential_uid": "credential-1",
+    "deleted_at_ms": 1700000001000,
+    "display_name": "Media NAS",
+    "endpoint": {
+      "host": "nas.example.test",
+      "port": 445,
+      "scheme": "smb",
+      "uses_tls": false
+    },
+    "excluded_paths": [
+      "Samples"
+    ],
+    "included_paths": [
+      "Movies",
+      "TV"
+    ],
+    "kind": "smb",
+    "metadata_policy": {
+      "language": "zh-Hans",
+      "prefer_local_metadata": true,
+      "preferred_providers": [
+        "tmdb"
+      ],
+      "region": "HK"
+    },
+    "revision": 2,
+    "root_path": "Media",
+    "scan_policy": {
+      "automatic": true,
+      "external_power_only": false,
+      "interval_ms": 900000,
+      "unmetered_network_only": true
+    },
+    "schema_version": 1,
+    "source_uid": "source-1",
+    "updated_at_ms": 1700000001000
+  }
+}

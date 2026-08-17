@@ -122,6 +122,8 @@ Infuse 行为与参考脚本的已知边界见[匹配器一致性审计](../../d
 - 播放历史、收藏、用户匹配和观看进度应按逻辑媒体 ID 保留，使文件重新出现后可恢复。
 - 图片、字幕缓存和孤立元数据由垃圾回收任务处理，不在扫描事务内做大规模删除。
 
+`search_document` 属于可重建派生索引。实现 MUST 在单一事务中先清除旧 document，再从未删除的 `media_entity`、`localized_metadata`、`credit/person` 和 `entity_genre/genre_name` 重建；失败时保留重建前版本。该过程不得修改 `file_binding.locked`、`playback_state`、`media_collection` 或任何未上传 `change_log`。Swift reference 入口为 `LibraryStore.rebuildSearchDocuments()`。
+
 ## 海报墙查询
 
 SDK v1 输出数据模型和分页查询，不内置三端 UI 组件。公开查询至少支持：

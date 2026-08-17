@@ -21,6 +21,8 @@
 
 ## M2：远程媒体配置同步
 
+Swift reference 当前已完成 `MediaSourceConfig` v1、配置/墓碑 SQLite 原子 outbox，以及五种受限明文 `CredentialPayload` 的跨语言 fixture；pull/push、冲突应用、OAuth 和来源变更触发仍在推进。
+
 - `MediaSourceConfig`、Favorite 和扫描策略模型；
 - 配置 pull/push、版本和 tombstone；
 - 第三方用户名、密码和 Token 的明文 `CredentialRecord` 本地持久化与跨平台同步；
@@ -66,4 +68,4 @@
 - Stellar account/config API 的最终 URL 与认证 scope；
 - 第三方凭据未来升级为服务端托管加密或 E2EE 的真实需求与迁移时机；
 - PosterWall UI 组件是否作为独立包发布；
-- TMDB 等 provider key 由宿主应用提供还是由 Stellar 后端代理。
+- Swift reference v1 的 TMDB 直连 adapter 使用宿主应用运行时提供的 v3 API key 或 API Read Access Token；正式产品是否改由 Stellar 后端代理仍待决定。

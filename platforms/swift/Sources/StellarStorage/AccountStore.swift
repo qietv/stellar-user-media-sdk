@@ -29,7 +29,7 @@ public struct AccountOutboxRecord: Codable, Equatable, Sendable {
 /// Transactional account repository for synchronized credential records and their outbox.
 public struct AccountStore: Sendable {
   public let database: StorageDatabase
-  private let uuidGenerator: any SDKUUIDGenerating
+  package let uuidGenerator: any SDKUUIDGenerating
 
   public init(
     database: StorageDatabase,
@@ -67,19 +67,48 @@ public struct AccountStore: Sendable {
     guard !record.credentialUID.isEmpty, !record.accountUID.isEmpty,
       !record.sourceUID.isEmpty, !record.credentialUID.contains("\0"),
       !record.accountUID.contains("\0"), !record.sourceUID.contains("\0"),
-      !kind.isEmpty, !kind.contains("\0"),
+      !kind.isEmpty, kind.utf8.count <= 64,
+      kind.rangeOfCharacter(from: .controlCharacters) == nil,
       record.algorithm == nil, record.keyVersion == nil, record.nonceBase64 == nil,
       record.protectedPayloadBase64 == nil, record.authenticatedDataVersion == nil,
-      record.revision >= 0, record.schemaVersion == 1,
-      Self.validPlaintextPayload(record.payloadJSON, tombstone: record.deletedAtMilliseconds != nil)
+      record.revision >= 0, record.updatedAtMilliseconds >= 0,
+      record.deletedAtMilliseconds.map({ $0 >= 0 }) ?? true,
+      record.schemaVersion == 1
     else {
       throw SDKError(code: .invalidConfiguration, message: "credential record is invalid")
     }
+    let canonicalPayloadJSON: String?
+    do {
+      canonicalPayloadJSON = try Self.canonicalPlaintextPayload(
+        record.payloadJSON,
+        kind: record.kind,
+        tombstone: record.deletedAtMilliseconds != nil
+      )
+    } catch {
+      throw SDKError(code: .invalidConfiguration, message: "credential record is invalid")
+    }
+    let normalizedRecord = CredentialRecord(
+      credentialUID: record.credentialUID,
+      accountUID: record.accountUID,
+      sourceUID: record.sourceUID,
+      kind: record.kind,
+      protectionMode: record.protectionMode,
+      payloadJSON: canonicalPayloadJSON,
+      algorithm: record.algorithm,
+      keyVersion: record.keyVersion,
+      nonceBase64: record.nonceBase64,
+      protectedPayloadBase64: record.protectedPayloadBase64,
+      authenticatedDataVersion: record.authenticatedDataVersion,
+      revision: record.revision,
+      updatedAtMilliseconds: record.updatedAtMilliseconds,
+      deletedAtMilliseconds: record.deletedAtMilliseconds,
+      schemaVersion: record.schemaVersion
+    )
     let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys]
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     let payload: String
     do {
-      payload = String(decoding: try encoder.encode(record), as: UTF8.self)
+      payload = String(decoding: try encoder.encode(normalizedRecord), as: UTF8.self)
     } catch {
       throw SDKError(code: .parseFailure, message: "credential record encoding failed")
     }
@@ -87,6 +116,21 @@ public struct AccountStore: Sendable {
 
     do {
       try await database.write { database in
+        if let existing = try Row.fetchOne(
+          database,
+          sql: "SELECT account_uid, source_uid FROM credential_record WHERE credential_uid = ?",
+          arguments: [record.credentialUID]
+        ) {
+          let existingAccountUID: String = existing["account_uid"]
+          let existingSourceUID: String = existing["source_uid"]
+          guard existingAccountUID == record.accountUID, existingSourceUID == record.sourceUID
+          else {
+            throw SDKError(
+              code: .conflict,
+              message: "credential record cannot move between accounts or sources"
+            )
+          }
+        }
         try database.execute(
           sql: """
             INSERT INTO credential_record(
@@ -112,7 +156,7 @@ public struct AccountStore: Sendable {
               schema_version = excluded.schema_version
             """,
           arguments: [
-            record.credentialUID, record.accountUID, record.sourceUID, kind, record.payloadJSON,
+            record.credentialUID, record.accountUID, record.sourceUID, kind, canonicalPayloadJSON,
             record.revision, baseRevision, record.updatedAtMilliseconds,
             record.deletedAtMilliseconds, record.schemaVersion,
           ]
@@ -134,7 +178,7 @@ public struct AccountStore: Sendable {
           let storedIdentity = try Row.fetchOne(
             database,
             sql: """
-              SELECT account_uid, entity_uid, base_revision, operation, payload_json
+              SELECT account_uid, entity_type, entity_uid, base_revision, operation, payload_json
               FROM account_change_log WHERE operation_uid = ?
               """,
             arguments: [operationUID]
@@ -143,11 +187,13 @@ public struct AccountStore: Sendable {
           throw SDKError(code: .storageFailure, message: "account outbox insert failed")
         }
         let storedAccountUID: String = storedIdentity["account_uid"]
+        let storedEntityType: String = storedIdentity["entity_type"]
         let storedEntityUID: String = storedIdentity["entity_uid"]
         let storedBaseRevision: Int64 = storedIdentity["base_revision"]
         let storedOperation: String = storedIdentity["operation"]
         let storedPayload: String? = storedIdentity["payload_json"]
         guard storedAccountUID == record.accountUID,
+          storedEntityType == "credential_record",
           storedEntityUID == record.credentialUID,
           storedBaseRevision == baseRevision,
           storedOperation == operation,
@@ -207,15 +253,24 @@ public struct AccountStore: Sendable {
     }
   }
 
-  private static func validPlaintextPayload(_ payload: String?, tombstone: Bool) -> Bool {
-    guard let payload else { return tombstone }
-    guard !payload.isEmpty, payload.utf8.count <= 65_536,
-      let data = payload.data(using: .utf8),
-      let object = try? JSONSerialization.jsonObject(with: data),
-      object is [String: Any]
-    else {
-      return false
+  private static func canonicalPlaintextPayload(
+    _ payload: String?,
+    kind: CredentialKind,
+    tombstone: Bool
+  ) throws -> String? {
+    if tombstone {
+      guard payload == nil else {
+        throw SDKError(code: .invalidConfiguration, message: "credential tombstone is invalid")
+      }
+      return nil
     }
-    return true
+    guard let payload else {
+      throw SDKError(code: .invalidConfiguration, message: "credential payload is missing")
+    }
+    let decoded = try CredentialPayload(jsonString: payload)
+    guard decoded.credentialKind == kind else {
+      throw SDKError(code: .invalidConfiguration, message: "credential kind does not match payload")
+    }
+    return try decoded.canonicalJSONString()
   }
 }

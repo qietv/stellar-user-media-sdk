@@ -18,6 +18,27 @@ provider 通过 `MediaMetadataProviding` 协议注入。一次搜索接收规范
 
 provider 失败、限流或返回空结果时只影响本次匹配任务，不得删除 `media_file`、旧的成功元数据或人工锁定绑定。
 
+### TMDB v3 adapter
+
+reference v1 提供具体的 `TMDBMetadataProvider`，但 TMDB transport 仍通过 `TMDBTransport` 注入。直连 adapter 接受宿主应用在运行时传入的 32 位十六进制 v3 API key，按 TMDB v3 合同把它放入 HTTPS `api_key` 查询参数；为兼容已有集成，也保留 API Read Access Token 的 `Authorization: Bearer` 路径。两种凭据都不得硬编码、持久化到 SDK、写入 fixture 或普通诊断；请求 description 必须同时隐藏 query 和 header，live transport 禁止自动 redirect，录制数据必须在提交前清洗。
+
+adapter 固定使用官方 HTTPS origin，并覆盖以下只读路径：
+
+- movie 查询：`/3/search/movie`；
+- series 查询：`/3/search/tv`；episode 查询会再读取 `/3/tv/{series}/season/{season}/episode/{episode}`，只返回已确认存在该季集的 series 候选；
+- IMDb、TVDB 或 Wikidata 精确 ID：`/3/find/{external_id}`；
+- movie、series、episode details 以及 `/3/configuration` 图片配置。
+
+搜索只取第一页，并以 `maximum_search_results`（默认 5，最大 20）限制候选与 episode 验证请求。详情和图片响应先归一化为 SDK 自有模型；未知 TMDB 字段不会进入跨平台 wire contract。401、403、404、429 和 5xx 分别映射为 `unauthorized`、`forbidden`、`metadata_not_found`、`rate_limited` 和 `remote_unavailable`；响应体上限为 8 MiB。
+
+录制响应必须先执行：
+
+```bash
+python3 tools/metadata/sanitize_tmdb_fixture.py raw.json sanitized.json
+```
+
+清洗器只接受 `https://api.themoviedb.org`，删除 Authorization/Cookie、`api_key` 和 token/session 字段，只保留路径、非敏感 query、`content-type`/`retry-after` 与 JSON body，并输出确定性 JSON。原始录制不得提交；单元测试只重放清洗后的公共 fixture 或合成响应，不要求真实 TMDB key。
+
 ## v1 确定性评分
 
 类型不兼容的候选直接 `rejected`。movie 只接受 movie；episode 接受 series 或 episode。
@@ -69,3 +90,5 @@ sample、花絮和 bonus 文件不进入 movie/episode provider 搜索。它们�
 [`metadata-matching-v1.json`](../fixtures/media-library/metadata-matching-v1.json) 固定电影、alias、剧集存在性、缺集拒绝和外部 ID 直接命中的样本。
 
 [`metadata-match-persistence-v1.json`](../fixtures/media-library/metadata-match-persistence-v1.json) 固定 review → 人工锁定 → 自动保护、同实体 primary/version 绑定，以及 series → season → episode 物化结果。
+
+[`tmdb-provider-v1.json`](../fixtures/media-library/tmdb-provider-v1.json) 固定清洗后的 movie/series 搜索、外部 ID 查询、episode 存在性、details 与图片配置响应。

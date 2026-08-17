@@ -48,7 +48,21 @@ flowchart LR
 
 用户名也位于 payload。端点、端口和根路径位于 `MediaSourceConfig`；不得把用户名、密码或 token 嵌入 endpoint URL。
 
-实现 MUST 对 payload 设置类型与大小上限，并在交给连接器前重新校验。公开模型的 `description`、调试输出和错误不得包含 payload。
+v1 的精确字段和限制为：
+
+| `auth_type` | 必填字段 | 可选字段 | 限制 |
+| --- | --- | --- | --- |
+| `username_password` | `username`、`password` | `domain` | username/domain 最多 1024 UTF-8 bytes；password 最多 32768 bytes |
+| `oauth_token` | `refresh_token` | `access_token`、`expires_at_ms`、`scope` | token 最多 32768 bytes；scope 最多 4096 bytes；access token 与非负 expiry 必须同时出现 |
+| `api_token` | `token` | `username` | token 最多 32768 bytes；username 最多 1024 bytes |
+| `cookie` | `cookies` | 无 | 1...128 项，`name + domain + path` 唯一 |
+| `key_pair` | `private_key_pem` | `public_key_pem`、`passphrase` | key 最多 49152 bytes；passphrase 最多 32768 bytes |
+
+cookie 项固定为 `name`、`value`、`domain`，以及可选 `path`、`secure`、`http_only`、`expires_at_ms`；name 最多 256 bytes，value 最多 8192 bytes，domain 最多 255 bytes，path 最多 2048 bytes 且以 `/` 开头。缺失的 path/secure/http_only 分别规范为 `/`、`true`、`true`。
+
+完整 payload 最多 65536 UTF-8 bytes，`schema_version` 必须为 1。未知 auth type、未知字段、混合其他 auth type 的字段、空必填值、NUL、重复 cookie scope 和未来 schema 都必须失败关闭；不得在旧客户端中丢字段后重新编码覆盖。规范 JSON 使用 UTF-8、snake_case、按 key 排序并不转义 `/`。
+
+实现 MUST 在写入 repository 和交给连接器前重新校验 auth type 与 `CredentialRecord.kind` 一致。公开模型的 `description`、调试输出和错误不得包含 payload、用户名、cookie scope 或 key metadata。公共 [`credential-payload-v1.json`](../fixtures/security/credential-payload-v1.json) 固定所有五种有效 shape 及拒绝向量。
 
 ## 4. CredentialRecord v1
 
