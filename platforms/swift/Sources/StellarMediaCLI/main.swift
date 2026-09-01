@@ -42,10 +42,10 @@ private enum StellarMediaCLI {
       return await LibraryCLICommand.run(arguments: Array(arguments.dropFirst()))
 
     case "smb":
-      #if canImport(StellarSMB2Linux)
+      #if canImport(StellarSMB2Linux) || canImport(StellarSMB2Apple)
         return await SMBCLICommand.run(arguments: Array(arguments.dropFirst()))
       #else
-        writeError("SMB commands are currently available only in the Linux CLI")
+        writeError("SMB commands require the generated libsmb2 platform backend")
         return 2
       #endif
 

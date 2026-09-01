@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migrations": [
+    {
+      "name": "library",
+      "from_version": 1,
+      "to_version": 2,
+      "file": "sql/library-v2.sql",
+      "business_table_count": 29,
+      "sha256": "8a9f0dac4e9af7c69d2c8a855335e10e9c44adf286eb0339c38beb7afc5688d9"
+    }
+  ]
+}

@@ -19,9 +19,16 @@ extension StorageDatabaseKind {
 FOOTER = """    }
   }
 
-  var canonicalSchemaChecksum: String {
-    switch self {
-__CHECKSUM_CASES__    }
+  func canonicalSchemaChecksum(version: Int) -> String? {
+    switch (self, version) {
+__CHECKSUM_CASES__    default: nil
+    }
+  }
+
+  func migrationSQL(fromVersion: Int) -> String? {
+    switch (self, fromVersion) {
+__MIGRATION_CASES__    default: nil
+    }
   }
 }
 """
@@ -32,6 +39,7 @@ def render(root: Path) -> str:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     cases: list[str] = []
     checksum_cases: list[str] = []
+    migration_cases: list[str] = []
     swift_cases = {
         "account": "account",
         "library": "library",
@@ -50,10 +58,36 @@ def render(root: Path) -> str:
         cases.append(
             f'    case .{swift_cases[name]}:\n      #"""\n{indented_sql}\n      """#\n'
         )
-        checksum_cases.append(f'    case .{swift_cases[name]}: "{checksum}"\n')
+        version = definition["user_version"]
+        checksum_cases.append(
+            f'    case (.{swift_cases[name]}, {version}): "{checksum}"\n'
+        )
 
-    return HEADER + "".join(cases) + FOOTER.replace(
-        "__CHECKSUM_CASES__", "".join(checksum_cases)
+    migrations_path = root / "specs/storage/schema-migrations.json"
+    migrations = json.loads(migrations_path.read_text(encoding="utf-8"))
+    for definition in migrations["migrations"]:
+        name = definition["name"]
+        path = migrations_path.parent / definition["file"]
+        content = path.read_bytes()
+        checksum = hashlib.sha256(content).hexdigest()
+        if checksum != definition["sha256"]:
+            raise ValueError(f"{name} v{definition['to_version']} checksum does not match")
+        sql = content.decode("utf-8").rstrip("\n")
+        indented_sql = "\n".join(f"      {line}" if line else "" for line in sql.splitlines())
+        migration_cases.append(
+            f'    case (.{swift_cases[name]}, {definition["from_version"]}):\n'
+            f'      #"""\n{indented_sql}\n      """#\n'
+        )
+        checksum_cases.append(
+            f'    case (.{swift_cases[name]}, {definition["to_version"]}): "{checksum}"\n'
+        )
+
+    return (
+        HEADER
+        + "".join(cases)
+        + FOOTER.replace("__CHECKSUM_CASES__", "".join(checksum_cases)).replace(
+            "__MIGRATION_CASES__", "".join(migration_cases)
+        )
     )
 
 

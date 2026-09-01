@@ -178,7 +178,8 @@ public struct AppleWebAuthenticationSessionPresenter: OAuthAuthorizationPresenti
           continuation.resume(
             throwing: SDKError(
               code: .invalidConfiguration,
-              message: "OAuth HTTPS callback domain is not associated with the app: \(failureReason)"
+              message: "OAuth HTTPS callback domain is not associated with the app: "
+                + failureReason
             )
           )
           return

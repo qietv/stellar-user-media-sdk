@@ -6,7 +6,7 @@ import Testing
 
 @Suite("SQLite storage and migrations", .serialized)
 struct StorageMigrationTests {
-  @Test("All v1 databases migrate, verify, and reopen")
+  @Test("All databases migrate to their current schema, verify, and reopen")
   func migrateVerifyAndReopen() async throws {
     let directory = temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -22,7 +22,7 @@ struct StorageMigrationTests {
 
       #expect(report.kind == kind)
       #expect(report.applicationID == kind.applicationID)
-      #expect(report.userVersion == 1)
+      #expect(report.userVersion == kind.currentVersion)
       #expect(report.journalMode == "wal")
       #expect(report.foreignKeysEnabled)
       #expect(report.businessTableCount == expectedTableCount(kind))
@@ -47,6 +47,45 @@ struct StorageMigrationTests {
     let database = try await StorageDatabase.open(kind: .library, at: url)
 
     #expect(try await database.verify().isValid)
+  }
+
+  @Test("An existing library v1 database migrates in place to v2")
+  func existingLibraryV1MigratesInPlace() async throws {
+    let directory = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("library.sqlite")
+    let schemaURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("specs/storage/sql/library-v1.sql")
+    let v1SQL = try String(contentsOf: schemaURL, encoding: .utf8)
+    let queue = try DatabaseQueue(path: url.path)
+    try await queue.write { database in
+      try database.execute(sql: v1SQL)
+      try database.execute(
+        sql: "INSERT INTO schema_migration(version, applied_at_ms, checksum) VALUES (1, 1, ?)",
+        arguments: ["860af5576de63d4aa64342204e27ff8a054df188fba0840f07545647bb5a1484"]
+      )
+      try database.execute(
+        sql:
+          "INSERT INTO library_source(uid, kind, display_name, root_uri, created_at_ms, updated_at_ms) VALUES ('preserved', 'smb', 'Preserved', 'smb://preserved', 1, 1)"
+      )
+    }
+
+    let migrated = try await StorageDatabase.open(kind: .library, at: url)
+    let report = try await migrated.verify()
+    #expect(report.userVersion == 2)
+    #expect(report.businessTableCount == 29)
+    #expect(report.isValid)
+    let preserved = try await migrated.read { database in
+      try String.fetchOne(
+        database, sql: "SELECT display_name FROM library_source WHERE uid = 'preserved'")
+    }
+    #expect(preserved == "Preserved")
   }
 
   @Test("Database application IDs prevent cross-domain migration")
@@ -106,7 +145,7 @@ struct StorageMigrationTests {
       )
     }
     #expect(checksum == "corrupt")
-    #expect(tableCount == 27)
+    #expect(tableCount == 29)
     #expect(try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == sizeBefore)
   }
 
@@ -136,7 +175,7 @@ struct StorageMigrationTests {
   private func expectedTableCount(_ kind: StorageDatabaseKind) -> Int {
     switch kind {
     case .account: 6
-    case .library: 27
+    case .library: 29
     case .metadataCache: 3
     }
   }

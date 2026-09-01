@@ -21,6 +21,10 @@ var testDependencies: [Target.Dependency] = [
   cliDependencies.append("StellarSMB2Core")
   cliDependencies.append("StellarSMB2Linux")
   testDependencies.append("StellarSMB2Linux")
+#elseif os(macOS)
+  cliDependencies.append("StellarSMB2Core")
+  cliDependencies.append("StellarSMB2Apple")
+  testDependencies.append("StellarSMB2Apple")
 #endif
 
 var packageTargets: [Target] = [
@@ -103,10 +107,54 @@ var packageTargets: [Target] = [
       ]
     ),
     .target(
-      name: "StellarSMB2Linux",
+      name: "StellarSMB2Libsmb2",
       dependencies: ["StellarCore", "StellarSMB2Core", "CStellarSMB2Wrapper"]
     ),
+    .target(
+      name: "StellarSMB2Linux",
+      dependencies: ["StellarSMB2Libsmb2"]
+    ),
   ])
+#elseif os(macOS)
+  packageTargets.append(contentsOf: [
+    .binaryTarget(
+      name: "CStellarSMB2Wrapper",
+      path: "Artifacts/CStellarSMB2Wrapper.xcframework"
+    ),
+    .target(
+      name: "StellarSMB2Libsmb2",
+      dependencies: ["StellarCore", "StellarSMB2Core", "CStellarSMB2Wrapper"]
+    ),
+    .target(
+      name: "StellarSMB2Apple",
+      dependencies: ["StellarSMB2Libsmb2"]
+    ),
+  ])
+#endif
+
+var packageProducts: [Product] = [
+  .library(
+    name: "StellarUserMediaSDK",
+    targets: ["StellarUserMediaSDK"]
+  ),
+  .executable(
+    name: "stellar-media",
+    targets: ["StellarMediaCLI"]
+  ),
+]
+
+#if os(Linux)
+  packageProducts.append(
+    .library(
+      name: "StellarSMB2",
+      targets: ["StellarSMB2Core", "StellarSMB2Linux"]
+    ))
+#elseif os(macOS)
+  packageProducts.append(
+    .library(
+      name: "StellarSMB2",
+      targets: ["StellarSMB2Core", "StellarSMB2Apple"]
+    ))
 #endif
 
 let package = Package(
@@ -116,16 +164,7 @@ let package = Package(
     .macOS(.v14),
     .tvOS(.v17),
   ],
-  products: [
-    .library(
-      name: "StellarUserMediaSDK",
-      targets: ["StellarUserMediaSDK"]
-    ),
-    .executable(
-      name: "stellar-media",
-      targets: ["StellarMediaCLI"]
-    ),
-  ],
+  products: packageProducts,
   dependencies: [
     .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1")
   ],

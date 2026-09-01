@@ -62,7 +62,8 @@ public struct SMB2MediaSourceConnector: MediaSourceConnector {
       pathSemantics: configuration.pathSemantics,
       supportsRangeReads: true,
       supportsChangeCursor: false,
-      deltaDeletionsComplete: false
+      deltaDeletionsComplete: false,
+      preferredDirectoryRequestConcurrency: 1
     )
     return SMB2MediaSourceSession(
       sourceUID: configuration.sourceUID,
@@ -78,6 +79,7 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
   public nonisolated let capabilities: MediaSourceCapabilities
 
   private let session: any SMB2Session
+  private var directoryPaginator: RemoteDirectorySnapshotPaginator
   private var disconnected = false
 
   fileprivate init(
@@ -88,49 +90,22 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
     self.sourceUID = sourceUID
     self.capabilities = capabilities
     self.session = session
+    directoryPaginator = RemoteDirectorySnapshotPaginator(
+      cursorNamespace: "smb-v1",
+      pathSemantics: capabilities.pathSemantics
+    )
   }
 
   public func listDirectory(_ request: RemoteDirectoryPageRequest) async throws
     -> CursorPage<RemoteEntry>
   {
     try requireConnected()
+    if let cachedPage = try directoryPaginator.cachedPage(for: request) {
+      return cachedPage
+    }
     let directoryPath = try smbPath(for: request.directory)
-    let entries = try await session.listDirectory(at: directoryPath)
-      .map(convert)
-      .sorted { left, right in
-        let leftKey = left.locator.pathComparisonKey(using: capabilities.pathSemantics)
-        let rightKey = right.locator.pathComparisonKey(using: capabilities.pathSemantics)
-        if leftKey == rightKey {
-          return left.locator.path.relativePath < right.locator.path.relativePath
-        }
-        return leftKey < rightKey
-      }
-    let fingerprint = Self.fingerprint(entries, semantics: capabilities.pathSemantics)
-    let offset: Int
-    if let cursor = request.cursor {
-      let parsed = try SMBDirectoryCursor(cursor)
-      guard parsed.fingerprint == fingerprint, parsed.offset <= entries.count else {
-        throw SDKError(code: .conflict, message: "SMB directory changed during pagination")
-      }
-      offset = parsed.offset
-    } else {
-      offset = 0
-    }
-
-    let count = min(request.limit, entries.count - offset)
-    let upperBound = offset + count
-    let pageEntries = Array(entries[offset..<upperBound])
-    let nextCursor: String?
-    if upperBound < entries.count {
-      nextCursor =
-        SMBDirectoryCursor(
-          offset: upperBound,
-          fingerprint: fingerprint
-        ).rawValue
-    } else {
-      nextCursor = nil
-    }
-    return try CursorPage(items: pageEntries, nextCursor: nextCursor)
+    let entries = try await session.listDirectory(at: directoryPath).map(convert)
+    return try directoryPaginator.storeAndPage(entries, for: request)
   }
 
   public func stat(_ locator: RemoteLocator) async throws -> RemoteEntry {
@@ -149,6 +124,7 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
   public func disconnect() async {
     guard !disconnected else { return }
     disconnected = true
+    directoryPaginator.removeAll()
     await session.disconnect()
   }
 
@@ -188,53 +164,4 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
     )
   }
 
-  private static func fingerprint(
-    _ entries: [RemoteEntry],
-    semantics: RemotePathSemantics
-  ) -> String {
-    var hash: UInt64 = 14_695_981_039_346_656_037
-    for entry in entries {
-      let fields = [
-        entry.locator.pathComparisonKey(using: semantics),
-        entry.kind.rawValue,
-        entry.stableID ?? "",
-        entry.size.map(String.init) ?? "",
-        entry.modifiedAtMilliseconds.map(String.init) ?? "",
-      ]
-      for byte in fields.joined(separator: "\u{1f}").utf8 {
-        hash ^= UInt64(byte)
-        hash &*= 1_099_511_628_211
-      }
-      hash ^= 0xff
-      hash &*= 1_099_511_628_211
-    }
-    return String(format: "%016llx", hash)
-  }
-
-  private struct SMBDirectoryCursor {
-    let offset: Int
-    let fingerprint: String
-
-    var rawValue: String { "smb-v1:\(offset):\(fingerprint)" }
-
-    init(offset: Int, fingerprint: String) {
-      self.offset = offset
-      self.fingerprint = fingerprint
-    }
-
-    init(_ rawValue: String) throws {
-      let components = rawValue.split(separator: ":", omittingEmptySubsequences: false)
-      guard components.count == 3,
-        components[0] == "smb-v1",
-        let offset = Int(components[1]),
-        offset > 0,
-        components[2].count == 16,
-        components[2].allSatisfy({ $0.isHexDigit })
-      else {
-        throw SDKError(code: .invalidConfiguration, message: "SMB page cursor is invalid")
-      }
-      self.offset = offset
-      fingerprint = String(components[2])
-    }
-  }
 }

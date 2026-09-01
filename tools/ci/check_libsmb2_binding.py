@@ -170,13 +170,39 @@ def validate_binding_boundary(root: Path) -> list[str]:
     cancel_smoke = root / "tools/ci/stellar_smb2_wrapper_cancel_smoke.c"
     if not cancel_smoke.is_file():
         findings.append("the in-flight C cancellation smoke source is required")
+    apple_build = root / "tools/ci/build_libsmb2_xcframework_apple.sh"
+    apple_check = root / "tools/ci/check_libsmb2_xcframework_apple.py"
+    apple_transport = (
+        root / "platforms/swift/Sources/StellarSMB2Apple/AppleSMB2Transport.swift"
+    )
+    shared_transport = (
+        root
+        / "platforms/swift/Sources/StellarSMB2Libsmb2/Libsmb2SMB2Transport.swift"
+    )
+    if not apple_build.is_file() or not apple_check.is_file():
+        findings.append("Apple libsmb2 XCFramework build and verification tools are required")
+    if not apple_transport.is_file() or not shared_transport.is_file():
+        findings.append("Apple and shared libsmb2 Swift transport targets are required")
+    package_manifest = root / "platforms/swift/Package.swift"
+    package_text = package_manifest.read_text(encoding="utf-8")
+    for required_fragment in (
+        "Artifacts/CStellarSMB2Wrapper.xcframework",
+        'name: "StellarSMB2Apple"',
+        'name: "StellarSMB2Libsmb2"',
+        '.binaryTarget(',
+    ):
+        if required_fragment not in package_text:
+            findings.append(f"Swift package is missing Apple SMB integration: {required_fragment}")
     for path in (root / "platforms/swift/Sources").rglob("*.swift"):
         source_text = path.read_text(encoding="utf-8")
         if FORBIDDEN_SWIFT_IMPORT.search(source_text):
             findings.append(f"{path.relative_to(root)} imports the private libsmb2 C module directly")
-        if "import CStellarSMB2Wrapper" in source_text and "StellarSMB2Linux" not in path.parts:
+        if (
+            "import CStellarSMB2Wrapper" in source_text
+            and "StellarSMB2Libsmb2" not in path.parts
+        ):
             findings.append(
-                f"{path.relative_to(root)} imports the C wrapper outside StellarSMB2Linux"
+                f"{path.relative_to(root)} imports the C wrapper outside StellarSMB2Libsmb2"
             )
     return findings
 

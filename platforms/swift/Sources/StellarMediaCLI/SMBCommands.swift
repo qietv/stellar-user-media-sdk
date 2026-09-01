@@ -1,8 +1,15 @@
-#if canImport(StellarSMB2Linux)
+#if canImport(StellarSMB2Linux) || canImport(StellarSMB2Apple)
   import Foundation
   import StellarSMB2Core
-  import StellarSMB2Linux
   import StellarUserMediaSDK
+
+  #if canImport(StellarSMB2Linux)
+    import StellarSMB2Linux
+    private typealias SMBPlatformTransport = LinuxSMB2Transport
+  #else
+    import StellarSMB2Apple
+    private typealias SMBPlatformTransport = AppleSMB2Transport
+  #endif
 
   #if canImport(Glibc)
     import Glibc
@@ -58,7 +65,7 @@
 
     private static func check(request: SMB2ConnectionRequest) async -> Int32 {
       do {
-        let session = try await LinuxSMB2Transport().connect(request)
+        let session = try await SMBPlatformTransport().connect(request)
         let info = await session.connectionInfo
         await session.disconnect()
         try printJSON(
@@ -79,7 +86,7 @@
 
     private static func list(request: SMB2ConnectionRequest, path: SMB2Path) async -> Int32 {
       do {
-        let session = try await LinuxSMB2Transport().connect(request)
+        let session = try await SMBPlatformTransport().connect(request)
         do {
           let entries = try await session.listDirectory(at: path)
             .sorted { $0.path.relativePath < $1.path.relativePath }
@@ -114,7 +121,7 @@
       var session: (any SMB2Session)?
 
       do {
-        let connectedSession = try await LinuxSMB2Transport().connect(request)
+        let connectedSession = try await SMBPlatformTransport().connect(request)
         session = connectedSession
         let info = await connectedSession.connectionInfo
         var directories = [try SMB2Path()]

@@ -30,7 +30,7 @@ jobs:
   portable-swift:
     name: Swift 6.3 / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -59,6 +59,29 @@ jobs:
       - name: Verify libsmb2 provenance
         run: python3 ../../tools/ci/check_libsmb2_binding.py --root ../..
 
+      - name: Build isolated Apple libsmb2 XCFramework
+        if: runner.os == 'macOS'
+        run: >-
+          ../../tools/ci/build_libsmb2_xcframework_apple.sh
+          --lock ../../third_party/libsmb2.lock.json
+          --output "$RUNNER_TEMP/CStellarSMB2Wrapper.xcframework"
+
+      - name: Verify committed and rebuilt Apple libsmb2 XCFrameworks
+        if: runner.os == 'macOS'
+        run: |
+          python3 ../../tools/ci/check_libsmb2_xcframework_apple.py \
+            --root ../.. \
+            --xcframework Artifacts/CStellarSMB2Wrapper.xcframework
+          python3 ../../tools/ci/check_libsmb2_xcframework_apple.py \
+            --root ../.. \
+            --xcframework "$RUNNER_TEMP/CStellarSMB2Wrapper.xcframework"
+          diff -qr \
+            Artifacts/CStellarSMB2Wrapper.xcframework \
+            "$RUNNER_TEMP/CStellarSMB2Wrapper.xcframework"
+          diff -qr \
+            Artifacts/CStellarSMB2Wrapper.compliance \
+            "$RUNNER_TEMP/CStellarSMB2Wrapper.compliance"
+
       - name: Build isolated static libsmb2
         if: runner.os == 'Linux'
         run: >-
@@ -85,6 +108,24 @@ jobs:
       - name: Build release SDK and CLI
         run: swift build -c release
 
+      - name: Build Apple SMB product for iOS device and simulator
+        if: runner.os == 'macOS'
+        run: |
+          xcodebuild -quiet \
+            -scheme StellarSMB2 \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/stellar-smb2-iphoneos" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          xcodebuild -quiet \
+            -scheme StellarSMB2 \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/stellar-smb2-iphonesimulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
       - name: Verify release SMB static isolation
         if: runner.os == 'Linux'
         run: |
@@ -99,6 +140,22 @@ jobs:
           fi
           if ldd "$binary" | grep -i 'libsmb2'; then
             echo "release binary unexpectedly depends on shared libsmb2" >&2
+            exit 1
+          fi
+
+      - name: Verify release Apple SMB static isolation
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          binary=.build/release/stellar-media
+          nm "$binary" |
+            grep ' t _stellar_user_media_sdk_libsmb2_smb2_init_context'
+          if nm -gU "$binary" | grep 'stellar_user_media_sdk_libsmb2_'; then
+            echo "private Apple libsmb2 symbols leaked as external globals" >&2
+            exit 1
+          fi
+          if otool -L "$binary" | tail -n +2 | grep -i 'libsmb2'; then
+            echo "release binary unexpectedly depends on dynamic libsmb2" >&2
             exit 1
           fi
 

@@ -2,7 +2,7 @@
 
 面向 iOS、iPadOS、macOS 和 tvOS 的原生 Swift 实现。
 
-完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S5 已完成本地元数据/NFO/JSON/probe 原子入库、TMDB adapter 与清洗 fixture、候选评分、review 缓存、人工锁保护、多版本/extra 物化、派生搜索索引安全重建，以及 PosterWall 查询、详情、稳定分页、选图和缓存接口。当前阶段为 S6 OAuth、来源配置与凭据同步；现已实现 `MediaSourceConfig`、配置/墓碑原子 outbox、受限 `CredentialPayload` v1，以及对接真实 StellarPlayer Gateway 合同的 OAuth PKCE/session/refresh/Keychain 首个切片。
+完整实施顺序与完成定义见 [Swift Reference Implementation Plan](../../docs/plans/swift-reference-implementation.md)。S5 已完成本地元数据/NFO/JSON/probe 原子入库、TMDB adapter 与清洗 fixture、候选评分、review 缓存、人工锁保护、多版本/extra 物化、派生搜索索引安全重建，以及 PosterWall 查询、详情、稳定分页、选图和缓存接口。当前阶段为 S6 OAuth、来源配置与凭据同步；现已实现 `MediaSourceConfig`、配置/墓碑原子 outbox、受限 `CredentialPayload` v1，以及对接真实 StellarPlayer Gateway 的 OAuth PKCE/session/refresh/Keychain 路径。2026-08-18 已使用 `examples/swift/StellarOAuthDemo` 通过 claimed HTTPS OAuth 真机验收；S6 当前主要剩余工作为同步 transport、远端 apply/conflict 与来源变更触发。
 
 ## 工具链与兼容基线
 
@@ -27,15 +27,17 @@ Sources/StellarMediaLibrary/
 Sources/StellarPosterWall/          # stable pagination, search, sections, and details
 Sources/StellarSMB2Core/            # libsmb2-independent seam and values
 Sources/CStellarSMB2Wrapper/        # 不暴露上游类型的 allowlisted C API
+Sources/StellarSMB2Libsmb2/         # Apple/Linux 共用的 libsmb2 transport
 Sources/StellarSMB2Linux/           # Linux 真正的只读 libsmb2 transport
+Sources/StellarSMB2Apple/           # iOS/macOS 的 libsmb2 transport 入口
 Sources/StellarUserMediaSDK/       # umbrella facade
 Sources/StellarMediaCLI/
 Tests/StellarUserMediaSDKTests/
 ```
 
-当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、版本化明文 `CredentialRecord`、严格受限的五种 `CredentialPayload`、版本化 `MediaSourceConfig` 与账户级原子 outbox、来源无关的 locator/entry/connector 合同、可恢复且有界并发的 scanner、SQLite v1 迁移/校验/扫描入库、扩展文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。`StellarAuth` 读取并严格校验 Gateway Metadata，生成 PKCE S256 与 `state`，通过 actor 串行化登录、恢复、20 路 single-flight refresh、多账户切换、资料刷新和本地优先登出；access token 只驻留内存，refresh token 使用非交互 Data Protection Keychain。Scanner 在每个成功目录页把 entries 与 checkpoint 作为同一批次提交，只有最终 completion 才携带 missing 协调资格。
+当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、版本化明文 `CredentialRecord`、严格受限的五种 `CredentialPayload`、版本化 `MediaSourceConfig` 与账户级原子 outbox、来源无关的 locator/entry/connector 合同、可恢复且有界并发的 scanner、SQLite library v1→v2 迁移/校验/扫描入库、扩展文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。`StellarAuth` 读取并严格校验 Gateway Metadata，生成 PKCE S256 与 `state`，通过 actor 串行化登录、恢复、20 路 single-flight refresh、多账户切换、资料刷新和本地优先登出；access token 只驻留内存，refresh token 使用非交互 Data Protection Keychain。Scanner 在每个成功目录页把 entries、frontier transition、seen identity 和 compact checkpoint 作为同一批次提交，只有最终 completion 才携带 missing 协调资格。
 
-`StellarSMB2Core` 提供不泄漏 C pointer 的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。`CStellarLibsmb2Private` 只在 Linux Package graph 中存在，解析项目私有静态 archive；archive 中所有已定义全局 symbol 均添加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀并从动态导出表隐藏。`CStellarSMB2Wrapper` 是唯一可调用该私有 module 的 target，对 Swift 只暴露项目自有 opaque client 和值记录；`StellarSMB2Linux` 在有界 blocking executor 上实现连接、枚举、`stat` 和 range read。
+`StellarSMB2Core` 提供不泄漏 C pointer 的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。Linux 的 `CStellarLibsmb2Private` 解析项目私有静态 archive；Apple 使用本地生成的 `CStellarSMB2Wrapper.xcframework`。两者的全部 libsmb2 symbol 均添加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀，Swift 只能调用项目自有的 allowlisted C wrapper。`StellarSMB2Libsmb2` 在有界 blocking executor 上实现连接、枚举、`stat` 和 range read，`StellarSMB2Linux` 与 `StellarSMB2Apple` 提供平台入口。
 
 `StellarCore` 当前公开：
 
@@ -44,7 +46,7 @@ Tests/StellarUserMediaSDKTests/
 - `SensitiveDataRedactor` / `RedactingSDKLogger`：在数据进入应用日志 sink 前统一脱敏；
 - `FieldPresence` / `CursorPage` / `EpochMilliseconds`：实现 [`JSON Wire Format v1`](../../specs/core/wire-format.md)。
 
-`StellarAuth` 当前内置 `https://dev-gateway.2dland.cn/` 的 desktop profile，并使用 [`gateway-oauth-v1.json`](../../specs/fixtures/auth/gateway-oauth-v1.json) 固定 Metadata、Token 与 `/api/v1/me` 字段。Gateway 目前只注册了 desktop 动态 HTTP loopback callback；`AppleWebAuthenticationSessionPresenter` 只接受 Apple API 原生支持的 custom scheme 或 HTTPS callback，因此 iOS/macOS App 正式接入前还需 Gateway 发布对应移动端 Client Policy。desktop loopback 可先通过 `ClosureOAuthAuthorizationPresenter` 注入严格的本地监听器。
+`StellarAuth` 当前内置 `https://dev-gateway.2dland.cn/` 的 desktop profile，并使用 [`gateway-oauth-v1.json`](../../specs/fixtures/auth/gateway-oauth-v1.json) 固定 Metadata、Token 与 `/api/v1/me` 字段。Gateway 同时已注册 `stellarplayer-ios-demo` Public Client 及 `https://dev-auth-stellarplayer.2dland.cn/oauth/callback` claimed HTTPS 回调；`AppleWebAuthenticationSessionPresenter` 的 HTTPS callback、Associated Domains 与 Data Protection Keychain 路径已由 `examples/swift/StellarOAuthDemo` 在真机验收通过。desktop 动态 HTTP loopback 仍不属于 `ASWebAuthenticationSession` 支持的 callback，需通过 `ClosureOAuthAuthorizationPresenter` 注入严格的本地监听器。
 
 ## 构建与运行
 
@@ -66,6 +68,23 @@ python3 ../../tools/ci/check_swift_dependencies.py --package-root .
 python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
 python3 ../../tools/metadata/sanitize_tmdb_fixture.py raw-tmdb.json sanitized-tmdb.json
 ```
+
+### iOS/macOS SMB backend
+
+仓库提交经验证的固定 XCFramework 和对应源码/许可证材料，因此 Xcode/SwiftPM 克隆后即可使用。审计或 lock 变化时，可从仓库根目录向新的临时路径重建并验证：
+
+```bash
+tools/ci/build_libsmb2_xcframework_apple.sh \
+  --lock third_party/libsmb2.lock.json \
+  --output /tmp/CStellarSMB2Wrapper.xcframework
+python3 tools/ci/check_libsmb2_xcframework_apple.py \
+  --root . \
+  --xcframework /tmp/CStellarSMB2Wrapper.xcframework
+```
+
+SwiftPM 在 Apple 平台加入 `StellarSMB2` product、`StellarSMB2Apple` module 和 macOS CLI SMB 命令。应用 target 依赖 `StellarSMB2` product 后，使用 `import StellarSMB2Core` 与 `import StellarSMB2Apple`，并通过 `AppleSMB2Transport` 建立只读会话。连接局域网 NAS 的 iOS/macOS app 必须在自身 `Info.plist` 提供 `NSLocalNetworkUsageDescription`；本 SDK 不替宿主声明用途文案或触发授权 UI。
+
+`Artifacts/CStellarSMB2Wrapper.compliance` 包含固定源码、许可证、symbol map 和构建材料，但尚不是最终应用的完整 LGPL relink kit。对外发布 Apple app 前仍需完成 application object/relink、代码签名、重新安装及商店条款审查。
 
 Linux 构建完成后可用只读 SMB 命令。密码只能通过 stdin 提供，不支持密码参数或带 userinfo 的 SMB URL：
 

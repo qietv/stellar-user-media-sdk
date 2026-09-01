@@ -1,8 +1,61 @@
 import StellarUserMediaSDK
 import SwiftUI
+import UIKit
+
+private enum DemoTab: Hashable {
+  case account
+  case scan
+  case library
+}
 
 struct ContentView: View {
-  @StateObject private var model = OAuthDemoModel()
+  @Environment(\.scenePhase) private var scenePhase
+  @StateObject private var oauthModel = OAuthDemoModel()
+  @StateObject private var mediaLibraryModel = MediaLibraryModel()
+  @State private var selectedTab = DemoTab.account
+
+  var body: some View {
+    TabView(selection: $selectedTab) {
+      OAuthPage(model: oauthModel)
+        .tag(DemoTab.account)
+        .tabItem {
+          Label("Account", systemImage: "person.crop.circle")
+        }
+
+      SMBScanView(model: mediaLibraryModel)
+        .tag(DemoTab.scan)
+        .tabItem {
+          Label("Scan", systemImage: "externaldrive.connected.to.line.below")
+        }
+
+      PosterWallView(model: mediaLibraryModel)
+        .tag(DemoTab.library)
+        .tabItem {
+          Label("Library", systemImage: "rectangle.grid.2x2")
+        }
+    }
+    .task {
+      await oauthModel.restoreOnce()
+      await mediaLibraryModel.prepareIfNeeded()
+    }
+    .onChange(of: selectedTab, initial: true) { _, newTab in
+      updateIdleTimer(for: newTab, scenePhase: scenePhase)
+    }
+    .onChange(of: scenePhase) { _, newPhase in
+      updateIdleTimer(for: selectedTab, scenePhase: newPhase)
+    }
+    .onDisappear {
+      UIApplication.shared.isIdleTimerDisabled = false
+    }
+  }
+
+  private func updateIdleTimer(for tab: DemoTab, scenePhase: ScenePhase) {
+    UIApplication.shared.isIdleTimerDisabled = tab == .scan && scenePhase == .active
+  }
+}
+
+private struct OAuthPage: View {
+  @ObservedObject var model: OAuthDemoModel
 
   var body: some View {
     NavigationStack {
@@ -16,9 +69,6 @@ struct ContentView: View {
         .padding()
       }
       .navigationTitle("Stellar OAuth")
-      .task {
-        await model.restoreOnce()
-      }
     }
   }
 

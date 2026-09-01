@@ -11,6 +11,10 @@
 		100000000000000000000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000007 /* ContentView.swift */; };
 		100000000000000000000012 /* OAuthDemoModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000008 /* OAuthDemoModel.swift */; };
 		100000000000000000000013 /* StellarUserMediaSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000025 /* StellarUserMediaSDK */; };
+		100000000000000000000026 /* MediaLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000030 /* MediaLibraryModel.swift */; };
+		100000000000000000000027 /* SMBScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000031 /* SMBScanView.swift */; };
+		100000000000000000000028 /* PosterWallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000032 /* PosterWallView.swift */; };
+		100000000000000000000029 /* StellarSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000033 /* StellarSMB2 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +23,9 @@
 		100000000000000000000007 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		100000000000000000000008 /* OAuthDemoModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthDemoModel.swift; sourceTree = "<group>"; };
 		100000000000000000000009 /* StellarOAuthDemo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StellarOAuthDemo.entitlements; sourceTree = "<group>"; };
+		100000000000000000000030 /* MediaLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaLibraryModel.swift; sourceTree = "<group>"; };
+		100000000000000000000031 /* SMBScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMBScanView.swift; sourceTree = "<group>"; };
+		100000000000000000000032 /* PosterWallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterWallView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -27,6 +34,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000013 /* StellarUserMediaSDK in Frameworks */,
+				100000000000000000000029 /* StellarSMB2 in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,6 +63,9 @@
 				100000000000000000000006 /* StellarOAuthDemoApp.swift */,
 				100000000000000000000007 /* ContentView.swift */,
 				100000000000000000000008 /* OAuthDemoModel.swift */,
+				100000000000000000000030 /* MediaLibraryModel.swift */,
+				100000000000000000000031 /* SMBScanView.swift */,
+				100000000000000000000032 /* PosterWallView.swift */,
 				100000000000000000000009 /* StellarOAuthDemo.entitlements */,
 			);
 			path = StellarOAuthDemo;
@@ -78,6 +89,7 @@
 			name = StellarOAuthDemo;
 			packageProductDependencies = (
 				100000000000000000000025 /* StellarUserMediaSDK */,
+				100000000000000000000033 /* StellarSMB2 */,
 			);
 			productName = StellarOAuthDemo;
 			productReference = 100000000000000000000005 /* StellarOAuthDemo.app */;
@@ -138,6 +150,9 @@
 				100000000000000000000010 /* StellarOAuthDemoApp.swift in Sources */,
 				100000000000000000000011 /* ContentView.swift in Sources */,
 				100000000000000000000012 /* OAuthDemoModel.swift in Sources */,
+				100000000000000000000026 /* MediaLibraryModel.swift in Sources */,
+				100000000000000000000027 /* SMBScanView.swift in Sources */,
+				100000000000000000000028 /* PosterWallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -274,6 +289,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Stellar OAuth Demo";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Stellar scans the SMB share you configure on your local network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -301,6 +317,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Stellar OAuth Demo";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Stellar scans the SMB share you configure on your local network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -352,6 +369,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 100000000000000000000024 /* XCLocalSwiftPackageReference "../../../platforms/swift" */;
 			productName = StellarUserMediaSDK;
+		};
+		100000000000000000000033 /* StellarSMB2 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 100000000000000000000024 /* XCLocalSwiftPackageReference "../../../platforms/swift" */;
+			productName = StellarSMB2;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

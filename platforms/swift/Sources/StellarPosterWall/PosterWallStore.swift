@@ -145,6 +145,7 @@ public struct PosterWallStore: Sendable {
           schemaVersion: 1,
           libraryRevision: revision,
           item: root.item,
+          originalTitle: root.originalTitle,
           overview: metadata.overview,
           tagline: metadata.tagline,
           contentRating: metadata.contentRating,

@@ -91,12 +91,18 @@ struct SMB2TransportContractTests {
       status: -Int32(POSIXErrorCode.ETIMEDOUT.rawValue),
       operation: .read
     )
+    let busy = SMB2POSIXErrorMapper.map(
+      status: -Int32(POSIXErrorCode.EBUSY.rawValue),
+      operation: .listDirectory
+    )
 
     #expect(authentication.code == .unauthorized)
     #expect(permission.code == .forbidden)
     #expect(missing.code == .metadataNotFound)
     #expect(missingShare.code == .remoteUnavailable)
     #expect(timeout.code == .remoteUnavailable)
+    #expect(busy.code == .conflict)
+    #expect(busy.message == "SMB session is busy")
     #expect(authentication.message.contains("nas") == false)
   }
 
@@ -206,6 +212,7 @@ struct SMB2TransportContractTests {
     #expect(secondPage.nextCursor == nil)
     #expect(stat.stableID == "arrival")
     #expect(String(decoding: bytes, as: UTF8.self) == "rri")
+    #expect(await directSession.listCount(at: rootPath) == 1)
 
     let scannerSession = TreeSMB2Session(
       entriesByDirectory: [rootPath: [movies, notes], moviesPath: [arrival]],
@@ -238,6 +245,8 @@ struct SMB2TransportContractTests {
     #expect(result.checkpoint.processedPageCount == 3)
     #expect(result.completion.reconcileMissingEligible)
     #expect(await sink.paths == ["Movies", "Movies/Arrival.mkv", "Notes.txt"])
+    #expect(await scannerSession.listCount(at: rootPath) == 1)
+    #expect(await scannerSession.listCount(at: moviesPath) == 1)
   }
 }
 
@@ -303,6 +312,7 @@ private actor TreeSMB2Session: SMB2Session {
   )
   private let entriesByDirectory: [SMB2Path: [SMB2Entry]]
   private let entriesByPath: [SMB2Path: SMB2Entry]
+  private var listCounts: [SMB2Path: Int] = [:]
   private var disconnected = false
 
   init(
@@ -315,10 +325,15 @@ private actor TreeSMB2Session: SMB2Session {
 
   func listDirectory(at path: SMB2Path) async throws -> [SMB2Entry] {
     try requireConnected()
+    listCounts[path, default: 0] += 1
     guard let entries = entriesByDirectory[path] else {
       throw SDKError(code: .metadataNotFound, message: "fixture directory not found")
     }
     return entries
+  }
+
+  func listCount(at path: SMB2Path) -> Int {
+    listCounts[path, default: 0]
   }
 
   func stat(_ path: SMB2Path) async throws -> SMB2Entry {

@@ -90,11 +90,13 @@ Windows 实现使用 Credential Manager 或当前用户绑定的 DPAPI；Android
 | 用户资料 | `GET https://dev-user-stellarplayer.2dland.cn/api/v1/me` |
 | Desktop Client | `stellarplayer-desktop`，Public Client，无 secret |
 | Desktop Redirect | `http://127.0.0.1:{dynamic_port}/oauth/callback` |
+| iOS Demo Client | `stellarplayer-ios-demo`，Public Client，无 secret |
+| iOS Demo Redirect | `https://dev-auth-stellarplayer.2dland.cn/oauth/callback` |
 | 首个 Scope | `profile.read` |
 
 Gateway 当前不是 OpenID Connect Provider，不返回 ID Token。客户端不得自行解析 Access Token 建立本地账号资料；必须使用 Bearer Access Token 调用 `/api/v1/me`，并以返回的 `subject_id` 作为 `subject` 与首版 `account_uid`。Token Request 不发送 OAuth 2.0 遗留的 `redirect_uri`，也不得发送 `client_secret`。Refresh Token 每次成功刷新都会轮换；并发刷新必须在客户端合并，否则服务端会把旧 Token 的第二次使用视为重放并撤销整个 Grant。
 
-`ASWebAuthenticationSession` 原生支持 private-use scheme 与 HTTPS callback，不支持 Gateway 当前 desktop Client 的动态 HTTP loopback。Swift 核心因此把浏览器展示建模为可注入 presenter：移动端 Client Policy 发布后使用 `ASWebAuthenticationSession` presenter；desktop loopback 则使用只监听 `127.0.0.1`、校验精确 Host/Path/state 且只消费一次回调的 presenter。在 Gateway 增加 iOS/macOS Client ID、claimed HTTPS 或 private-use scheme 的静态 Policy 与数据库注册前，不得用未注册回调做真实 App 验收，也不得放宽服务端 desktop redirect 规则。
+`ASWebAuthenticationSession` 原生支持 private-use scheme 与 HTTPS callback，不支持 Gateway desktop Client 的动态 HTTP loopback。Swift 核心因此把浏览器展示建模为可注入 presenter：iOS Demo 使用已注册的 claimed HTTPS callback 和 `ASWebAuthenticationSession` presenter；desktop loopback 则使用只监听 `127.0.0.1`、校验精确 Host/Path/state 且只消费一次回调的 presenter。2026-08-18 已使用已签名的 `examples/swift/StellarOAuthDemo` 在真机验收前者，覆盖登录、Keychain 恢复、资料/令牌刷新、账户切换和注销，且未触发生物识别、设备密码或运行时权限弹框。任何其他客户端仍必须使用 Gateway 精确注册的 Client ID 和回调 URI，不得放宽服务端 redirect 规则。
 
 ## 事件
 

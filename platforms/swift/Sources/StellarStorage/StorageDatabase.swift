@@ -144,39 +144,58 @@ public actor StorageDatabase {
   }
 
   private func migrateIfNeeded() async throws {
-    let version = try await pool.read { database in
+    let existingVersion = try await pool.read { database in
       try Int.fetchOne(database, sql: "PRAGMA user_version") ?? 0
     }
-    guard version <= kind.currentVersion else {
+    guard existingVersion <= kind.currentVersion else {
       throw SDKError(code: .storageFailure, message: "database schema is newer than this SDK")
     }
 
-    if version == kind.currentVersion {
-      if kind != .metadataCache {
-        let checksum = try await pool.read { [kind] database in
-          try String.fetchOne(
+    if existingVersion > 0, kind != .metadataCache {
+      try await pool.read { [kind] database in
+        for version in 1...existingVersion {
+          let checksum = try String.fetchOne(
             database,
             sql: "SELECT checksum FROM schema_migration WHERE version = ?",
-            arguments: [kind.currentVersion]
+            arguments: [version]
           )
-        }
-        guard checksum == kind.schemaChecksum else {
-          throw SDKError(code: .storageFailure, message: "database migration checksum mismatch")
+          guard checksum == kind.canonicalSchemaChecksum(version: version) else {
+            throw SDKError(code: .storageFailure, message: "database migration checksum mismatch")
+          }
         }
       }
+    }
+    if existingVersion == kind.currentVersion {
       return
     }
 
-    guard version == 0 else {
-      throw SDKError(code: .storageFailure, message: "database migration path is unavailable")
-    }
     let appliedAt = clock.nowMilliseconds()
     try await pool.write { [kind] database in
-      try database.execute(sql: kind.schemaSQL)
-      if kind != .metadataCache {
+      var version = existingVersion
+      if version == 0 {
+        try database.execute(sql: kind.schemaSQL)
+        version = 1
+        if kind != .metadataCache {
+          guard let checksum = kind.canonicalSchemaChecksum(version: version) else {
+            throw SDKError(code: .storageFailure, message: "base schema checksum is missing")
+          }
+          try database.execute(
+            sql: "INSERT INTO schema_migration(version, applied_at_ms, checksum) VALUES (?, ?, ?)",
+            arguments: [version, appliedAt, checksum]
+          )
+        }
+      }
+      while version < kind.currentVersion {
+        guard let sql = kind.migrationSQL(fromVersion: version),
+          let checksum = kind.canonicalSchemaChecksum(version: version + 1)
+        else {
+          throw SDKError(code: .storageFailure, message: "database migration path is unavailable")
+        }
+        try database.execute(sql: sql)
+        version += 1
         try database.execute(
           sql: "INSERT INTO schema_migration(version, applied_at_ms, checksum) VALUES (?, ?, ?)",
-          arguments: [kind.currentVersion, appliedAt, kind.schemaChecksum]
+          arguments: [version, appliedAt, checksum]
         )
       }
     }

@@ -1,0 +1,4 @@
+module CStellarSMB2Wrapper {
+  umbrella header "stellar_smb2_wrapper.h"
+  export *
+}

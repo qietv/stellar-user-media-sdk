@@ -71,7 +71,8 @@ public struct LocalMediaSourceConnector: MediaSourceConnector {
       pathSemantics: pathSemantics,
       supportsRangeReads: true,
       supportsChangeCursor: false,
-      deltaDeletionsComplete: false
+      deltaDeletionsComplete: false,
+      preferredDirectoryRequestConcurrency: 4
     )
     return LocalMediaSourceSession(
       configuration: configuration,
@@ -119,6 +120,7 @@ public actor LocalMediaSourceSession: MediaSourceSession {
 
   private let rootURL: URL
   private let fileManager: FileManager
+  private var directoryPaginator: RemoteDirectorySnapshotPaginator
   private var disconnected = false
 
   fileprivate init(
@@ -130,6 +132,10 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     rootURL = configuration.rootURL
     self.capabilities = capabilities
     self.fileManager = fileManager
+    directoryPaginator = RemoteDirectorySnapshotPaginator(
+      cursorNamespace: "local-v1",
+      pathSemantics: capabilities.pathSemantics
+    )
   }
 
   public func listDirectory(_ request: RemoteDirectoryPageRequest) async throws
@@ -139,6 +145,9 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     guard request.directory.sourceUID == sourceUID else {
       throw SDKError(code: .invalidConfiguration, message: "local source UID does not match")
     }
+    if let cachedPage = try directoryPaginator.cachedPage(for: request) {
+      return cachedPage
+    }
 
     let directoryURL = try confinedURL(for: request.directory)
     let directory = try makeEntry(at: directoryURL, locator: request.directory)
@@ -147,37 +156,8 @@ public actor LocalMediaSourceSession: MediaSourceSession {
         code: .invalidConfiguration, message: "local enumeration target is not a directory")
     }
 
-    let snapshot = try directorySnapshot(at: directoryURL, locator: request.directory)
-    let offset: Int
-    if let cursor = request.cursor {
-      let parsed = try LocalDirectoryCursor(cursor)
-      guard parsed.fingerprint == snapshot.fingerprint,
-        parsed.offset <= snapshot.entries.count
-      else {
-        throw SDKError(
-          code: .conflict,
-          message: "local directory changed during pagination"
-        )
-      }
-      offset = parsed.offset
-    } else {
-      offset = 0
-    }
-
-    let count = min(request.limit, snapshot.entries.count - offset)
-    let upperBound = offset + count
-    let entries = Array(snapshot.entries[offset..<upperBound])
-    let nextCursor: String?
-    if upperBound < snapshot.entries.count {
-      nextCursor =
-        LocalDirectoryCursor(
-          offset: upperBound,
-          fingerprint: snapshot.fingerprint
-        ).rawValue
-    } else {
-      nextCursor = nil
-    }
-    return try CursorPage(items: entries, nextCursor: nextCursor)
+    let entries = try directoryEntries(at: directoryURL, locator: request.directory)
+    return try directoryPaginator.storeAndPage(entries, for: request)
   }
 
   public func stat(_ locator: RemoteLocator) async throws -> RemoteEntry {
@@ -210,6 +190,7 @@ public actor LocalMediaSourceSession: MediaSourceSession {
   }
 
   public func disconnect() async {
+    directoryPaginator.removeAll()
     disconnected = true
   }
 
@@ -239,10 +220,10 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     return candidate
   }
 
-  private func directorySnapshot(
+  private func directoryEntries(
     at directoryURL: URL,
     locator: RemoteLocator
-  ) throws -> DirectorySnapshot {
+  ) throws -> [RemoteEntry] {
     do {
       let urls = try fileManager.contentsOfDirectory(
         at: directoryURL,
@@ -256,18 +237,7 @@ public actor LocalMediaSourceSession: MediaSourceSession {
         let childLocator = try RemoteLocator(sourceUID: sourceUID, path: child)
         entries.append(try makeEntry(at: url, locator: childLocator))
       }
-      entries.sort { left, right in
-        let leftKey = left.locator.pathComparisonKey(using: capabilities.pathSemantics)
-        let rightKey = right.locator.pathComparisonKey(using: capabilities.pathSemantics)
-        if leftKey == rightKey {
-          return left.locator.path.relativePath < right.locator.path.relativePath
-        }
-        return leftKey < rightKey
-      }
-      return DirectorySnapshot(
-        entries: entries,
-        fingerprint: Self.fingerprint(entries, semantics: capabilities.pathSemantics)
-      )
+      return entries
     } catch let error as SDKError {
       throw error
     } catch {
@@ -330,30 +300,6 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     return "\(fileSystem.uint64Value):\(file.uint64Value)"
   }
 
-  private static func fingerprint(
-    _ entries: [RemoteEntry],
-    semantics: RemotePathSemantics
-  ) -> String {
-    var hash: UInt64 = 14_695_981_039_346_656_037
-    for entry in entries {
-      let fields = [
-        entry.locator.pathComparisonKey(using: semantics),
-        entry.kind.rawValue,
-        entry.stableID ?? "",
-        entry.size.map(String.init) ?? "",
-        entry.modifiedAtMilliseconds.map(String.init) ?? "",
-        entry.entityTag ?? "",
-      ]
-      for byte in fields.joined(separator: "\u{1f}").utf8 {
-        hash ^= UInt64(byte)
-        hash &*= 1_099_511_628_211
-      }
-      hash ^= 0xff
-      hash &*= 1_099_511_628_211
-    }
-    return String(format: "%016llx", hash)
-  }
-
   private static func mapFileError(
     _ error: any Error,
     fallback: SDKErrorCode,
@@ -383,35 +329,4 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     return SDKError(code: code, message: "local media \(operation) failed")
   }
 
-  private struct DirectorySnapshot {
-    let entries: [RemoteEntry]
-    let fingerprint: String
-  }
-
-  private struct LocalDirectoryCursor {
-    let offset: Int
-    let fingerprint: String
-
-    var rawValue: String { "local-v1:\(offset):\(fingerprint)" }
-
-    init(offset: Int, fingerprint: String) {
-      self.offset = offset
-      self.fingerprint = fingerprint
-    }
-
-    init(_ rawValue: String) throws {
-      let components = rawValue.split(separator: ":", omittingEmptySubsequences: false)
-      guard components.count == 3,
-        components[0] == "local-v1",
-        let offset = Int(components[1]),
-        offset > 0,
-        components[2].count == 16,
-        components[2].allSatisfy({ $0.isHexDigit })
-      else {
-        throw SDKError(code: .invalidConfiguration, message: "local page cursor is invalid")
-      }
-      self.offset = offset
-      fingerprint = String(components[2])
-    }
-  }
 }

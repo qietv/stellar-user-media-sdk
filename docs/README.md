@@ -9,6 +9,7 @@
 - [安全基线](security.md)：OAuth、当前明文远程凭据、日志、网络和本地数据要求。
 - [路线图](roadmap.md)：从项目骨架到稳定 SDK 的阶段计划。
 - [Swift Reference Implementation Plan](plans/swift-reference-implementation.md)：Swift-first 实施顺序、Linux libsmb2 验收、测试门禁和 iOS 集成。
+- [StellarSync Backend Requirements v1](plans/stellar-sync-backend-requirements.md)：来源配置与第三方凭据同步的后端 API、幂等、冲突、安全和验收要求。
 
 ## 规范
 

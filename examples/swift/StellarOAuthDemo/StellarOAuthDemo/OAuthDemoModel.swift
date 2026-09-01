@@ -23,7 +23,7 @@ final class OAuthDemoModel: ObservableObject {
         )!,
         scopes: ["profile.read"],
         profileEndpoint: URL(
-          string: "https://dev-user-stellarplayer.2dland.cn/api/v1/me"
+          string: "https://dev-api-st.2dland.cn/api/v1/user/me"
         )!
       )
       let presenter = AppleWebAuthenticationSessionPresenter(

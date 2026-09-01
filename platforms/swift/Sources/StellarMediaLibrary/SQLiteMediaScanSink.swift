@@ -35,7 +35,11 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
         coveredRoots: batch.completion?.coveredRoots ?? [],
         reconcileMissingEligible: batch.completion?.reconcileMissingEligible ?? false,
         discoveredEntryCount: batch.checkpoint.discoveredEntryCount,
-        errorCode: batch.checkpoint.lastErrorCode?.rawValue
+        pendingPageCount: batch.checkpoint.pendingPageCount,
+        processedPageCount: batch.checkpoint.processedPageCount,
+        errorCode: batch.checkpoint.lastErrorCode?.rawValue,
+        enumerationState: try batch.enumerationState.map(Self.persistenceState),
+        pageTransition: try batch.pageTransition.map(Self.persistenceTransition)
       )
       try await store.commit(persistenceBatch)
     } catch let error as SDKError {
@@ -53,8 +57,60 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
     do {
       return try JSONDecoder().decode(MediaScanCheckpoint.self, from: Data(json.utf8))
     } catch {
+      if let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
+        object["schema_version"] as? Int == 1
+      {
+        throw SDKError(
+          code: .conflict,
+          message: "legacy scanner checkpoint requires a new scan run"
+        )
+      }
       throw SDKError(code: .storageFailure, message: "stored scanner checkpoint is invalid")
     }
+  }
+
+  public func loadEnumerationState(runUID: String) async throws -> MediaScanEnumerationState? {
+    guard let state = try await store.scanEnumerationState(runUID: runUID) else { return nil }
+    return try MediaScanEnumerationState(
+      pendingPages: state.pendingPages.map(Self.scannerPage),
+      completedPages: state.completedPages.map(Self.scannerPage),
+      seenEntryIdentityKeys: state.seenEntryIdentityKeys,
+      seenDirectoryIdentityKeys: state.seenDirectoryIdentityKeys
+    )
+  }
+
+  private static func persistenceState(
+    _ state: MediaScanEnumerationState
+  ) throws -> LibraryScanEnumerationState {
+    try LibraryScanEnumerationState(
+      pendingPages: state.pendingPages.map(persistencePage),
+      completedPages: state.completedPages.map(persistencePage),
+      seenEntryIdentityKeys: state.seenEntryIdentityKeys,
+      seenDirectoryIdentityKeys: state.seenDirectoryIdentityKeys
+    )
+  }
+
+  private static func persistenceTransition(
+    _ transition: MediaScanPageTransition
+  ) throws -> LibraryScanPageTransition {
+    LibraryScanPageTransition(
+      completedPage: try persistencePage(transition.completedPage),
+      enqueuedPages: try transition.enqueuedPages.map(persistencePage),
+      seenEntryIdentityKeys: transition.seenEntryIdentityKeys,
+      seenDirectoryIdentityKeys: transition.seenDirectoryIdentityKeys
+    )
+  }
+
+  private static func persistencePage(
+    _ page: MediaScanPageCursor
+  ) throws -> LibraryScanFrontierPage {
+    try LibraryScanFrontierPage(directory: page.directory, cursor: page.cursor)
+  }
+
+  private static func scannerPage(
+    _ page: LibraryScanFrontierPage
+  ) throws -> MediaScanPageCursor {
+    try MediaScanPageCursor(directory: page.directory, cursor: page.cursor)
   }
 }
 

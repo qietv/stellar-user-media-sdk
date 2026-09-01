@@ -75,7 +75,7 @@ struct LocalMediaSourceContractTests {
     }
   }
 
-  @Test("Local pagination fails closed when the directory changes")
+  @Test("Local pagination keeps a stable snapshot and validates resumed cursors")
   func paginationMutation() async throws {
     let fixture = try LocalDirectoryFixture()
     defer { fixture.remove() }
@@ -93,12 +93,20 @@ struct LocalMediaSourceContractTests {
     let cursor = try #require(firstPage.nextCursor)
     try Data("new".utf8).write(to: fixture.rootURL.appendingPathComponent("New.mkv"))
 
+    let remainingPage = try await session.listDirectory(
+      RemoteDirectoryPageRequest(directory: root, cursor: cursor, limit: 100)
+    )
+    #expect(remainingPage.nextCursor == nil)
+    #expect(remainingPage.items.contains(where: { $0.locator.path.name == "New.mkv" }) == false)
+    await session.disconnect()
+
+    let resumedSession = try await connector.connect()
     await #expect(throws: SDKError.self) {
-      _ = try await session.listDirectory(
+      _ = try await resumedSession.listDirectory(
         RemoteDirectoryPageRequest(directory: root, cursor: cursor, limit: 2)
       )
     }
-    await session.disconnect()
+    await resumedSession.disconnect()
   }
 
   @Test("The shared scanner completes a recursive local directory scan")

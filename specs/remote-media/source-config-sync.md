@@ -66,26 +66,46 @@ flowchart LR
 
 ## 同步协议
 
-拉取请求包含 `account_uid`、设备 ID、客户端 schema 版本和上次游标。响应为：
+拉取请求包含 `account_uid`、设备 ID、客户端 schema 版本、上次原子应用完成的
+`cursor` 和正整数 `limit`。响应为：
 
 ```json
 {
   "items": [],
-  "next_cursor": "opaque-cursor",
+  "checkpoint_cursor": "opaque-cursor-after-this-page",
+  "next_cursor": null,
   "server_time_ms": 0,
   "has_more": false
 }
 ```
 
-上传采用幂等操作：`operation_uid`、`source_uid`、`base_revision`、完整的新配置或删除墓碑。服务端接受后返回新 `revision` 和同步游标。
+`checkpoint_cursor` 始终是非空、不透明且绑定账户的游标；客户端只有在本页 items
+全部原子落库后才能保存。`has_more=true` 时，`next_cursor` 必须等于
+`checkpoint_cursor`；`has_more=false` 时，`next_cursor` 必须为 `null`。因此终页遵守
+[`wire-format.md`](../core/wire-format.md) 的通用分页规则，同时客户端仍有可持久化的增量
+checkpoint。空页也必须返回 `checkpoint_cursor`。无效、空字符串、跨账户或被篡改的
+cursor 必须失败关闭，不得静默退回全量同步。
+
+`cursor=null` 的新设备拉取必须先固定服务端 high-water，并为每个 entity 只返回该位置上
+最新的完整 revision 或墓碑，不能按历史顺序恢复已被更新或删除的旧凭据。snapshot 分页期间
+产生的新 change 在 snapshot 完成后的下一轮增量拉取返回。每轮增量拉取也必须固定本轮
+high-water；分页期间的新 change 留到下一轮，保证一次同步可以有界完成。
+
+上传采用幂等操作：`operation_uid`、`entity_type`、`entity_uid`、`base_revision`、
+`operation` 和完整的新记录或删除墓碑。`entity_type` v1 只允许
+`media_source_config` 与 `credential_record`。服务端接受后返回新 `revision` 和同步游标。
+一次 operation 的 current record、change event 和幂等 outcome 必须原子提交。精确 HTTP
+接口、revision/CAS、错误和后端验收要求见
+[`StellarSync Backend Requirements v1`](../../docs/plans/stellar-sync-backend-requirements.md)。
 
 合并规则：
 
-1. 不同 `source_uid` 独立合并。
+1. 不同 `(entity_type, entity_uid)` 独立合并。
 2. 本地 `base_revision` 等于服务端 revision 时直接应用。
-3. 冲突时，删除与安全相关字段优先，普通配置字段可以按 `updated_at_ms` 合并；CredentialRecord 不允许字段级合并。
-4. 同时修改无法无损合并的连接端点或根路径时，保留两份冲突记录并请求用户选择。
-5. 删除使用墓碑，服务端确认所有活跃设备越过该游标后才可压缩。
+3. v1 服务端在 revision 不相等时返回冲突，不按客户端 `updated_at_ms` 静默覆盖，也不做字段级自动合并；`CredentialRecord` 永远不允许字段级合并。
+4. 客户端保留 local candidate 与完整 remote record；用户选择或确定性的删除优先策略产生新完整记录后，使用新的 `operation_uid` 和最新 `base_revision` 重交。
+5. 连接端点、根路径、`credential_mode` 或 `credential_uid` 的并发修改必须进入冲突，不能静默覆盖。
+6. 删除使用墓碑，服务端确认所有活跃设备越过该游标后才可压缩；v1 后端首版不启用压缩。
 
 ## 连接器接口
 

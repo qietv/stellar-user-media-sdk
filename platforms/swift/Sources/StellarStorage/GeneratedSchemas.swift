@@ -672,11 +672,42 @@ extension StorageDatabaseKind {
     }
   }
 
-  var canonicalSchemaChecksum: String {
-    switch self {
-    case .account: "2d2752a0b1eac7aab2914290816ca471d865530d7e4571a125e02f8b3657a4ce"
-    case .library: "860af5576de63d4aa64342204e27ff8a054df188fba0840f07545647bb5a1484"
-    case .metadataCache: "f87fb61ba3c89d93df90465276adf81200bd8dd86d937e242c70042709f16cab"
+  func canonicalSchemaChecksum(version: Int) -> String? {
+    switch (self, version) {
+    case (.account, 1): "2d2752a0b1eac7aab2914290816ca471d865530d7e4571a125e02f8b3657a4ce"
+    case (.library, 1): "860af5576de63d4aa64342204e27ff8a054df188fba0840f07545647bb5a1484"
+    case (.metadataCache, 1): "f87fb61ba3c89d93df90465276adf81200bd8dd86d937e242c70042709f16cab"
+    case (.library, 2): "8a9f0dac4e9af7c69d2c8a855335e10e9c44adf286eb0339c38beb7afc5688d9"
+    default: nil
+    }
+  }
+
+  func migrationSQL(fromVersion: Int) -> String? {
+    switch (self, fromVersion) {
+    case (.library, 1):
+      #"""
+      CREATE TABLE scan_frontier (
+          run_id              INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+          directory_json      TEXT NOT NULL,
+          cursor_token        TEXT NOT NULL,
+          state               TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
+          updated_at_ms       INTEGER NOT NULL,
+          PRIMARY KEY(run_id, directory_json, cursor_token)
+      ) WITHOUT ROWID;
+
+      CREATE INDEX idx_scan_frontier_pending
+          ON scan_frontier(run_id, state, directory_json, cursor_token);
+
+      CREATE TABLE scan_seen (
+          run_id              INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+          identity_key        TEXT NOT NULL,
+          is_directory        INTEGER NOT NULL DEFAULT 0 CHECK (is_directory IN (0, 1)),
+          PRIMARY KEY(run_id, identity_key)
+      ) WITHOUT ROWID;
+
+      PRAGMA user_version = 2;
+      """#
+    default: nil
     }
   }
 }

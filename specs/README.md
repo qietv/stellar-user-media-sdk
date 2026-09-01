@@ -55,6 +55,7 @@
 - [元数据候选与匹配 v1](media-library/metadata-matching.md)
 - [SQLite、本地状态与同步](storage/sqlite-and-sync.md)
 - [SQLite v1 schema manifest](storage/schema-manifest-v1.json)
+- [SQLite schema migrations](storage/schema-migrations.json)
 
 详细的数据表和扫描状态机见 [Infuse 调研及自有扫描器设计](../docs/research/infuse/infuse_library_scan_rebuild_and_our_scanner_design.md)。
 

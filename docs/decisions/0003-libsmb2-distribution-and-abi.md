@@ -24,10 +24,11 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 
 - 所有由本项目提供的 libsmb2 构建均使用 `BUILD_SHARED_LIBS=OFF`、`CMAKE_POSITION_INDEPENDENT_CODE=ON`、`ENABLE_EXAMPLES=OFF`、`ENABLE_LIBKRB5=OFF` 和 `ENABLE_GSSAPI=OFF`。S2 只支持内建 NTLMSSP。
 - 构建只写入任务私有且原本为空的 prefix，不使用 `/usr/local`、Homebrew prefix 或其他系统目录，也不执行上游 `cmake --install`。
-- 原始 `libsmb2.a` 不进入最终链接。构建脚本枚举 archive 中全部已定义全局 symbol，并使用 GNU `objcopy --redefine-syms` 统一加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀，生成 `libstellar_libsmb2_private.a` 后删除原始 archive。
+- 原始 `libsmb2.a` 不进入最终链接。Linux 构建脚本枚举 archive 中全部已定义全局 symbol，并使用 GNU `objcopy --redefine-syms` 统一加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀，生成 `libstellar_libsmb2_private.a` 后删除原始 archive。Apple 工具链不提供 GNU `objcopy`，因此 Apple 构建先用 macOS probe archive 枚举相同全局 symbol，再通过强制包含的生成 header 在编译期同时重命名定义与内部引用；每个最终 Mach-O slice 均重新检查不存在未前缀的 libsmb2 全局 symbol。
 - 私有 prefix 接收编译所需 header、前缀化 archive 和 `stellar-libsmb2-private.pc`，以及 `share/stellar-libsmb2-private` 下的对应源码、许可证、symbol map 和构建元数据；不接收或暴露公共 `libsmb2.a`、`libsmb2.pc`、CMake package 元数据，也不使用 `-lsmb2`。
 - 私有 pkg-config 只提供 SwiftPM 允许的私有 `-L`/`-lstellar_libsmb2_private`；该目录不得包含同名 shared object，因此最终仍解析到私有静态 archive。Linux wrapper target 通过 linker setting 加入 `--exclude-libs=libstellar_libsmb2_private.a`，防止内部 symbol 进入最终 ELF 动态导出表。
-- `CStellarLibsmb2Private` 只在 Linux Package graph 中存在。其 shim 把允许使用的上游函数名映射到私有前缀；Swift target 禁止直接 import，后续只能 import 项目自有的 allowlisted C wrapper。
+- `CStellarLibsmb2Private` 只在 Linux Package graph 中存在。其 shim 把允许使用的上游函数名映射到私有前缀；Swift target 禁止直接 import，后续只能 import 项目自有的 allowlisted C wrapper。Apple 将同一 wrapper 与私有 archive 合并为 `CStellarSMB2Wrapper` 静态 XCFramework，公开 header 仍只包含项目自有 opaque 类型。
+- Apple XCFramework 固定包含 macOS `arm64/x86_64`、iOS device `arm64` 与 iOS simulator `arm64/x86_64`，最低版本分别为 macOS 14 与 iOS 17。经验证的固定产物与对应源码/许可证材料提交在 `platforms/swift/Artifacts`，避免 SwiftPM/Xcode 的 package graph 依赖宿主文件状态或 manifest cache；CI 必须另外从 lock 重建临时 artifact、逐文件比较可重复输出、复核隔离，再编译已提交的 Apple backend。
 - 最终 SDK/CLI 不得产生 `DT_NEEDED`/等价的 libsmb2 共享库依赖，也不得导出未前缀的 libsmb2 symbol。
 
 这三个边界共同防止相互影响：
@@ -69,7 +70,7 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 - 商业条款不得禁止用户为调试这些修改而进行许可证允许的 reverse engineering。
 - symbol prefix 属于构建隔离步骤；relink kit 必须包含可重建相同前缀 archive 的脚本和 map 生成方式，不能只提供已经前缀化的二进制。
 - `create_linux_smb_lgpl_kit.sh` 从正式 release 的 SwiftPM `Objects.LinkFileList` 收集组合产物 object code，加入固定源码、许可、集成源码、原始私有 archive、修改后库重建脚本、重链接脚本和逐文件 SHA-256 manifest。CI 必须从交付的源码重新构建私有 archive，再用交付 object 实际生成并运行替换后的 executable。
-- Apple backend 也只能采用同样的私有静态隔离，但在 object/relink kit、代码签名、重新安装和商店分发义务完成审查前不得启用或发布。
+- Apple backend 采用同样的私有静态隔离。开发、测试和内部集成可以从固定源码生成本地产物；构建同时生成对应源码、许可证、symbol map、生成 header、wrapper 源码及 SHA-256 manifest。对外发布或提交商店仍须在 application object/relink kit、代码签名、重新安装和商店分发义务完成审查后进行，当前 Apple 构建材料不是完整的最终应用 LGPL relink kit。
 
 ## 后果
 
@@ -95,6 +96,7 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 - pkg-config flags 包含私有静态 archive，不包含 `-lsmb2` 或 `.so`；
 - ABI smoke binary 在强制 `--export-dynamic` 时仍不暴露私有前缀 symbol，能够运行，且 `ldd`/等价检查不包含 libsmb2；
 - 最终 SDK/CLI 不导出未前缀的 libsmb2 symbol；
+- Apple XCFramework 的 macOS、iOS device 与 iOS simulator slices 架构完整，均可链接 allowlisted wrapper smoke；macOS smoke 可运行且没有动态 libsmb2 依赖；
 - C/Swift public API 不出现 libsmb2 私有类型；
 - 对外发布物带有许可证、对应源码、对象文件和经过验证的 relink instructions。
 

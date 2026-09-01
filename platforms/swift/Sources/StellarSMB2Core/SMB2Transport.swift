@@ -371,6 +371,8 @@ package enum SMB2POSIXErrorMapper {
       return SDKError(code: .networkUnavailable, message: "network is unavailable")
     case .EAGAIN:
       return SDKError(code: .networkUnavailable, message: "network is temporarily unavailable")
+    case .EBUSY:
+      return SDKError(code: .conflict, message: "SMB session is busy")
     case .EHOSTUNREACH, .ECONNREFUSED, .ECONNRESET, .ECONNABORTED, .ENOTCONN, .ETIMEDOUT,
       .EPIPE:
       return SDKError(code: .remoteUnavailable, message: "SMB server is unavailable")

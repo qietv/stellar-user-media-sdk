@@ -255,6 +255,8 @@ public struct MediaSourceCapabilities: Codable, Equatable, Sendable {
   public let supportsRangeReads: Bool
   public let supportsChangeCursor: Bool
   public let deltaDeletionsComplete: Bool
+  /// The source's safe upper bound for simultaneous directory requests.
+  public let preferredDirectoryRequestConcurrency: Int
 
   public init(
     stableIDScope: RemoteStableIDScope,
@@ -263,17 +265,39 @@ public struct MediaSourceCapabilities: Codable, Equatable, Sendable {
     supportsChangeCursor: Bool,
     deltaDeletionsComplete: Bool
   ) throws {
+    try self.init(
+      stableIDScope: stableIDScope,
+      pathSemantics: pathSemantics,
+      supportsRangeReads: supportsRangeReads,
+      supportsChangeCursor: supportsChangeCursor,
+      deltaDeletionsComplete: deltaDeletionsComplete,
+      preferredDirectoryRequestConcurrency: 4
+    )
+  }
+
+  public init(
+    stableIDScope: RemoteStableIDScope,
+    pathSemantics: RemotePathSemantics,
+    supportsRangeReads: Bool,
+    supportsChangeCursor: Bool,
+    deltaDeletionsComplete: Bool,
+    preferredDirectoryRequestConcurrency: Int
+  ) throws {
     guard supportsChangeCursor || !deltaDeletionsComplete else {
       throw SDKError(
         code: .invalidConfiguration,
         message: "complete delta deletions require change-cursor support"
       )
     }
+    guard (1...32).contains(preferredDirectoryRequestConcurrency) else {
+      throw SDKError(code: .invalidConfiguration, message: "source concurrency is invalid")
+    }
     self.stableIDScope = stableIDScope
     self.pathSemantics = pathSemantics
     self.supportsRangeReads = supportsRangeReads
     self.supportsChangeCursor = supportsChangeCursor
     self.deltaDeletionsComplete = deltaDeletionsComplete
+    self.preferredDirectoryRequestConcurrency = preferredDirectoryRequestConcurrency
   }
 
   public init(from decoder: Decoder) throws {
@@ -293,7 +317,11 @@ public struct MediaSourceCapabilities: Codable, Equatable, Sendable {
         ),
         supportsRangeReads: container.decode(Bool.self, forKey: .supportsRangeReads),
         supportsChangeCursor: container.decode(Bool.self, forKey: .supportsChangeCursor),
-        deltaDeletionsComplete: container.decode(Bool.self, forKey: .deltaDeletionsComplete)
+        deltaDeletionsComplete: container.decode(Bool.self, forKey: .deltaDeletionsComplete),
+        preferredDirectoryRequestConcurrency: container.decodeIfPresent(
+          Int.self,
+          forKey: .preferredDirectoryRequestConcurrency
+        ) ?? 4
       )
     } catch let error as SDKError {
       throw DecodingError.dataCorrupted(
@@ -310,6 +338,19 @@ public struct MediaSourceCapabilities: Codable, Equatable, Sendable {
     try container.encode(supportsRangeReads, forKey: .supportsRangeReads)
     try container.encode(supportsChangeCursor, forKey: .supportsChangeCursor)
     try container.encode(deltaDeletionsComplete, forKey: .deltaDeletionsComplete)
+    try container.encode(
+      preferredDirectoryRequestConcurrency,
+      forKey: .preferredDirectoryRequestConcurrency
+    )
+  }
+
+  /// Whether durable enumeration state can safely resume with another capability snapshot.
+  /// Performance recommendations and range-read support do not affect discovery correctness.
+  public func isEnumerationResumeCompatible(with other: MediaSourceCapabilities) -> Bool {
+    stableIDScope == other.stableIDScope
+      && pathSemantics == other.pathSemantics
+      && supportsChangeCursor == other.supportsChangeCursor
+      && deltaDeletionsComplete == other.deltaDeletionsComplete
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -319,6 +360,7 @@ public struct MediaSourceCapabilities: Codable, Equatable, Sendable {
     case supportsRangeReads = "supports_range_reads"
     case supportsChangeCursor = "supports_change_cursor"
     case deltaDeletionsComplete = "delta_deletions_complete"
+    case preferredDirectoryRequestConcurrency = "preferred_directory_request_concurrency"
   }
 }
 

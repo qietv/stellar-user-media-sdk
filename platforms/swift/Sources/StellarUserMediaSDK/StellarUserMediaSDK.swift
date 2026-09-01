@@ -165,6 +165,10 @@ public typealias MediaScanPageCursor = StellarMediaLibrary.MediaScanPageCursor
 public typealias MediaScanRootIdentity = StellarMediaLibrary.MediaScanRootIdentity
 /// Compatibility alias for a durable scanner checkpoint.
 public typealias MediaScanCheckpoint = StellarMediaLibrary.MediaScanCheckpoint
+/// Compatibility alias for the durable frontier state stored outside a compact checkpoint.
+public typealias MediaScanEnumerationState = StellarMediaLibrary.MediaScanEnumerationState
+/// Compatibility alias for one atomic directory-frontier transition.
+public typealias MediaScanPageTransition = StellarMediaLibrary.MediaScanPageTransition
 /// Compatibility alias for the authoritative completion boundary.
 public typealias MediaScanCompletion = StellarMediaLibrary.MediaScanCompletion
 /// Compatibility alias for one atomic scanner persistence batch.
@@ -349,6 +353,9 @@ public typealias StorageVerificationReport = StellarStorage.StorageVerificationR
 public typealias AccountStore = StellarStorage.AccountStore
 /// Compatibility alias for the disposable provider and matching cache repository.
 public typealias MetadataCacheStore = StellarStorage.MetadataCacheStore
+/// Compatibility alias for one cached provider HTTP response.
+public typealias MetadataProviderResponseCacheEntry =
+  StellarStorage.MetadataProviderResponseCacheEntry
 /// Compatibility alias for non-secret account outbox metadata.
 public typealias AccountOutboxRecord = StellarStorage.AccountOutboxRecord
 /// Compatibility alias for media-source kinds stored in library.sqlite.
@@ -361,6 +368,20 @@ public typealias LibraryStore = StellarStorage.LibraryStore
 public typealias LibrarySnapshot = StellarStorage.LibrarySnapshot
 /// Compatibility alias for one normalized persisted file fact.
 public typealias LibraryFileFact = StellarStorage.LibraryFileFact
+/// Compatibility alias for a durable file-processing stage.
+public typealias LibraryScanQueueStage = StellarStorage.LibraryScanQueueStage
+/// Compatibility alias for pending or retryable scan work.
+public typealias LibraryScanWorkItem = StellarStorage.LibraryScanWorkItem
+/// Compatibility alias for pending scan work joined with its durable file fact.
+public typealias LibraryScanFileWorkItem = StellarStorage.LibraryScanFileWorkItem
+/// Compatibility alias for a keyset-paginated scan-work result.
+public typealias LibraryScanFileWorkPage = StellarStorage.LibraryScanFileWorkPage
+/// Compatibility alias for present and matched source file counts.
+public typealias LibrarySourceMediaSummary = StellarStorage.LibrarySourceMediaSummary
+/// Compatibility alias for a root kind addressed by provider metadata.
+public typealias LibraryRemoteMetadataKind = StellarStorage.LibraryRemoteMetadataKind
+/// Compatibility alias for provider metadata materialized into the library.
+public typealias LibraryRemoteMetadata = StellarStorage.LibraryRemoteMetadata
 
 /// The public namespace for SDK-wide information.
 public enum StellarUserMediaSDK: Sendable {

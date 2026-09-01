@@ -19,11 +19,11 @@
 - 每设备独立且默认无需生物识别读取的 Stellar OAuth token；
 - 三端相同的会话测试向量。
 
-Swift reference 已建立真实开发 Gateway profile、PKCE/回调校验、session actor、单飞 refresh、资料读取、撤销和非交互 Apple Keychain，并以 `gateway-oauth-v1.json` 固定公开协议字段。真实 Gateway 目前尚未注册移动端 Client ID/claimed HTTPS/private-use scheme；Apple App 端到端登录验收等待该发布边界完成，desktop 动态 loopback 仍可使用独立 presenter。
+Swift reference 已建立真实开发 Gateway profile、PKCE/回调校验、session actor、单飞 refresh、资料读取、撤销和非交互 Apple Keychain，并以 `gateway-oauth-v1.json` 固定公开协议字段。Gateway 已注册 `stellarplayer-ios-demo` 移动端 Public Client 和 claimed HTTPS 回调；2026-08-18 已使用 `examples/swift/StellarOAuthDemo` 在真机完成登录、Keychain 会话恢复、资料与令牌刷新、账户切换和注销验收，验收过程无生物识别、设备密码或运行时权限弹框。desktop 动态 loopback 仍可使用独立 presenter。
 
 ## M2：远程媒体配置同步
 
-Swift reference 当前已完成 `MediaSourceConfig` v1、配置/墓碑 SQLite 原子 outbox，以及五种受限明文 `CredentialPayload` 的跨语言 fixture；pull/push、冲突应用、OAuth App 端到端验收和来源变更触发仍在推进。
+Swift reference 当前已完成 `MediaSourceConfig` v1、配置/墓碑 SQLite 原子 outbox，以及五种受限明文 `CredentialPayload` 的跨语言 fixture；OAuth App 端到端真机验收已通过，pull/push、冲突应用和来源变更触发仍在推进。
 
 - `MediaSourceConfig`、Favorite 和扫描策略模型；
 - 配置 pull/push、版本和 tombstone；

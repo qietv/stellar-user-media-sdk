@@ -14,6 +14,7 @@ struct RemoteEnumerationContractTests {
     #expect(fixture.capabilities.stableIDScope == .persistent)
     #expect(fixture.capabilities.pathSemantics.caseSensitivity == .insensitive)
     #expect(fixture.capabilities.pathSemantics.unicodeNormalization == .nfc)
+    #expect(fixture.capabilities.preferredDirectoryRequestConcurrency == 4)
     #expect(fixture.pages.count == 3)
 
     for pathCase in fixture.pathCases {
@@ -72,6 +73,27 @@ struct RemoteEnumerationContractTests {
   @Test("Capability and page request invariants reject unsafe input")
   func validation() throws {
     let root = try RemoteLocator(sourceUID: "source-1", path: RemotePath())
+    let baseline = try MediaSourceCapabilities(
+      stableIDScope: .persistent,
+      pathSemantics: RemotePathSemantics(
+        caseSensitivity: .sensitive,
+        unicodeNormalization: .preserve
+      ),
+      supportsRangeReads: true,
+      supportsChangeCursor: false,
+      deltaDeletionsComplete: false,
+      preferredDirectoryRequestConcurrency: 4
+    )
+    let differentPerformanceHints = try MediaSourceCapabilities(
+      stableIDScope: .persistent,
+      pathSemantics: baseline.pathSemantics,
+      supportsRangeReads: false,
+      supportsChangeCursor: false,
+      deltaDeletionsComplete: false,
+      preferredDirectoryRequestConcurrency: 1
+    )
+    #expect(baseline != differentPerformanceHints)
+    #expect(baseline.isEnumerationResumeCompatible(with: differentPerformanceHints))
     #expect(throws: SDKError.self) {
       _ = try MediaSourceCapabilities(
         stableIDScope: .persistent,
@@ -82,6 +104,19 @@ struct RemoteEnumerationContractTests {
         supportsRangeReads: true,
         supportsChangeCursor: false,
         deltaDeletionsComplete: true
+      )
+    }
+    #expect(throws: SDKError.self) {
+      _ = try MediaSourceCapabilities(
+        stableIDScope: .none,
+        pathSemantics: RemotePathSemantics(
+          caseSensitivity: .sensitive,
+          unicodeNormalization: .preserve
+        ),
+        supportsRangeReads: false,
+        supportsChangeCursor: false,
+        deltaDeletionsComplete: false,
+        preferredDirectoryRequestConcurrency: 0
       )
     }
     #expect(throws: SDKError.self) {

@@ -471,6 +471,7 @@ public struct PosterWallDetails: Codable, Equatable, Sendable {
   public let schemaVersion: Int
   public let libraryRevision: String
   public let item: PosterWallItem
+  public let originalTitle: String?
   public let overview: String?
   public let tagline: String?
   public let contentRating: String?
@@ -484,6 +485,7 @@ public struct PosterWallDetails: Codable, Equatable, Sendable {
     case schemaVersion = "schema_version"
     case libraryRevision = "library_revision"
     case item
+    case originalTitle = "original_title"
     case overview
     case tagline
     case contentRating = "content_rating"

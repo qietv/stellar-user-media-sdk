@@ -56,6 +56,7 @@ struct WebDAVMediaSourceContractTests {
     #expect(String(decoding: bytes, as: UTF8.self) == "rri")
     #expect(await transport.sawAuthorizationHeader)
     #expect(await transport.methods.allSatisfy { ["PROPFIND", "GET"].contains($0) })
+    #expect(await transport.depthOnePaths.filter { $0 == "/media" || $0 == "/media/" }.count == 1)
   }
 
   @Test("A failed optional-property propstat does not hide a valid collection")
@@ -258,6 +259,7 @@ struct WebDAVMediaSourceContractTests {
     #expect(result.checkpoint.processedPageCount == 3)
     #expect(result.completion.reconcileMissingEligible)
     #expect(await sink.paths == ["Movies", "Movies/Arrival.mkv", "Notes.txt"])
+    #expect(await transport.depthOnePaths == ["/media", "/media/Movies"])
   }
 
   @Test("Authentication, TLS, and escaped href failures remain non-authoritative")
@@ -368,6 +370,7 @@ private func expectSDKError(
 
 private actor FixtureWebDAVTransport: WebDAVTransport {
   private(set) var methods: [String] = []
+  private(set) var depthOnePaths: [String] = []
   private(set) var sawAuthorizationHeader = false
 
   func send(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse {
@@ -383,6 +386,9 @@ private actor FixtureWebDAVTransport: WebDAVTransport {
       return WebDAVHTTPResponse(statusCode: 405)
     }
     let depth = request.headers["Depth"]
+    if depth == "1" {
+      depthOnePaths.append(path)
+    }
     switch (path, depth) {
     case ("/media/", "0"), ("/media", "0"):
       return WebDAVHTTPResponse(statusCode: 207, body: Self.rootStatXML)

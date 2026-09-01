@@ -75,18 +75,18 @@ flowchart TD
 
 [`remote-enumeration-v1.json`](../fixtures/media-library/remote-enumeration-v1.json) 固定首组跨语言 locator、entry、路径比较和分页样本。
 
-## Scanner 状态机合同 v1
+## Scanner 状态机合同（checkpoint v2）
 
 `full`、scoped `incremental` 与 `repair` 共用 `MediaScanRequest`、`MediaScanCheckpoint` 和最终 `MediaScanCompletion`：
 
 - `full` MUST 只覆盖连接器配置根；`incremental` MUST 携带一个或多个互不重叠的递归目录范围；`repair` 不重新枚举来源且永远没有 missing 协调资格。
 - 枚举前 MUST 对每个根执行 `stat`，确认它仍是目录并保存根稳定 ID。恢复使用 persistent stable ID 的 checkpoint 时，根身份变化 MUST 令续扫失败。
-- 每个成功验证的目录页 MUST 把该页 entries 与更新后的 pending page queue、已完成 cursor、去重身份和计数作为同一原子批次提交。恢复允许重放尚未确认的页，因此持久层 MUST 按稳定 ID 或 path compare key 幂等 UPSERT。
+- 每个成功验证的目录页 MUST 把该页 entries、frontier transition、seen identity 去重和 compact checkpoint 计数作为同一原子批次提交。pending/completed frontier 与 seen identity MUST 由持久层唯一键保存，不得随每页在 checkpoint JSON 中全量重写。恢复允许重放尚未确认的页，因此持久层 MUST 按稳定 ID 或 path compare key 幂等 UPSERT。
 - 目录请求并发度 MUST 有显式上限。持久层批次提交完成前不得无限继续领取结果，以形成背压；取消必须传播到所有 in-flight 请求。
 - 连接器返回不同来源、非直接子项、空/重复 cursor 或目录循环/异常路径时，当前 coverage MUST 失败关闭。精确重复条目不增加发现计数；`scan`/`persistent` stable ID 用于单次扫描去重，只有 `persistent` 可用于跨扫描移动识别。
 - 只有最终原子批次中的 `completion.reconcile_missing_eligible=true` 才授权持久层在 `covered_roots` 内协调 missing。连接、鉴权、根预检、分页、持久化、取消或超时失败只保存可恢复 checkpoint，不产生 completion。
 
-checkpoint 的 pending queue 也包含当前 in-flight 请求。这样任一并发页提交后，其他尚未提交的请求仍会留在 durable checkpoint；崩溃恢复最多重复读取和幂等 UPSERT，不会跳过目录。进度事件只能携带 run、phase、计数和错误分类，不得携带路径或稳定 ID。
+durable frontier 的 pending 集合也包含当前 in-flight 请求。这样任一并发页提交后，其他尚未提交的请求仍会留在持久 frontier；崩溃恢复最多重复读取和幂等 UPSERT，不会跳过目录。compact checkpoint 只保存 schema、request、phase、capability/root identity 和计数。进度事件只能携带 run、phase、计数和错误分类，不得携带路径或稳定 ID。
 
 [`scanner-state-v1.json`](../fixtures/media-library/scanner-state-v1.json) 固定 full、scoped incremental、repair、分页重复条目、中断 checkpoint 和 missing 资格样本。各语言实现 MUST 规范化顺序后比较结果，不得把连接器到达顺序写进合同。
 

@@ -437,6 +437,43 @@ struct MediaScannerContractTests {
     #expect(result.checkpoint.processedPageCount == 5)
     #expect(await tracker.maximumActive == 2)
     #expect(await tracker.active == 0)
+
+    let serialCapabilities = try MediaSourceCapabilities(
+      stableIDScope: fixture.capabilities.stableIDScope,
+      pathSemantics: fixture.capabilities.pathSemantics,
+      supportsRangeReads: fixture.capabilities.supportsRangeReads,
+      supportsChangeCursor: fixture.capabilities.supportsChangeCursor,
+      deltaDeletionsComplete: fixture.capabilities.deltaDeletionsComplete,
+      preferredDirectoryRequestConcurrency: 1
+    )
+    let serialTracker = ConcurrencyTracker()
+    let serialConnector = DelayedScanConnector(
+      sourceUID: fixture.sourceUID,
+      capabilities: serialCapabilities,
+      pages: pages,
+      tracker: serialTracker
+    )
+    let serialRequest = try MediaScanRequest(
+      runUID: "scan-source-limited-concurrency",
+      sourceUID: fixture.sourceUID,
+      mode: .full,
+      roots: [root]
+    )
+    let permissiveScanner = MediaScanner(
+      configuration: try MediaScannerConfiguration(
+        pageSize: 10,
+        maxConcurrentDirectoryRequests: 4
+      )
+    )
+
+    _ = try await permissiveScanner.scan(
+      serialRequest,
+      using: serialConnector,
+      sink: RecordingScanSink()
+    )
+
+    #expect(await serialTracker.maximumActive == 1)
+    #expect(await serialTracker.active == 0)
   }
 
   @Test("Coverage overlap and changed root identity fail before enumeration")
@@ -645,10 +682,12 @@ private actor RecordingScanSink: MediaScanSink {
   private(set) var checkpoint: MediaScanCheckpoint?
   private(set) var completion: MediaScanCompletion?
   private var entries: [String: RemoteEntry] = [:]
+  private var enumerationState: MediaScanEnumerationState?
 
   var entryIdentityKeys: [String] { entries.keys.sorted() }
 
   func commit(_ batch: MediaScanBatch) async throws {
+    enumerationState = try applyingEnumerationChanges(from: batch, to: enumerationState)
     for entry in batch.entries {
       let identity =
         entry.stableID.map { "stable:\($0)" }
@@ -659,6 +698,10 @@ private actor RecordingScanSink: MediaScanSink {
     if let completion = batch.completion {
       self.completion = completion
     }
+  }
+
+  func loadEnumerationState(runUID _: String) async throws -> MediaScanEnumerationState? {
+    enumerationState
   }
 }
 
@@ -677,6 +720,7 @@ private actor FailingPageScanSink: MediaScanSink {
   private var entries: [String: RemoteEntry] = [:]
   private(set) var checkpoint: MediaScanCheckpoint?
   private(set) var completion: MediaScanCompletion?
+  private var enumerationState: MediaScanEnumerationState?
 
   var entryIdentityKeys: [String] { entries.keys.sorted() }
 
@@ -685,6 +729,7 @@ private actor FailingPageScanSink: MediaScanSink {
       shouldFailPageCommit = false
       throw SDKError(code: .storageFailure, message: "injected page commit failure")
     }
+    enumerationState = try applyingEnumerationChanges(from: batch, to: enumerationState)
     for entry in batch.entries {
       entries[entry.stableID.map { "stable:\($0)" } ?? entry.locator.path.relativePath] = entry
     }
@@ -692,6 +737,10 @@ private actor FailingPageScanSink: MediaScanSink {
     if let completion = batch.completion {
       self.completion = completion
     }
+  }
+
+  func loadEnumerationState(runUID _: String) async throws -> MediaScanEnumerationState? {
+    enumerationState
   }
 }
 
@@ -705,12 +754,14 @@ private actor ReconcilingScanSink: MediaScanSink {
   private let semantics: RemotePathSemantics
   private var records: [String: Record] = [:]
   private(set) var checkpoint: MediaScanCheckpoint?
+  private var enumerationState: MediaScanEnumerationState?
 
   init(semantics: RemotePathSemantics) {
     self.semantics = semantics
   }
 
   func commit(_ batch: MediaScanBatch) async throws {
+    enumerationState = try applyingEnumerationChanges(from: batch, to: enumerationState)
     for entry in batch.entries {
       let identity = entry.stableID ?? entry.locator.pathComparisonKey(using: semantics)
       records[identity] = Record(
@@ -734,6 +785,10 @@ private actor ReconcilingScanSink: MediaScanSink {
     }
   }
 
+  func loadEnumerationState(runUID _: String) async throws -> MediaScanEnumerationState? {
+    enumerationState
+  }
+
   func path(for stableID: String) -> String? {
     records[stableID]?.entry.locator.path.relativePath
   }
@@ -741,6 +796,31 @@ private actor ReconcilingScanSink: MediaScanSink {
   func isPresent(_ stableID: String) -> Bool {
     records[stableID]?.isPresent ?? false
   }
+}
+
+private func applyingEnumerationChanges(
+  from batch: MediaScanBatch,
+  to existing: MediaScanEnumerationState?
+) throws -> MediaScanEnumerationState? {
+  if let replacement = batch.enumerationState { return replacement }
+  guard let transition = batch.pageTransition, let existing else { return existing }
+  var pending = Set(existing.pendingPages)
+  var completed = Set(existing.completedPages)
+  guard pending.remove(transition.completedPage) != nil else {
+    throw SDKError(code: .storageFailure, message: "fixture scan frontier is stale")
+  }
+  completed.insert(transition.completedPage)
+  pending.formUnion(transition.enqueuedPages.filter { !completed.contains($0) })
+  let seenEntries = Set(existing.seenEntryIdentityKeys)
+    .union(transition.seenEntryIdentityKeys)
+  let seenDirectories = Set(existing.seenDirectoryIdentityKeys)
+    .union(transition.seenDirectoryIdentityKeys)
+  return try MediaScanEnumerationState(
+    pendingPages: Array(pending),
+    completedPages: Array(completed),
+    seenEntryIdentityKeys: Array(seenEntries),
+    seenDirectoryIdentityKeys: Array(seenDirectories)
+  )
 }
 
 private actor FixtureScanConnector: MediaSourceConnector {

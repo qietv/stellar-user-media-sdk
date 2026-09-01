@@ -6,6 +6,8 @@
 按照同目录 README 配置签名，即可验证 claimed HTTPS OAuth 登录、Keychain 会话恢复、
 公开资料刷新、账户切换和注销。
 
+2026-08-18 已使用该工程在真机完成上述 OAuth 与非交互 Keychain 路径验收。
+
 该工程要求 iOS 17.4 或更高版本，并直接引用 `platforms/swift` 本地 Package。
 
 ## CLI

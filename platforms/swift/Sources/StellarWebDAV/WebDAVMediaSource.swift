@@ -322,7 +322,8 @@ public struct WebDAVMediaSourceConnector: MediaSourceConnector {
       pathSemantics: configuration.pathSemantics,
       supportsRangeReads: true,
       supportsChangeCursor: false,
-      deltaDeletionsComplete: false
+      deltaDeletionsComplete: false,
+      preferredDirectoryRequestConcurrency: 4
     )
     let session = WebDAVMediaSourceSession(
       configuration: configuration,
@@ -341,6 +342,7 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
 
   private let configuration: WebDAVMediaSourceConfiguration
   private let transport: any WebDAVTransport
+  private var directoryPaginator: RemoteDirectorySnapshotPaginator
   private var disconnected = false
 
   fileprivate init(
@@ -352,6 +354,10 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     self.configuration = configuration
     self.capabilities = capabilities
     self.transport = transport
+    directoryPaginator = RemoteDirectorySnapshotPaginator(
+      cursorNamespace: "webdav-v1",
+      pathSemantics: capabilities.pathSemantics
+    )
   }
 
   fileprivate func validateRoot() async throws {
@@ -366,6 +372,9 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     -> CursorPage<RemoteEntry>
   {
     try requireConnected()
+    if let cachedPage = try directoryPaginator.cachedPage(for: request) {
+      return cachedPage
+    }
     let directoryURL = try url(for: request.directory)
     let response = try await sendPROPFIND(url: directoryURL, depth: "1")
     var entries = try WebDAVMultiStatusParser.parse(
@@ -377,39 +386,7 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     entries.removeAll {
       $0.locator.pathComparisonKey(using: capabilities.pathSemantics) == directoryKey
     }
-    entries.sort { left, right in
-      let leftKey = left.locator.pathComparisonKey(using: capabilities.pathSemantics)
-      let rightKey = right.locator.pathComparisonKey(using: capabilities.pathSemantics)
-      if leftKey == rightKey {
-        return left.locator.path.relativePath < right.locator.path.relativePath
-      }
-      return leftKey < rightKey
-    }
-    let fingerprint = fingerprint(entries)
-    let offset: Int
-    if let cursor = request.cursor {
-      let parsed = try WebDAVDirectoryCursor(cursor)
-      guard parsed.fingerprint == fingerprint, parsed.offset <= entries.count else {
-        throw SDKError(code: .conflict, message: "WebDAV directory changed during pagination")
-      }
-      offset = parsed.offset
-    } else {
-      offset = 0
-    }
-    let count = min(request.limit, entries.count - offset)
-    let upperBound = offset + count
-    let pageEntries = Array(entries[offset..<upperBound])
-    let nextCursor: String?
-    if upperBound < entries.count {
-      nextCursor =
-        WebDAVDirectoryCursor(
-          offset: upperBound,
-          fingerprint: fingerprint
-        ).rawValue
-    } else {
-      nextCursor = nil
-    }
-    return try CursorPage(items: pageEntries, nextCursor: nextCursor)
+    return try directoryPaginator.storeAndPage(entries, for: request)
   }
 
   public func stat(_ locator: RemoteLocator) async throws -> RemoteEntry {
@@ -447,6 +424,7 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
   }
 
   public func disconnect() async {
+    directoryPaginator.removeAll()
     disconnected = true
   }
 
@@ -526,59 +504,6 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     }
   }
 
-  private func fingerprint(_ entries: [RemoteEntry]) -> String {
-    Self.fingerprint(entries, semantics: capabilities.pathSemantics)
-  }
-
-  private static func fingerprint(
-    _ entries: [RemoteEntry],
-    semantics: RemotePathSemantics
-  ) -> String {
-    var hash: UInt64 = 14_695_981_039_346_656_037
-    for entry in entries {
-      let fields = [
-        entry.locator.pathComparisonKey(using: semantics),
-        entry.kind.rawValue,
-        entry.size.map(String.init) ?? "",
-        entry.modifiedAtMilliseconds.map(String.init) ?? "",
-        entry.entityTag ?? "",
-      ]
-      for byte in fields.joined(separator: "\u{1f}").utf8 {
-        hash ^= UInt64(byte)
-        hash &*= 1_099_511_628_211
-      }
-      hash ^= 0xff
-      hash &*= 1_099_511_628_211
-    }
-    return String(format: "%016llx", hash)
-  }
-
-  private struct WebDAVDirectoryCursor {
-    let offset: Int
-    let fingerprint: String
-
-    var rawValue: String { "webdav-v1:\(offset):\(fingerprint)" }
-
-    init(offset: Int, fingerprint: String) {
-      self.offset = offset
-      self.fingerprint = fingerprint
-    }
-
-    init(_ rawValue: String) throws {
-      let components = rawValue.split(separator: ":", omittingEmptySubsequences: false)
-      guard components.count == 3,
-        components[0] == "webdav-v1",
-        let offset = Int(components[1]),
-        offset > 0,
-        components[2].count == 16,
-        components[2].allSatisfy({ $0.isHexDigit })
-      else {
-        throw SDKError(code: .invalidConfiguration, message: "WebDAV page cursor is invalid")
-      }
-      self.offset = offset
-      fingerprint = String(components[2])
-    }
-  }
 }
 
 private final class WebDAVNoRedirectDelegate: NSObject, URLSessionTaskDelegate,
