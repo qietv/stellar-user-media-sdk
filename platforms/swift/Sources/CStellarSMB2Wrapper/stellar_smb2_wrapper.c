@@ -14,6 +14,14 @@
 
 #define STELLAR_SMB2_MAX_TRACKED_FDS 64
 
+struct stellar_smb2_directory {
+  struct smb2dir *handle;
+  size_t entry_count;
+  size_t position;
+  uint64_t fingerprint;
+  struct stellar_smb2_directory *next;
+};
+
 struct stellar_smb2_client {
   struct smb2_context *context;
   int connected;
@@ -25,6 +33,7 @@ struct stellar_smb2_client {
   char *server;
   char *share;
   char *username;
+  struct stellar_smb2_directory *directories;
   struct stellar_smb2_client *registry_next;
 };
 
@@ -226,6 +235,63 @@ static void stellar_smb2_copy_stat(
   destination->inode = source->smb2_ino;
 }
 
+static int stellar_smb2_directory_entry_is_visible(
+    const struct smb2dirent *entry) {
+  return entry != NULL && entry->name != NULL &&
+      strcmp(entry->name, ".") != 0 && strcmp(entry->name, "..") != 0;
+}
+
+static void stellar_smb2_fingerprint_byte(uint64_t *hash, uint8_t byte) {
+  *hash ^= byte;
+  *hash *= UINT64_C(1099511628211);
+}
+
+static void stellar_smb2_fingerprint_uint64(uint64_t *hash, uint64_t value) {
+  unsigned int shift;
+
+  for (shift = 0; shift < 64; shift += 8) {
+    stellar_smb2_fingerprint_byte(hash, (uint8_t)(value >> shift));
+  }
+}
+
+static void stellar_smb2_fingerprint_entry(
+    uint64_t *hash, const struct smb2dirent *entry) {
+  const unsigned char *name = (const unsigned char *)entry->name;
+
+  while (*name != 0) {
+    stellar_smb2_fingerprint_byte(hash, *name);
+    name += 1;
+  }
+  stellar_smb2_fingerprint_byte(hash, 0xff);
+  stellar_smb2_fingerprint_uint64(hash, entry->st.smb2_type);
+  stellar_smb2_fingerprint_uint64(hash, entry->st.smb2_size);
+  stellar_smb2_fingerprint_uint64(hash, entry->st.smb2_mtime);
+  stellar_smb2_fingerprint_uint64(hash, entry->st.smb2_mtime_nsec);
+  stellar_smb2_fingerprint_uint64(hash, entry->st.smb2_ino);
+}
+
+static int stellar_smb2_directory_is_tracked(
+    stellar_smb2_client *client, stellar_smb2_directory *directory) {
+  stellar_smb2_directory *cursor;
+
+  cursor = client->directories;
+  while (cursor != NULL && cursor != directory) {
+    cursor = cursor->next;
+  }
+  return cursor != NULL;
+}
+
+static void stellar_smb2_close_all_directories(stellar_smb2_client *client) {
+  stellar_smb2_directory *directory;
+
+  while (client->directories != NULL) {
+    directory = client->directories;
+    client->directories = directory->next;
+    smb2_closedir(client->context, directory->handle);
+    free(directory);
+  }
+}
+
 int32_t stellar_smb2_client_create(
     const stellar_smb2_connection_config *config,
     stellar_smb2_client **client_out) {
@@ -330,6 +396,7 @@ void stellar_smb2_client_destroy(stellar_smb2_client *client, int graceful) {
   if (client == NULL) {
     return;
   }
+  stellar_smb2_close_all_directories(client);
   if (graceful && client->connected && !client->cancelled) {
     (void)smb2_disconnect_share(client->context);
   }
@@ -418,6 +485,175 @@ int32_t stellar_smb2_client_list_directory(
     smb2_closedir(client->context, directory);
   }
   return stellar_smb2_operation_end(client, 0);
+}
+
+int32_t stellar_smb2_client_open_directory(
+    stellar_smb2_client *client,
+    const char *path,
+    stellar_smb2_directory **directory_out,
+    uint64_t *fingerprint_out,
+    size_t *entry_count_out) {
+  stellar_smb2_directory *directory;
+  struct smb2dir *handle;
+  struct smb2dirent *entry;
+  uint64_t fingerprint = UINT64_C(14695981039346656037);
+  size_t entry_count = 0;
+  int32_t begin_result;
+  int32_t result;
+
+  if (client == NULL || client->context == NULL || path == NULL ||
+      directory_out == NULL || fingerprint_out == NULL || entry_count_out == NULL) {
+    return -EINVAL;
+  }
+  *directory_out = NULL;
+  *fingerprint_out = 0;
+  *entry_count_out = 0;
+  begin_result = stellar_smb2_operation_begin(client, 1);
+  if (begin_result != 0) {
+    return begin_result;
+  }
+
+  handle = smb2_opendir(client->context, path);
+  if (handle == NULL) {
+    return stellar_smb2_operation_end(
+        client, stellar_smb2_last_status(client->context));
+  }
+  while ((entry = smb2_readdir(client->context, handle)) != NULL) {
+    if (!stellar_smb2_directory_entry_is_visible(entry)) {
+      continue;
+    }
+    if (entry_count == SIZE_MAX) {
+      smb2_closedir(client->context, handle);
+      return stellar_smb2_operation_end(client, -EOVERFLOW);
+    }
+    stellar_smb2_fingerprint_entry(&fingerprint, entry);
+    entry_count += 1;
+  }
+  smb2_rewinddir(client->context, handle);
+
+  directory = calloc(1, sizeof(*directory));
+  if (directory == NULL) {
+    smb2_closedir(client->context, handle);
+    return stellar_smb2_operation_end(client, -ENOMEM);
+  }
+  directory->handle = handle;
+  directory->entry_count = entry_count;
+  directory->fingerprint = fingerprint;
+
+  pthread_mutex_lock(&client->state_lock);
+  directory->next = client->directories;
+  client->directories = directory;
+  pthread_mutex_unlock(&client->state_lock);
+
+  result = stellar_smb2_operation_end(client, 0);
+  if (result != 0) {
+    stellar_smb2_client_close_directory(client, directory);
+    return result;
+  }
+  *directory_out = directory;
+  *fingerprint_out = fingerprint;
+  *entry_count_out = entry_count;
+  return 0;
+}
+
+int32_t stellar_smb2_client_read_directory(
+    stellar_smb2_client *client,
+    stellar_smb2_directory *directory,
+    size_t limit,
+    stellar_smb2_entry_list *list_out,
+    int *has_more_out) {
+  struct smb2dirent *directory_entry;
+  stellar_smb2_entry_record *entry;
+  size_t batch_count;
+  int32_t begin_result;
+  int32_t result;
+
+  if (client == NULL || client->context == NULL || directory == NULL ||
+      limit == 0 || list_out == NULL || has_more_out == NULL) {
+    return -EINVAL;
+  }
+  list_out->entries = NULL;
+  list_out->count = 0;
+  *has_more_out = 0;
+  begin_result = stellar_smb2_operation_begin(client, 1);
+  if (begin_result != 0) {
+    return begin_result;
+  }
+
+  pthread_mutex_lock(&client->state_lock);
+  result = stellar_smb2_directory_is_tracked(client, directory) ? 0 : -EINVAL;
+  pthread_mutex_unlock(&client->state_lock);
+  if (result != 0) {
+    return stellar_smb2_operation_end(client, result);
+  }
+
+  batch_count = directory->entry_count - directory->position;
+  if (batch_count > limit) {
+    batch_count = limit;
+  }
+  if (batch_count > SIZE_MAX / sizeof(*list_out->entries)) {
+    return stellar_smb2_operation_end(client, -EOVERFLOW);
+  }
+  if (batch_count > 0) {
+    list_out->entries = calloc(batch_count, sizeof(*list_out->entries));
+    if (list_out->entries == NULL) {
+      return stellar_smb2_operation_end(client, -ENOMEM);
+    }
+  }
+
+  while (list_out->count < batch_count) {
+    directory_entry = smb2_readdir(client->context, directory->handle);
+    if (directory_entry == NULL) {
+      stellar_smb2_entry_list_destroy(list_out);
+      return stellar_smb2_operation_end(client, -EIO);
+    }
+    if (!stellar_smb2_directory_entry_is_visible(directory_entry)) {
+      continue;
+    }
+    entry = &list_out->entries[list_out->count];
+    entry->name = strdup(directory_entry->name);
+    if (entry->name == NULL) {
+      stellar_smb2_entry_list_destroy(list_out);
+      return stellar_smb2_operation_end(client, -ENOMEM);
+    }
+    stellar_smb2_copy_stat(&directory_entry->st, entry);
+    list_out->count += 1;
+    directory->position += 1;
+  }
+  *has_more_out = directory->position < directory->entry_count;
+  result = stellar_smb2_operation_end(client, 0);
+  if (result != 0) {
+    stellar_smb2_entry_list_destroy(list_out);
+    *has_more_out = 0;
+  }
+  return result;
+}
+
+void stellar_smb2_client_close_directory(
+    stellar_smb2_client *client,
+    stellar_smb2_directory *directory) {
+  stellar_smb2_directory **cursor;
+  int found = 0;
+
+  if (client == NULL || client->context == NULL || directory == NULL) {
+    return;
+  }
+  pthread_mutex_lock(&client->state_lock);
+  cursor = &client->directories;
+  while (*cursor != NULL) {
+    if (*cursor == directory) {
+      *cursor = directory->next;
+      found = 1;
+      break;
+    }
+    cursor = &(*cursor)->next;
+  }
+  pthread_mutex_unlock(&client->state_lock);
+  if (!found) {
+    return;
+  }
+  smb2_closedir(client->context, directory->handle);
+  free(directory);
 }
 
 void stellar_smb2_entry_list_destroy(stellar_smb2_entry_list *list) {

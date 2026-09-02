@@ -172,6 +172,9 @@ def main() -> int:
                     prefix + "smb2_init_context",
                     prefix + "smb2_pread",
                     "stellar_smb2_client_create",
+                    "stellar_smb2_client_open_directory",
+                    "stellar_smb2_client_read_directory",
+                    "stellar_smb2_client_close_directory",
                     "stellar_smb2_client_read",
                 }
                 if not required.issubset(symbols):

@@ -342,6 +342,26 @@ public protocol SMB2Session: Sendable {
   func disconnect() async
 }
 
+/// Package-only fast path for transports that can retain and incrementally consume a directory.
+/// Other SMB transports continue to use the full-directory compatibility API above.
+package struct SMB2DirectoryPage: Sendable {
+  package let items: [SMB2Entry]
+  package let nextCursor: String?
+
+  package init(items: [SMB2Entry], nextCursor: String?) {
+    self.items = items
+    self.nextCursor = nextCursor
+  }
+}
+
+package protocol SMB2DirectoryPagingSession: SMB2Session {
+  func listDirectoryPage(
+    at path: SMB2Path,
+    cursor: String?,
+    limit: Int
+  ) async throws -> SMB2DirectoryPage
+}
+
 /// Injectable transport boundary used by the SMB connector and server-free contract tests.
 public protocol SMB2Transport: Sendable {
   func connect(_ request: SMB2ConnectionRequest) async throws -> any SMB2Session

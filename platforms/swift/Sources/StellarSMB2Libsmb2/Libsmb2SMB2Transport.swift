@@ -45,7 +45,7 @@ public struct Libsmb2SMB2Transport: SMB2Transport {
   }
 }
 
-private actor Libsmb2SMB2Session: SMB2Session {
+private actor Libsmb2SMB2Session: SMB2DirectoryPagingSession {
   nonisolated let connectionInfo: SMB2ConnectionInfo
 
   private let state: Libsmb2SMB2SessionState
@@ -69,6 +69,20 @@ private actor Libsmb2SMB2Session: SMB2Session {
     try ensureConnected()
     return try await perform {
       try self.state.listDirectory(at: path)
+    }
+  }
+
+  func listDirectoryPage(
+    at path: SMB2Path,
+    cursor: String?,
+    limit: Int
+  ) async throws -> SMB2DirectoryPage {
+    try ensureConnected()
+    guard limit > 0 else {
+      throw SDKError(code: .invalidConfiguration, message: "SMB directory page limit is invalid")
+    }
+    return try await perform {
+      try self.state.listDirectoryPage(at: path, cursor: cursor, limit: limit)
     }
   }
 
@@ -128,6 +142,7 @@ private final class Libsmb2SMB2SessionState: @unchecked Sendable {
   private var client: OpaquePointer?
   private var activeOperations = 0
   private var negotiatedDialect: UInt16 = 0
+  private var openDirectories: [SMB2Path: OpenDirectory] = [:]
 
   private init(client: OpaquePointer, rootPath: String) {
     self.client = client
@@ -221,24 +236,79 @@ private final class Libsmb2SMB2SessionState: @unchecked Sendable {
         throw SDKError(code: .unknown, message: "SMB directory result is invalid")
       }
 
-      var entries: [SMB2Entry] = []
-      entries.reserveCapacity(rawList.count)
-      for index in 0..<rawList.count {
-        let record = rawList.entries!.advanced(by: index).pointee
-        guard let namePointer = record.name,
-          let name = String(validatingCString: namePointer)
-        else {
-          throw SDKError(code: .parseFailure, message: "SMB entry name is not valid UTF-8")
-        }
-        let childPath: SMB2Path
-        do {
-          childPath = try path.appending(component: name)
-        } catch {
-          throw SDKError(code: .parseFailure, message: "SMB directory entry is invalid")
-        }
-        entries.append(try makeEntry(path: childPath, record: record))
+      return try makeEntries(parent: path, rawList: rawList)
+    }
+  }
+
+  func listDirectoryPage(
+    at path: SMB2Path,
+    cursor rawCursor: String?,
+    limit: Int
+  ) throws -> SMB2DirectoryPage {
+    try withClient { client in
+      let cursor = try rawCursor.map(DirectoryCursor.init)
+      if cursor == nil {
+        closeDirectory(at: path, client: client)
       }
-      return entries
+
+      do {
+        var directory = openDirectories[path]
+        if let cursor,
+          directory?.matches(cursor) != true
+        {
+          closeDirectory(at: path, client: client)
+          directory = nil
+        }
+        if directory == nil {
+          directory = try openDirectory(at: path, client: client)
+          openDirectories[path] = directory
+        }
+        guard var directory else {
+          throw SDKError(code: .unknown, message: "SMB directory cursor is unavailable")
+        }
+
+        if let cursor {
+          guard directory.fingerprint == cursor.fingerprint,
+            directory.entryCount == cursor.entryCount,
+            cursor.offset <= directory.entryCount
+          else {
+            throw SDKError(code: .conflict, message: "directory changed during pagination")
+          }
+          if directory.offset < cursor.offset {
+            try discardEntries(
+              count: cursor.offset - directory.offset,
+              from: &directory,
+              parent: path,
+              client: client
+            )
+          }
+          guard directory.offset == cursor.offset else {
+            throw SDKError(code: .conflict, message: "SMB directory cursor is stale")
+          }
+        }
+
+        let page = try readDirectory(
+          limit: limit,
+          from: &directory,
+          parent: path,
+          client: client
+        )
+        if page.hasMore {
+          openDirectories[path] = directory
+          let nextCursor = DirectoryCursor(
+            offset: directory.offset,
+            entryCount: directory.entryCount,
+            fingerprint: directory.fingerprint
+          ).rawValue
+          return SMB2DirectoryPage(items: page.entries, nextCursor: nextCursor)
+        }
+
+        closeDirectory(at: path, client: client)
+        return SMB2DirectoryPage(items: page.entries, nextCursor: nil)
+      } catch {
+        closeDirectory(at: path, client: client)
+        throw error
+      }
     }
   }
 
@@ -302,6 +372,7 @@ private final class Libsmb2SMB2SessionState: @unchecked Sendable {
     while activeOperations > 0 {
       condition.wait()
     }
+    openDirectories.removeAll(keepingCapacity: false)
     condition.unlock()
     stellar_smb2_client_destroy(ownedClient, graceful ? 1 : 0)
   }
@@ -357,6 +428,111 @@ private final class Libsmb2SMB2SessionState: @unchecked Sendable {
     return "\(rootPath)/\(path.relativePath)"
   }
 
+  private func openDirectory(
+    at path: SMB2Path,
+    client: OpaquePointer
+  ) throws -> OpenDirectory {
+    var handle: OpaquePointer?
+    var fingerprint: UInt64 = 0
+    var entryCount = 0
+    let result = remotePath(for: path).withCString { pathPointer in
+      stellar_smb2_client_open_directory(
+        client,
+        pathPointer,
+        &handle,
+        &fingerprint,
+        &entryCount
+      )
+    }
+    guard result == 0, let handle else {
+      throw SMB2POSIXErrorMapper.map(status: result, operation: .listDirectory)
+    }
+    return OpenDirectory(
+      handle: handle,
+      offset: 0,
+      entryCount: entryCount,
+      fingerprint: fingerprint
+    )
+  }
+
+  private func readDirectory(
+    limit: Int,
+    from directory: inout OpenDirectory,
+    parent: SMB2Path,
+    client: OpaquePointer
+  ) throws -> (entries: [SMB2Entry], hasMore: Bool) {
+    var rawList = stellar_smb2_entry_list(entries: nil, count: 0)
+    var hasMore: Int32 = 0
+    let result = stellar_smb2_client_read_directory(
+      client,
+      directory.handle,
+      limit,
+      &rawList,
+      &hasMore
+    )
+    defer { stellar_smb2_entry_list_destroy(&rawList) }
+    guard result == 0 else {
+      throw SMB2POSIXErrorMapper.map(status: result, operation: .listDirectory)
+    }
+    guard rawList.count == 0 || rawList.entries != nil else {
+      throw SDKError(code: .unknown, message: "SMB directory result is invalid")
+    }
+    let entries = try makeEntries(parent: parent, rawList: rawList)
+    directory.offset += entries.count
+    return (entries, hasMore != 0)
+  }
+
+  private func discardEntries(
+    count: Int,
+    from directory: inout OpenDirectory,
+    parent: SMB2Path,
+    client: OpaquePointer
+  ) throws {
+    var remaining = count
+    while remaining > 0 {
+      let batchLimit = min(remaining, 2_048)
+      let batch = try readDirectory(
+        limit: batchLimit,
+        from: &directory,
+        parent: parent,
+        client: client
+      )
+      guard batch.entries.count == batchLimit else {
+        throw SDKError(code: .conflict, message: "directory changed during pagination")
+      }
+      remaining -= batch.entries.count
+    }
+  }
+
+  private func closeDirectory(at path: SMB2Path, client: OpaquePointer) {
+    guard let directory = openDirectories.removeValue(forKey: path) else { return }
+    stellar_smb2_client_close_directory(client, directory.handle)
+  }
+
+  private func makeEntries(
+    parent path: SMB2Path,
+    rawList: stellar_smb2_entry_list
+  ) throws -> [SMB2Entry] {
+    var entries: [SMB2Entry] = []
+    entries.reserveCapacity(rawList.count)
+    for index in 0..<rawList.count {
+      let record = rawList.entries!.advanced(by: index).pointee
+      guard let namePointer = record.name,
+        let name = String(validatingCString: namePointer)
+      else {
+        throw SDKError(code: .parseFailure, message: "SMB entry name is not valid UTF-8")
+      }
+      let childPath: SMB2Path
+      do {
+        childPath = try path.appending(component: name)
+      } catch {
+        throw SDKError(code: .parseFailure, message: "SMB directory entry is invalid")
+      }
+      entries.append(try makeEntry(path: childPath, record: record))
+    }
+    return entries
+  }
+
   private static func serverAddress(for endpoint: SMB2Endpoint) -> String {
     guard let port = endpoint.port else {
       return endpoint.server
@@ -400,6 +576,54 @@ private final class Libsmb2SMB2SessionState: @unchecked Sendable {
       modifiedAtMilliseconds: modifiedAtMilliseconds,
       stableID: record.inode == 0 ? nil : "ino-\(String(record.inode, radix: 16))"
     )
+  }
+
+  private struct OpenDirectory {
+    let handle: OpaquePointer
+    var offset: Int
+    let entryCount: Int
+    let fingerprint: UInt64
+
+    func matches(_ cursor: DirectoryCursor) -> Bool {
+      offset == cursor.offset && entryCount == cursor.entryCount
+        && fingerprint == cursor.fingerprint
+    }
+  }
+
+  private struct DirectoryCursor {
+    static let namespace = "libsmb2-v1"
+
+    let offset: Int
+    let entryCount: Int
+    let fingerprint: UInt64
+
+    var rawValue: String {
+      "\(Self.namespace):\(offset):\(entryCount):\(String(format: "%016llx", fingerprint))"
+    }
+
+    init(offset: Int, entryCount: Int, fingerprint: UInt64) {
+      self.offset = offset
+      self.entryCount = entryCount
+      self.fingerprint = fingerprint
+    }
+
+    init(_ rawValue: String) throws {
+      let components = rawValue.split(separator: ":", omittingEmptySubsequences: false)
+      guard components.count == 4,
+        components[0] == Substring(Self.namespace),
+        let offset = Int(components[1]),
+        let entryCount = Int(components[2]),
+        let fingerprint = UInt64(components[3], radix: 16),
+        offset > 0,
+        entryCount >= offset,
+        components[3].count == 16
+      else {
+        throw SDKError(code: .invalidConfiguration, message: "SMB directory cursor is invalid")
+      }
+      self.offset = offset
+      self.entryCount = entryCount
+      self.fingerprint = fingerprint
+    }
   }
 }
 

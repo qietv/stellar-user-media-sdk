@@ -45,6 +45,7 @@ ALLOWED_SYMBOLS = (
     "nterror_to_errno",
     "smb2_opendir",
     "smb2_readdir",
+    "smb2_rewinddir",
     "smb2_closedir",
     "smb2_stat",
     "smb2_open",

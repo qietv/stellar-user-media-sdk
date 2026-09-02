@@ -248,6 +248,43 @@ struct SMB2TransportContractTests {
     #expect(await scannerSession.listCount(at: rootPath) == 1)
     #expect(await scannerSession.listCount(at: moviesPath) == 1)
   }
+
+  @Test("The SMB adapter consumes transport pages without materializing a full snapshot")
+  func transportPagingAdapter() async throws {
+    let first = try SMB2Entry(path: SMB2Path("A.mkv"), kind: .file, size: 1)
+    let second = try SMB2Entry(path: SMB2Path("B.mkv"), kind: .file, size: 1)
+    let session = PagingSMB2Session(entries: [first, second])
+    let connector = SMB2MediaSourceConnector(
+      transport: FakeSMB2Transport(session: session),
+      configuration: try SMB2MediaSourceConfiguration(
+        sourceUID: "smb-paged-fixture",
+        connectionRequest: SMB2ConnectionRequest(
+          endpoint: SMB2Endpoint(server: "nas.example.test", share: "Media"),
+          credential: SMB2Credential(username: "alice", password: "secret")
+        )
+      )
+    )
+    let connected = try await connector.connect()
+    let root = try RemoteLocator(sourceUID: "smb-paged-fixture", path: RemotePath())
+
+    let firstPage = try await connected.listDirectory(
+      RemoteDirectoryPageRequest(directory: root, limit: 1)
+    )
+    let secondPage = try await connected.listDirectory(
+      RemoteDirectoryPageRequest(
+        directory: root,
+        cursor: firstPage.nextCursor,
+        limit: 1
+      )
+    )
+    await connected.disconnect()
+
+    #expect(firstPage.items.map(\.locator.path.relativePath) == ["A.mkv"])
+    #expect(secondPage.items.map(\.locator.path.relativePath) == ["B.mkv"])
+    #expect(secondPage.nextCursor == nil)
+    #expect(await session.pageRequestCount == 2)
+    #expect(await session.fullListRequestCount == 0)
+  }
 }
 
 private actor FakeSMB2Transport: SMB2Transport {
@@ -362,6 +399,50 @@ private actor TreeSMB2Session: SMB2Session {
       throw SDKError(code: .remoteUnavailable, message: "fixture SMB session disconnected")
     }
   }
+}
+
+private actor PagingSMB2Session: SMB2DirectoryPagingSession {
+  nonisolated let connectionInfo = SMB2ConnectionInfo(
+    dialect: .smb311,
+    signingPolicy: .required,
+    encryptionPolicy: .disabled,
+    implementationVersion: "fake-paged-1"
+  )
+  private let entries: [SMB2Entry]
+  private(set) var pageRequestCount = 0
+  private(set) var fullListRequestCount = 0
+
+  init(entries: [SMB2Entry]) {
+    self.entries = entries
+  }
+
+  func listDirectoryPage(
+    at _: SMB2Path,
+    cursor: String?,
+    limit _: Int
+  ) async throws -> SMB2DirectoryPage {
+    pageRequestCount += 1
+    if cursor == nil {
+      return SMB2DirectoryPage(items: [entries[0]], nextCursor: "paged:1")
+    }
+    return SMB2DirectoryPage(items: Array(entries.dropFirst()), nextCursor: nil)
+  }
+
+  func listDirectory(at _: SMB2Path) async throws -> [SMB2Entry] {
+    fullListRequestCount += 1
+    return entries
+  }
+
+  func stat(_ path: SMB2Path) async throws -> SMB2Entry {
+    guard let entry = entries.first(where: { $0.path == path }) else {
+      throw SDKError(code: .metadataNotFound, message: "fixture entry not found")
+    }
+    return entry
+  }
+
+  func read(at _: SMB2Path, range _: SMB2ByteRange) async throws -> Data { Data() }
+
+  func disconnect() async {}
 }
 
 private actor SMBScannerSink: MediaScanSink {

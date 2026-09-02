@@ -90,10 +90,17 @@
 - Scanner 与 SQLite sink 现在会把最多 32 个小目录页合并到一个原子 frontier/staging 事务，
   同时把缓冲条目限制在约一个配置 page size；大型目录页仍立即提交，非 SQLite/custom sink 默认
   保持逐页 durable。批次内失败只重放尚未提交的页面，不会出现 checkpoint 前进但 staging 未落库。
+- 生产 libsmb2 session 已新增 package 内目录分页快路：C wrapper 保留 `smb2dir`，Swift 每次只复制
+  请求页的记录，不再同时构造增长型 C entry array、全量 `[SMB2Entry]`、全量 `[RemoteEntry]`
+  和排序快照；cursor 绑定完整目录 fingerprint/条目数，断连恢复会重新打开并校验，末页、错误和
+  disconnect 会释放 handle，旧 `smb-v1` snapshot cursor 仍可通过兼容路径完成。需要明确的是，
+  当前固定版本 libsmb2 的高层 `smb2_opendir` 内部仍会先取完协议目录并保存在 C linked list；
+  因此本轮降低的是 SDK/wrapper 的重复内存与排序开销，不宣称已经实现协议级 QUERY_DIRECTORY 真流式。
 
-这一阶段没有宣称完成下文全部计划。真实目录游标、后台 scheduler
+这一阶段没有宣称完成下文全部计划。协议级真实目录流式读取、后台 scheduler
 和本地 metadata intake 仍按后续 Phase 推进。当前目录缓存是
-伪分页的 P0 止血方案，不等同于 libsmb2 `open/read-batch/close` 真流式句柄；事务内临时批次表
+非 libsmb2 来源与兼容 transport 的 P0 止血方案；生产 libsmb2 已有 handle/batch 消费，但上游
+高层 `opendir` 仍会预取完整响应，不等同于低层 QUERY_DIRECTORY 真流式；事务内临时批次表
 已用于成功发布 diff，枚举期持久 staging 则由 `scan_discovery` 承担。
 
 ## 1. 结论摘要
@@ -102,7 +109,7 @@
 
 与 Infuse 的实现思路相比，最初确认的四个主要瓶颈及当前状态如下：
 
-1. **重复读取已修复，真实流式目录游标仍缺失。** Local、SMB、WebDAV 现在每个连接内每目录只获取一次完整快照，逻辑页复用快照；尚未形成 libsmb2 `open/read-batch/close`，极大目录仍有整目录内存峰值。
+1. **重复读取和 SDK 层全量复制已修复，协议级真流式仍缺失。** Local、SMB、WebDAV 现在每个连接内每目录只获取一次；生产 libsmb2 已用保留 handle 分批复制到 Swift，不再建立 SDK 层完整排序快照。上游高层 `smb2_opendir` 仍会把协议目录预取到 C linked list，极大目录尚有这一层内存峰值。
 2. **检查点膨胀已修复。** compact checkpoint 配合持久 `scan_frontier` / `scan_seen`，不再每页编码、排序和重写全部 seen/completed 集合；当前剩余重点是更大规模故障注入和累计写入指标。
 3. **发现结果的非原子发布差距已修复。** 原实现会在扫描成功前暴露新路径和移动；当前已改为 per-run staging，只有成功完成才通过集合 SQL 发布 added/changed/moved/unchanged 与 scoped missing。
 4. **元数据主要热路径已修复，阶段语义仍待拆分。** SQL JOIN/lease worker、provider cache、限流、single-flight、SQLite 原子提交和增量搜索已落地；required/optional、terminal/dead-letter 及 artwork/probe 独立阶段仍待推进。
@@ -484,7 +491,7 @@ intake 和真实目录游标。
 
 | 主题 | Infuse 观察 | 我方当前实现 | 影响 | 优先级 |
 |---|---|---|---|---|
-| 目录分页 | 批量 enumerator/crawler，保存 section/depth/offset | 单次完整 snapshot 已落地，真流式 handle 未完成 | 重复 I/O 已消除；极大目录仍有内存峰值 | P1（止血完成） |
+| 目录分页 | 批量 enumerator/crawler，保存 section/depth/offset | libsmb2 handle/batch 已落地，兼容来源使用单次 snapshot；协议层仍预取 | 重复 I/O 和 SDK 全量复制已消除；极大目录仍有 libsmb2 内部峰值 | P1（SDK 层完成） |
 | SMB 并发 | 有界队列，按来源能力调度 | 单 libsmb2 context capability 已限制为 1 | 无效并发已消除；多 session 仅待真实 NAS 数据 | P1（核心完成） |
 | 扫描状态 | 持久爬取状态和 crash 状态 | compact checkpoint + 持久 frontier/seen | 核心写放大已消除；待更大故障注入 | P0（核心完成） |
 | 正式索引 | temp FileIndex，成功后集合合并 | 已使用 per-run `scan_discovery`，成功后发布 | 核心发布边界已对齐；待补大规模故障注入 | P0（核心完成） |
@@ -505,7 +512,7 @@ intake 和真实目录游标。
 
 ## 7. 关键问题详解
 
-## 7.1 P0：SMB 伪分页（止血完成，真流式待落地）
+## 7.1 P0：SMB 伪分页（SDK 层 handle/batch 已完成，协议级真流式待落地）
 
 原 `SMB2MediaSourceSession.listDirectory` 对每个 cursor page 都调用底层 `session.listDirectory(at:)`，然后对整个目录：
 
@@ -521,8 +528,15 @@ intake 和真实目录游标。
 - 本地来源在每个逻辑页重建目录快照；
 - WebDAV 的 `Depth: 1 PROPFIND` 通常不提供标准服务器分页，逻辑分页会重复整个 PROPFIND 响应。
 
-当前三类来源已采用下述短期快照方案，每个目录只读取一次；本轮又消除了快照排序中重复计算
-comparison key 的 `O(N log N)` 高常数。剩余工作仅是 libsmb2 真流式 handle，以降低极大目录 RSS。
+Local、WebDAV 与兼容 SMB transport 采用下述短期快照方案，每个目录只读取一次；快照排序也已
+预计算 comparison key。生产 libsmb2 transport 进一步保留 wrapper directory handle，每个逻辑页
+只复制本页 C records 到 Swift，避免全量 Swift 转换和排序快照。cursor 携带完整目录 fingerprint、
+条目数和 offset，进程恢复时重开一次并校验；旧版 snapshot cursor 仍可完成。
+
+固定版本 libsmb2 的 `smb2_opendir` 会在返回前循环 QUERY_DIRECTORY，并将全部 dirent 保存在内部
+linked list。所以上述改动降低了 wrapper/Swift 的额外内存峰值和排序 CPU，但没有降低 libsmb2
+内部目录缓存。若真实 NAS 的极大目录 RSS 仍超预算，下一步需基于低层 QUERY_DIRECTORY API 做
+协议 batch；这会扩大私有 ABI 和恢复语义，须由实测数据驱动，而不是仅再包装一次高层 `opendir`。
 
 ### 修复方向
 
@@ -903,6 +917,10 @@ Library Views / UI
 - 主线程不出现 >16 ms 的同步 metadata 文件写入。
 
 ## Phase 1：修复目录伪分页（P0，预计 3–5 天）
+
+> 进度：每目录一次协议枚举、source concurrency 和生产 libsmb2 handle/batch 消费已完成；
+> wrapper/Swift 不再建立多份完整目录数组或排序快照，cursor 恢复与释放语义已接入。由于上游
+> `smb2_opendir` 内部仍预取完整目录，低层 QUERY_DIRECTORY 真流式及真实 NAS RSS 对照仍待推进。
 
 ### 工作项
 

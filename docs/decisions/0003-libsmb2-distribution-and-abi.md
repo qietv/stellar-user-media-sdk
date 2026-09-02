@@ -44,7 +44,7 @@ libsmb2 的 client library 由上游声明为 LGPL-2.1-or-later。静态链接�
 - context lifecycle：`smb2_init_context`、`smb2_close_context`、`smb2_destroy_context`；
 - policy/auth：`smb2_set_timeout`、`smb2_set_version`、`smb2_set_security_mode`、`smb2_set_sign`、`smb2_set_seal`、`smb2_set_authentication`、`smb2_set_domain`、`smb2_set_user`、`smb2_set_password`；
 - session/event：`smb2_fd_event_callbacks`、`smb2_connect_share`、`smb2_disconnect_share`、`smb2_get_dialect`、`smb2_get_error`；
-- read-only I/O：`smb2_opendir`、`smb2_readdir`、`smb2_closedir`、`smb2_stat`、`smb2_open`、`smb2_pread`、`smb2_close`。
+- read-only I/O：`smb2_opendir`、`smb2_readdir`、`smb2_rewinddir`、`smb2_closedir`、`smb2_stat`、`smb2_open`、`smb2_pread`、`smb2_close`。
 
 任何 create、write、truncate、unlink、mkdir、rename 或其他 mutating symbol 都不得进入项目自有 C wrapper 或 Swift transport。CI 必须编译、静态链接并运行只读 ABI smoke test。
 

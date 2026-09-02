@@ -100,10 +100,26 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
     -> CursorPage<RemoteEntry>
   {
     try requireConnected()
+    let directoryPath = try smbPath(for: request.directory)
+    // A persisted cursor from the snapshot implementation must finish through the
+    // compatibility path after an SDK upgrade. New enumerations use transport paging.
+    let hasLegacySnapshotCursor = request.cursor?.hasPrefix("smb-v1:") == true
+    if !hasLegacySnapshotCursor,
+      let pagingSession = session as? any SMB2DirectoryPagingSession
+    {
+      let page = try await pagingSession.listDirectoryPage(
+        at: directoryPath,
+        cursor: request.cursor,
+        limit: request.limit
+      )
+      return try CursorPage(
+        items: page.items.map(convert),
+        nextCursor: page.nextCursor
+      )
+    }
     if let cachedPage = try directoryPaginator.cachedPage(for: request) {
       return cachedPage
     }
-    let directoryPath = try smbPath(for: request.directory)
     let entries = try await session.listDirectory(at: directoryPath).map(convert)
     return try directoryPaginator.storeAndPage(entries, for: request)
   }

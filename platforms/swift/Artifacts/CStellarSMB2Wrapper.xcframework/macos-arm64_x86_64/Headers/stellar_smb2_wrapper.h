@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 typedef struct stellar_smb2_client stellar_smb2_client;
+typedef struct stellar_smb2_directory stellar_smb2_directory;
 
 enum stellar_smb2_version {
   STELLAR_SMB2_VERSION_ANY = 0,
@@ -75,6 +76,24 @@ int32_t stellar_smb2_client_list_directory(
     stellar_smb2_client *client,
     const char *path,
     stellar_smb2_entry_list *list_out);
+
+int32_t stellar_smb2_client_open_directory(
+    stellar_smb2_client *client,
+    const char *path,
+    stellar_smb2_directory **directory_out,
+    uint64_t *fingerprint_out,
+    size_t *entry_count_out);
+
+int32_t stellar_smb2_client_read_directory(
+    stellar_smb2_client *client,
+    stellar_smb2_directory *directory,
+    size_t limit,
+    stellar_smb2_entry_list *list_out,
+    int *has_more_out);
+
+void stellar_smb2_client_close_directory(
+    stellar_smb2_client *client,
+    stellar_smb2_directory *directory);
 
 void stellar_smb2_entry_list_destroy(stellar_smb2_entry_list *list);
 

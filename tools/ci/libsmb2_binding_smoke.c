@@ -24,6 +24,7 @@ REQUIRE_SYMBOL(smb2_get_nterror);
 REQUIRE_SYMBOL(nterror_to_errno);
 REQUIRE_SYMBOL(smb2_opendir);
 REQUIRE_SYMBOL(smb2_readdir);
+REQUIRE_SYMBOL(smb2_rewinddir);
 REQUIRE_SYMBOL(smb2_closedir);
 REQUIRE_SYMBOL(smb2_stat);
 REQUIRE_SYMBOL(smb2_open);
