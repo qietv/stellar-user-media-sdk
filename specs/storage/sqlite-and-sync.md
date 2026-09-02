@@ -10,9 +10,13 @@ Swift、Android 与 OpenHarmony 均采用 SQLite 作为本地事实库，使用�
 - [`account-v1.sql`](sql/account-v1.sql)：来源配置、凭据记录、冲突、outbox 与 cursor；
 - [`metadata-cache-v1.sql`](sql/metadata-cache-v1.sql)：3 张可删除缓存表。
 
-当前 `library.sqlite` 版本为 v2；[`schema-migrations.json`](schema-migrations.json) 固定
-[`library-v2.sql`](sql/library-v2.sql) 的 checksum。该迁移在 v1 的 27 张表上增加
-`scan_frontier` 与 `scan_seen`，现行媒体库共 29 张业务表。account 与 metadata cache 仍为 v1。
+当前 `library.sqlite` 版本为 v5；[`schema-migrations.json`](schema-migrations.json) 固定
+[`library-v2.sql`](sql/library-v2.sql)、[`library-v3.sql`](sql/library-v3.sql) 与
+[`library-v4.sql`](sql/library-v4.sql)、[`library-v5.sql`](sql/library-v5.sql) 的 checksum。
+v2 增加 `scan_frontier` 与 `scan_seen`，v3 增加 per-run `scan_discovery` staging 和
+单来源 active run 唯一约束，v4 增加文件 material revision 与可回收、可 CAS 写回的 worker
+lease，v5 增加小批 worker claim 的顺序索引，避免反复全队列排序；现行媒体库共 30 张业务表。
+account 与 metadata cache 仍为 v1。
 
 研究文档中的 SQL 只保留设计推导与数据字典；若与上述可执行合同冲突，以 `specs/storage/sql/` 为准。数据库身份、GRDB 采用方式、连接参数和迁移失败策略见 [ADR-0004](../../docs/decisions/0004-sqlite-storage-and-migrations.md)。
 
@@ -20,19 +24,19 @@ Swift、Android 与 OpenHarmony 均采用 SQLite 作为本地事实库，使用�
 
 - 平台安全存储：每台设备独立的 Stellar OAuth token；不是 SQLite。默认访问策略不要求每次读取时进行生物识别或用户在场验证。
 - `account.sqlite`：账号资料、可同步媒体源配置、应用层明文第三方凭据记录，以及各自的同步 outbox。v1 DDL 不保存 Stellar OAuth token，也不计入媒体库业务表；应用沙箱和平台 data-protection 不改变 payload 可被应用读取的事实。
-- `library.sqlite`：29 张媒体库核心表，包括扫描 frontier/seen、文件、影视实体、用户状态和媒体库同步状态。
+- `library.sqlite`：30 张媒体库核心表，包括扫描 frontier/seen/discovery staging、文件、影视实体、用户状态和媒体库同步状态。
 - `metadata_cache.sqlite`：3 张可删除、可重建的供应商响应、匹配候选和图片文件缓存表。
 
 数据库之间不建立外键；使用跨库 UID 和应用层约束。这样可以清空缓存或重建媒体索引，而不损坏登录、远程配置和安全凭据。
 
 ## 逻辑表组
 
-媒体库设计当前包含 29 张 `library.sqlite` 业务表和 3 张 `metadata_cache.sqlite` 可删除缓存表。下面的表名与可执行 DDL/migration 对齐；详细字段、索引、外键和关系见[跨平台媒体库设计](../../docs/research/infuse/cross_platform_media_library_design.md)。
+媒体库设计当前包含 30 张 `library.sqlite` 业务表和 3 张 `metadata_cache.sqlite` 可删除缓存表。下面的表名与可执行 DDL/migration 对齐；详细字段、索引、外键和关系见[跨平台媒体库设计](../../docs/research/infuse/cross_platform_media_library_design.md)。
 
 | 分组 | 表 | 生命周期 |
 | --- | --- | --- |
 | 数据库管理 | `schema_migration` | 随数据库长期保留 |
-| 来源与扫描 | `library_source`、`scan_run`、`scan_frontier`、`scan_seen`、`scan_queue` | 来源软删除；frontier/seen 在 run 完成后清理，扫描记录和任务按保留期压缩 |
+| 来源与扫描 | `library_source`、`scan_run`、`scan_frontier`、`scan_seen`、`scan_discovery`、`scan_queue` | 来源软删除；frontier/seen/discovery 在 run 完成后清理，失败 run 保留 staging 供恢复，扫描记录和任务按保留期压缩 |
 | 文件事实 | `media_file`、`sidecar`、`parse_result`、`technical_summary`、`media_stream` | 文件先软缺失；其解析与探测数据可重建 |
 | 影视实体与绑定 | `media_entity`、`file_binding`、`external_id` | 实体可被用户状态保留；绑定记录区分自动与人工锁定 |
 | 本地化元数据 | `localized_metadata`、`genre`、`genre_name`、`entity_genre`、`person`、`credit` | 在线部分可刷新；人工锁定字段受保护 |
@@ -65,7 +69,11 @@ Swift、Android 与 OpenHarmony 均采用 SQLite 作为本地事实库，使用�
 - MUST 启用 WAL、foreign keys 和合理的 busy timeout。
 - 每个数据库只有一个逻辑写入协调器；读取可并发。
 - 扫描以小批事务提交，避免持有覆盖整个远程遍历的长事务。
+- 枚举页面只写 per-run discovery staging；失败、取消或离线不得改变已发布 `media_file` 快照。
 - 扫描运行完成标志、正式快照替换和缺失差分必须处于同一原子提交边界。
+- metadata worker 必须先原子 claim；完成、重试和 metadata materialization 必须同时校验
+  claim token、未过期 lease 与当前文件 material revision。过期 lease 可被其他 worker 回收。
+- 同一来源最多一个 queued/enumerating/processing/finalizing run；迁移时保留最新 active run，并取消更旧的重叠 run。
 - 元数据下载和图片下载不得占用数据库事务。
 - 所有写操作必须可取消，但已经提交的事务不做半成品回滚补偿。
 

@@ -142,8 +142,8 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
   }
 
   private func convert(_ entry: SMB2Entry) throws -> RemoteEntry {
-    let path = try RemotePath(entry.path.relativePath)
-    let locator = try RemoteLocator(sourceUID: sourceUID, path: path)
+    let path = RemotePath(validatedRelativePath: entry.path.relativePath)
+    let locator = RemoteLocator(validatedSourceUID: sourceUID, path: path)
     let kind: RemoteEntryKind
     switch entry.kind {
     case .file:

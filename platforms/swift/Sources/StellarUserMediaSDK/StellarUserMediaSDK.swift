@@ -374,6 +374,8 @@ public typealias LibraryScanQueueStage = StellarStorage.LibraryScanQueueStage
 public typealias LibraryScanWorkItem = StellarStorage.LibraryScanWorkItem
 /// Compatibility alias for pending scan work joined with its durable file fact.
 public typealias LibraryScanFileWorkItem = StellarStorage.LibraryScanFileWorkItem
+/// Compatibility alias for exclusive, revision-safe scan work ownership.
+public typealias LibraryScanWorkLease = StellarStorage.LibraryScanWorkLease
 /// Compatibility alias for a keyset-paginated scan-work result.
 public typealias LibraryScanFileWorkPage = StellarStorage.LibraryScanFileWorkPage
 /// Compatibility alias for present and matched source file counts.

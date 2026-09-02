@@ -38,10 +38,7 @@ package struct RemoteDirectorySnapshotPaginator: Sendable {
     _ entries: [RemoteEntry],
     for request: RemoteDirectoryPageRequest
   ) throws -> CursorPage<RemoteEntry> {
-    let snapshot = Snapshot(
-      entries: Self.sorted(entries, using: pathSemantics),
-      semantics: pathSemantics
-    )
+    let snapshot = Snapshot(entries: entries, semantics: pathSemantics)
     let offset: Int
     if let rawCursor = request.cursor {
       let cursor = try Cursor(rawCursor, namespace: cursorNamespace)
@@ -88,52 +85,70 @@ package struct RemoteDirectorySnapshotPaginator: Sendable {
     return try CursorPage(items: entries, nextCursor: nextCursor)
   }
 
-  private static func sorted(
-    _ entries: [RemoteEntry],
-    using semantics: RemotePathSemantics
-  ) -> [RemoteEntry] {
-    entries.sorted { left, right in
-      let leftKey = left.locator.pathComparisonKey(using: semantics)
-      let rightKey = right.locator.pathComparisonKey(using: semantics)
-      if leftKey == rightKey {
-        return left.locator.path.relativePath < right.locator.path.relativePath
-      }
-      return leftKey < rightKey
-    }
-  }
-
   private struct Snapshot: Sendable {
     let entries: [RemoteEntry]
     let fingerprint: String
 
     init(entries: [RemoteEntry], semantics: RemotePathSemantics) {
-      self.entries = entries
-      fingerprint = Self.fingerprint(entries, semantics: semantics)
+      var sortableEntries: [SortableEntry] = []
+      sortableEntries.reserveCapacity(entries.count)
+      for entry in entries {
+        sortableEntries.append(
+          SortableEntry(
+            entry: entry,
+            comparisonKey: entry.locator.pathComparisonKey(using: semantics)
+          )
+        )
+      }
+      sortableEntries.sort { left, right in
+        if left.comparisonKey == right.comparisonKey {
+          return left.entry.locator.path.relativePath < right.entry.locator.path.relativePath
+        }
+        return left.comparisonKey < right.comparisonKey
+      }
+      self.entries = sortableEntries.map(\.entry)
+      fingerprint = Self.fingerprint(sortableEntries)
     }
 
     private static func fingerprint(
-      _ entries: [RemoteEntry],
-      semantics: RemotePathSemantics
+      _ entries: [SortableEntry]
     ) -> String {
       var hash: UInt64 = 14_695_981_039_346_656_037
-      for entry in entries {
-        let fields = [
-          entry.locator.pathComparisonKey(using: semantics),
-          entry.kind.rawValue,
-          entry.stableID ?? "",
-          entry.size.map(String.init) ?? "",
-          entry.modifiedAtMilliseconds.map(String.init) ?? "",
-          entry.entityTag ?? "",
-        ]
-        for byte in fields.joined(separator: "\u{1f}").utf8 {
-          hash ^= UInt64(byte)
-          hash &*= 1_099_511_628_211
-        }
+      for sortableEntry in entries {
+        let entry = sortableEntry.entry
+        update(&hash, with: sortableEntry.comparisonKey, hasLeadingSeparator: false)
+        update(&hash, with: entry.kind.rawValue)
+        update(&hash, with: entry.stableID ?? "")
+        update(&hash, with: entry.size.map(String.init) ?? "")
+        update(&hash, with: entry.modifiedAtMilliseconds.map(String.init) ?? "")
+        update(&hash, with: entry.entityTag ?? "")
         hash ^= 0xff
         hash &*= 1_099_511_628_211
       }
       return String(format: "%016llx", hash)
     }
+
+    @inline(__always)
+    private static func update(
+      _ hash: inout UInt64,
+      with field: String,
+      hasLeadingSeparator: Bool = true
+    ) {
+      if hasLeadingSeparator {
+        hash ^= 0x1f
+        hash &*= 1_099_511_628_211
+      }
+      for byte in field.utf8 {
+        hash ^= UInt64(byte)
+        hash &*= 1_099_511_628_211
+      }
+    }
+
+    private struct SortableEntry: Sendable {
+      let entry: RemoteEntry
+      let comparisonKey: String
+    }
+
   }
 
   private struct Cursor {

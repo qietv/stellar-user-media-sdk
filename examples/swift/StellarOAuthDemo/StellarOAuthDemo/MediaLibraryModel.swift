@@ -11,7 +11,14 @@ private enum DemoScanFilePolicy {
   ]
 
   static func isVideoPath(_ path: String) -> Bool {
-    videoExtensions.contains((path as NSString).pathExtension.lowercased())
+    guard let separator = path.utf8.lastIndex(of: 46),
+      path.utf8.lastIndex(of: 47).map({ $0 < separator }) ?? true
+    else {
+      return false
+    }
+    let extensionStart = path.index(after: separator)
+    guard extensionStart != path.endIndex else { return false }
+    return videoExtensions.contains(path[extensionStart...].lowercased())
   }
 
   static func shouldPersist(_ entry: RemoteEntry) -> Bool {
@@ -64,12 +71,14 @@ struct DemoPosterItem: Identifiable, Equatable, Sendable {
 }
 
 private struct DemoMetadataWorkItem: Sendable {
-  let file: LibraryFileFact
-  let hasMatchingBinding: Bool
+  let lease: LibraryScanWorkLease
+
+  var file: LibraryFileFact { lease.file }
+  var hasMatchingBinding: Bool { lease.hasMatchingBinding }
 }
 
 private enum DemoMetadataWorkResult: Sendable {
-  case matched(path: String)
+  case matched(path: String, wasAlreadyMatched: Bool)
   case preserved(path: String)
   case skipped(path: String)
   case retry(path: String)
@@ -101,6 +110,7 @@ final class MediaLibraryModel: ObservableObject {
   private var scanProgressPublishTask: Task<Void, Never>?
   private var pendingScanProgress: DemoScanProgress?
   private var activeRequest: MediaScanRequest?
+  private var metadataRecoverySourceUID: String?
   private var libraryDatabase: StorageDatabase?
   private var libraryStore: LibraryStore?
   private var metadataCacheStore: MetadataCacheStore?
@@ -123,8 +133,15 @@ final class MediaLibraryModel: ObservableObject {
     scanTask != nil || scanState == .paused
   }
 
+  var credentialInputIsDisabled: Bool {
+    scanTask != nil
+  }
+
   var primaryActionTitle: String {
-    switch scanState {
+    if scanState == .paused, metadataRecoverySourceUID != nil {
+      return "Resume metadata"
+    }
+    return switch scanState {
     case .paused: "Resume scan"
     case .completed: "Scan again"
     default: "Start scan"
@@ -132,23 +149,25 @@ final class MediaLibraryModel: ObservableObject {
   }
 
   func prepareIfNeeded() async {
-    guard libraryStore == nil || metadataCacheStore == nil else { return }
     do {
-      let folder = try applicationSupportFolder()
-      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-      let library = try await StorageDatabase.open(
-        kind: .library,
-        at: folder.appendingPathComponent("library.sqlite")
-      )
-      let metadata = try await StorageDatabase.open(
-        kind: .metadataCache,
-        at: folder.appendingPathComponent("metadata_cache.sqlite")
-      )
-      libraryDatabase = library
-      libraryStore = try LibraryStore(database: library)
-      let cacheStore = try MetadataCacheStore(database: metadata)
-      metadataCacheStore = cacheStore
-      mediaInfoClient = TestMediaInfoClient(cacheStore: cacheStore)
+      if libraryStore == nil || metadataCacheStore == nil {
+        let folder = try applicationSupportFolder()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let library = try await StorageDatabase.open(
+          kind: .library,
+          at: folder.appendingPathComponent("library.sqlite")
+        )
+        let metadata = try await StorageDatabase.open(
+          kind: .metadataCache,
+          at: folder.appendingPathComponent("metadata_cache.sqlite")
+        )
+        libraryDatabase = library
+        libraryStore = try LibraryStore(database: library)
+        let cacheStore = try MetadataCacheStore(database: metadata)
+        metadataCacheStore = cacheStore
+        mediaInfoClient = TestMediaInfoClient(cacheStore: cacheStore)
+      }
+      try await restoreDurableWorkIfAvailable()
     } catch {
       scanState = .failed
       show(error: error)
@@ -165,6 +184,10 @@ final class MediaLibraryModel: ObservableObject {
 
   func pause() {
     guard canPause else { return }
+    if scanState == .enriching, let sourceUID = activeRequest?.sourceUID {
+      metadataRecoverySourceUID = sourceUID
+      activeRequest = nil
+    }
     scanState = .pausing
     show("Saving the current checkpoint…")
     scanTask?.cancel()
@@ -247,9 +270,52 @@ final class MediaLibraryModel: ObservableObject {
     guard let libraryStore, let metadataCacheStore, let mediaInfoClient else { return }
 
     do {
+      if let sourceUID = metadataRecoverySourceUID {
+        scanState = .enriching
+        show("Continuing durable metadata work without rescanning the SMB source…")
+        try await enrichLibrary(
+          sourceUID: sourceUID,
+          libraryStore: libraryStore,
+          metadataCacheStore: metadataCacheStore,
+          mediaInfoClient: mediaInfoClient
+        )
+        try Task.checkCancellation()
+        if try await libraryStore.hasOutstandingScanWork(sourceUID: sourceUID, stage: .parse) {
+          scanState = .paused
+          updateCurrentFile(nil)
+          show("Metadata work is deferred or leased. Resume later; no SMB rescan is needed.")
+        } else {
+          metadataRecoverySourceUID = nil
+          scanState = .completed
+          updateCurrentFile(nil)
+          show(
+            "Metadata completed: \(mediaFileCount) video files, \(matchedFileCount) matched, "
+              + "\(failedFileCount) skipped."
+          )
+        }
+        await refreshPosterWall()
+        return
+      }
+
       let connection = try makeConnection()
-      let isResume = scanState == .paused && activeRequest != nil
+      let sqliteSink = SQLiteMediaScanSink(store: libraryStore)
+      var checkpoint: MediaScanCheckpoint?
+      var isResume = scanState == .paused && activeRequest != nil
+      if isResume, let request = activeRequest {
+        checkpoint = try await sqliteSink.loadCheckpoint(runUID: request.runUID)
+        guard checkpoint != nil else {
+          throw SDKError(code: .storageFailure, message: "saved scan checkpoint is unavailable")
+        }
+      } else if let recovered = try await sqliteSink.loadLatestRecoverableCheckpoint(
+        sourceUID: connection.sourceUID
+      ) {
+        activeRequest = recovered.request
+        checkpoint = recovered
+        isResume = true
+        restoreProgress(from: recovered)
+      }
       if !isResume {
+        metadataRecoverySourceUID = nil
         activeRequest = try MediaScanRequest(
           runUID: UUID().uuidString.lowercased(),
           sourceUID: connection.sourceUID,
@@ -275,7 +341,6 @@ final class MediaLibraryModel: ObservableObject {
       show(isResume ? "Restoring the saved scan checkpoint…" : "Connecting to the SMB share…")
       try await libraryStore.registerSource(connection.sourceDefinition)
 
-      let sqliteSink = SQLiteMediaScanSink(store: libraryStore)
       let relay = DemoScanProgressRelay(
         onBatch: { [weak self] latestFilePath, checkpoint in
           self?.record(latestFilePath: latestFilePath, checkpoint: checkpoint)
@@ -285,7 +350,6 @@ final class MediaLibraryModel: ObservableObject {
         }
       )
       let sink = DemoScanSink(base: sqliteSink, relay: relay)
-      let checkpoint = isResume ? try await sqliteSink.loadCheckpoint(runUID: request.runUID) : nil
       scanState = .scanning
       show("Scanning SMB directories…")
 
@@ -307,6 +371,21 @@ final class MediaLibraryModel: ObservableObject {
         mediaInfoClient: mediaInfoClient
       )
       try Task.checkCancellation()
+
+      if try await libraryStore.hasOutstandingScanWork(
+        sourceUID: request.sourceUID,
+        stage: .parse
+      ) {
+        activeRequest = nil
+        metadataRecoverySourceUID = request.sourceUID
+        scanState = .paused
+        updateCurrentFile(nil)
+        show(
+          "File scan completed. Metadata retries remain durable and can resume without rescanning."
+        )
+        await refreshPosterWall()
+        return
+      }
 
       scanState = .completed
       activeRequest = nil
@@ -349,64 +428,73 @@ final class MediaLibraryModel: ObservableObject {
     )
     await mediaInfoClient.resetProviderSuspension()
     var completedCount = 0
-    var cursor: String?
-    repeat {
-      try Task.checkCancellation()
-      let page = try await libraryStore.pendingScanFileWorkPage(
+    let workerID = "stellar-oauth-demo-\(UUID().uuidString.lowercased())"
+    let workerConcurrency = 4
+    try await withThrowingTaskGroup(of: DemoMetadataWorkResult.self) { group in
+      var activeWorkerCount = 0
+
+      let initialLeases = try await libraryStore.claimScanFileWork(
         sourceUID: sourceUID,
         stage: .parse,
-        pageSize: 200,
-        cursor: cursor
+        workerID: workerID,
+        limit: workerConcurrency,
+        leaseDurationMilliseconds: 120_000
       )
-      let workItems = page.items.map {
-        DemoMetadataWorkItem(file: $0.file, hasMatchingBinding: $0.hasMatchingBinding)
+      for lease in initialLeases {
+        let workItem = DemoMetadataWorkItem(lease: lease)
+        activeWorkerCount += 1
+        group.addTask {
+          try await Self.processMetadataWork(
+            workItem,
+            sourceUID: sourceUID,
+            matcher: matcher,
+            libraryStore: libraryStore,
+            mediaInfoClient: mediaInfoClient
+          )
+        }
       }
-      if !workItems.isEmpty {
-        let initiallyMatchedPaths = Set(
-          workItems.lazy.filter(\.hasMatchingBinding).map(\.file.relativePath)
-        )
-        let concurrency = min(4, workItems.count)
-        var nextIndex = 0
-        try await withThrowingTaskGroup(of: DemoMetadataWorkResult.self) { group in
-          func enqueueNext() {
-            guard nextIndex < workItems.count else { return }
-            let workItem = workItems[nextIndex]
-            nextIndex += 1
-            group.addTask {
-              try await Self.processMetadataWork(
-                workItem,
-                sourceUID: sourceUID,
-                matcher: matcher,
-                libraryStore: libraryStore,
-                mediaInfoClient: mediaInfoClient
-              )
-            }
-          }
 
-          for _ in 0..<concurrency { enqueueNext() }
-          while let result = try await group.next() {
-            completedCount += 1
-            let path: String
-            switch result {
-            case .matched(let value):
-              path = value
-              if !initiallyMatchedPaths.contains(value) {
-                matchedFileCount += 1
-              }
-            case .preserved(let value):
-              path = value
-            case .skipped(let value), .retry(let value):
-              path = value
-              failedFileCount += 1
-            }
-            updateCurrentFile(path)
-            show("Matched or classified \(completedCount) changed videos…")
-            enqueueNext()
+      while activeWorkerCount > 0, let result = try await group.next() {
+        activeWorkerCount -= 1
+        completedCount += 1
+        let path: String
+        switch result {
+        case .matched(let value, let wasAlreadyMatched):
+          path = value
+          if !wasAlreadyMatched {
+            matchedFileCount += 1
+          }
+        case .preserved(let value):
+          path = value
+        case .skipped(let value), .retry(let value):
+          path = value
+          failedFileCount += 1
+        }
+        updateCurrentFile(path)
+        show("Matched or classified \(completedCount) changed videos…")
+
+        try Task.checkCancellation()
+        if let replacementLease = try await libraryStore.claimScanFileWork(
+          sourceUID: sourceUID,
+          stage: .parse,
+          workerID: workerID,
+          limit: 1,
+          leaseDurationMilliseconds: 120_000
+        ).first {
+          let workItem = DemoMetadataWorkItem(lease: replacementLease)
+          activeWorkerCount += 1
+          group.addTask {
+            try await Self.processMetadataWork(
+              workItem,
+              sourceUID: sourceUID,
+              matcher: matcher,
+              libraryStore: libraryStore,
+              mediaInfoClient: mediaInfoClient
+            )
           }
         }
       }
-      cursor = page.nextCursor
-    } while cursor != nil
+    }
 
     let finalSummary = try await libraryStore.sourceMediaSummary(sourceUID: sourceUID)
     mediaFileCount = finalSummary.presentFileCount
@@ -421,6 +509,21 @@ final class MediaLibraryModel: ObservableObject {
     mediaInfoClient: TestMediaInfoClient
   ) async throws -> DemoMetadataWorkResult {
     let path = workItem.file.relativePath
+    let heartbeat = Task<Void, Never> {
+      while !Task.isCancelled {
+        do {
+          try await Task.sleep(for: .seconds(30))
+          guard !Task.isCancelled else { return }
+          _ = try await libraryStore.renewScanWorkLease(
+            workItem.lease,
+            leaseDurationMilliseconds: 120_000
+          )
+        } catch {
+          return
+        }
+      }
+    }
+    defer { heartbeat.cancel() }
     do {
       let resolution = try await mediaInfoClient.resolve(path: path)
       guard let resolved = try await mediaInfoClient.posterMetadata(from: resolution) else {
@@ -438,11 +541,7 @@ final class MediaLibraryModel: ObservableObject {
         mediaRelativePath: path
       )
       if result.state == .lockedBindingPreserved {
-        try await libraryStore.completeScanWork(
-          sourceUID: sourceUID,
-          relativePath: path,
-          stage: .parse
-        )
+        try await libraryStore.completeScanWork(workItem.lease)
         return .preserved(path: path)
       }
       guard result.state == .automaticBound else {
@@ -473,27 +572,32 @@ final class MediaLibraryModel: ObservableObject {
       )
       _ = try await libraryStore.commitRemoteMetadata(
         metadata,
-        sourceUID: sourceUID,
-        relativePath: path,
-        completing: .parse
+        completing: workItem.lease
       )
-      return .matched(path: path)
+      return .matched(path: path, wasAlreadyMatched: workItem.hasMatchingBinding)
     } catch {
-      if Self.isCancellation(error) { throw error }
+      if Self.isCancellation(error) {
+        try? await libraryStore.retryScanWork(
+          workItem.lease,
+          errorCode: .cancelled,
+          retryAfterMilliseconds: 0
+        )
+        throw error
+      }
       let code = (error as? SDKError)?.code ?? .unknown
       if code == .metadataNotFound {
-        try await libraryStore.completeScanWork(
-          sourceUID: sourceUID,
-          relativePath: path,
-          stage: .parse
-        )
+        try await libraryStore.completeScanWork(workItem.lease)
         return .skipped(path: path)
       }
+      let providerDelay = (error as? SDKError)?.retryAfterMilliseconds
+      let retryDelay = max(
+        providerDelay ?? 0,
+        min(300_000, 5_000 * Int64(1 << min(workItem.lease.attempts, 5)))
+      )
       try await libraryStore.retryScanWork(
-        sourceUID: sourceUID,
-        relativePath: path,
-        stage: .parse,
-        errorCode: code
+        workItem.lease,
+        errorCode: code,
+        retryAfterMilliseconds: retryDelay
       )
       return .retry(path: path)
     }
@@ -503,7 +607,7 @@ final class MediaLibraryModel: ObservableObject {
     var next = pendingScanProgress ?? scanProgress
     next.discoveredEntryCount = checkpoint.discoveredEntryCount
     next.processedPageCount = checkpoint.processedPageCount
-    next.pendingPageCount = checkpoint.pendingPages.count
+    next.pendingPageCount = checkpoint.pendingPageCount
     if let latestFilePath {
       next.currentFile = latestFilePath
     }
@@ -545,6 +649,41 @@ final class MediaLibraryModel: ObservableObject {
     scanProgressPublishTask = nil
     pendingScanProgress = nil
     scanProgress = DemoScanProgress()
+  }
+
+  private func restoreProgress(from checkpoint: MediaScanCheckpoint) {
+    scanProgressPublishTask?.cancel()
+    scanProgressPublishTask = nil
+    pendingScanProgress = nil
+    scanProgress = DemoScanProgress(
+      discoveredEntryCount: checkpoint.discoveredEntryCount,
+      processedPageCount: checkpoint.processedPageCount,
+      pendingPageCount: checkpoint.pendingPageCount,
+      currentFile: nil
+    )
+  }
+
+  private func restoreDurableWorkIfAvailable() async throws {
+    guard scanTask == nil, activeRequest == nil, scanState == .idle,
+      let libraryStore, let sourceUID = sourceUIDForRecovery()
+    else { return }
+    let sink = SQLiteMediaScanSink(store: libraryStore)
+    let summary = try await libraryStore.sourceMediaSummary(sourceUID: sourceUID)
+    mediaFileCount = summary.presentFileCount
+    matchedFileCount = summary.matchedFileCount
+    if let checkpoint = try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) {
+      activeRequest = checkpoint.request
+      restoreProgress(from: checkpoint)
+      scanState = .paused
+      show("Recovered an interrupted scan. Enter the SMB password to continue safely.")
+    } else if try await libraryStore.hasOutstandingScanWork(
+      sourceUID: sourceUID,
+      stage: .parse
+    ) {
+      metadataRecoverySourceUID = sourceUID
+      scanState = .paused
+      show("Recovered pending metadata work. It can continue without rescanning the SMB source.")
+    }
   }
 
   private func updateCurrentFile(_ path: String?) {
@@ -617,6 +756,28 @@ final class MediaLibraryModel: ObservableObject {
       sourceUID: sourceUID,
       connector: connector,
       sourceDefinition: definition
+    )
+  }
+
+  private func sourceUIDForRecovery() -> String? {
+    let normalizedServer = server.trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedShare = share.trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedRoot = rootPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedServer.isEmpty, !normalizedShare.isEmpty else { return nil }
+    let normalizedPort = port.trimmingCharacters(in: .whitespacesAndNewlines)
+    let parsedPort: UInt16?
+    if normalizedPort.isEmpty {
+      parsedPort = nil
+    } else if let value = UInt16(normalizedPort), value > 0 {
+      parsedPort = value
+    } else {
+      return nil
+    }
+    return Self.sourceUID(
+      server: normalizedServer,
+      port: parsedPort,
+      share: normalizedShare,
+      rootPath: normalizedRoot
     )
   }
 
@@ -704,12 +865,16 @@ private struct DemoScanSink: MediaScanSink {
   let base: SQLiteMediaScanSink
   let relay: DemoScanProgressRelay
 
+  var preferredPageCommitBatchSize: Int { base.preferredPageCommitBatchSize }
+
   func commit(_ batch: MediaScanBatch) async throws {
     let retainedEntries = batch.entries.filter(DemoScanFilePolicy.shouldPersist)
     let retainedBatch = MediaScanBatch(
       entries: retainedEntries,
       checkpoint: batch.checkpoint,
-      completion: batch.completion
+      completion: batch.completion,
+      enumerationState: batch.enumerationState,
+      pageTransitions: batch.pageTransitions
     )
     try await base.commit(retainedBatch)
     await relay.batch(retainedEntries, checkpoint: batch.checkpoint)

@@ -33,7 +33,7 @@ struct SMBScanView: View {
           // doing an associated-domain lookup when the field first becomes focused.
           .textContentType(.oneTimeCode)
           .textFieldStyle(.roundedBorder)
-          .disabled(model.inputsAreDisabled)
+          .disabled(model.credentialInputIsDisabled)
 
         HStack(spacing: 10) {
           Button(model.primaryActionTitle) {

@@ -1,20 +1,21 @@
 # Infuse 刮削/扫描方案分析与 StellarOAuthDemo 改进计划
 
-> 状态：调研完成，实施中（Demo 元数据流水线、目录单次枚举、持久 frontier/compact checkpoint 和批量落库已落地）
+> 状态：调研完成，实施中（Demo 元数据流水线、目录单次枚举、持久 frontier/compact checkpoint、per-run discovery staging、集合化发布、revision-safe worker lease 和启动恢复已落地）
 >
-> 日期：2026-09-01
+> 日期：2026-09-02
 >
 > 分析对象：Infuse 8.5.1（iOS IPA）/ 8.5.3（本机 macOS 安装版）与 StellarOAuthDemo 当前实现
 >
 > 重点：扫描正确性、可恢复性、增量处理、刮削流水线和性能
 
-## 已实施进展（2026-09-01）
+## 已实施进展（截至 2026-09-02）
 
 - Demo 元数据处理由全量/N+1 预检改为直接消费 durable `scan_queue` 的变更项，
-  已匹配统计使用一次集合查询；待处理任务现由 SDK 以 200 条 keyset page 直接 JOIN
-  `media_file` 和 binding 状态，Demo 不再加载全量 library snapshot 或构造全库路径集合；
+  已匹配统计使用一次集合查询；待处理任务由 SDK 直接 JOIN `media_file` 和 binding 状态，
+  Demo 不再加载全量 library snapshot 或构造全库路径集合；
 - 文件级 worker 使用 4 路有界并发，provider 请求使用 single-flight、10 QPS 节流、
-  `Retry-After`、指数退避、抖动和 401/403 run suspension；
+  `Retry-After`、指数退避、抖动和 401/403 run suspension；claim batch 已与 4 路实际并发对齐，
+  不会让尚未启动的内存排队任务提前占有并耗尽 lease；
 - `provider_response_cache` 已通过 SDK 公共 API 接入，支持 TTL、ETag、
   Last-Modified、条件请求和 404 negative cache；
 - 同一剧集并发 episode 请求会按 entity/artwork 请求键合并，不再逐集重复相同 GET；
@@ -28,8 +29,27 @@
   完整枚举，后续 cursor 仅切片缓存快照，断连恢复时重读一次并校验指纹；
 - source capability 新增目录请求建议并发，Scanner 取调用方配置与来源上限的较小值；
   单 libsmb2 context 当前明确报告 1，而不是制造无效的 4 路排队；
+- 共享目录快照分页器会为每个条目只计算一次 path comparison key，再用预计算键排序和生成兼容
+  指纹；不再在 `O(N log N)` 次排序比较中反复拆分、Unicode/大小写归一化完整路径；
+- Local source 使用目录枚举已经预取的 file resource identifier 生成 scan-scoped stable ID，常见路径
+  不再为每个条目额外调用一次 `attributesOfItem`，且复用静态 resource-key set 避免逐条构造集合；
+- `RemotePath` 对已经规范化的路径新增无重复解析快路：append/name/parent/compare/descendant
+  不再反复 split/join 全路径；storage 直接从已计算的 comparison key 派生 parent key，并移除
+  文件扩展名解析的 NSString bridge；
+- ASCII 路径 comparison key 新增不进入 Foundation Unicode machinery 的快速分支；Scanner 对来源
+  返回的常规直接子路径先做零规范化父路径校验，只在文本表示不一致时才走 Unicode/大小写语义兜底；
+  Local、SMB、WebDAV adapter 对已经验证的 source/path 复用内部构造快路，SMB2Path append/name 也不再
+  重新 split/join 完整路径；
+- WebDAV multistatus parser 已移除逐条 `oldEntries + [entry]` 的增长型数组复制，目录响应解析从
+  近似 O(N²) 改为摊销 O(N) append；同一响应内同时复用 HTTP date formatter 和 base URL 分解结果；
+- Scanner 默认 discovery batch 从 500 调整为 2,000，SQLite writer 的自动 WAL checkpoint
+  保守提高到约 16 MiB，减少大扫描的事务和 checkpoint 抖动；Demo 的过滤 sink 同时修正为完整
+  转发 durable frontier/page transition，避免过滤包装层绕过恢复状态；
 - Scanner 的 seen/completed 去重集合改为单次运行内增量维护，不再每页重新从数组构造
-  全量集合并排序；checkpoint 的全量数组本身尚未移除；
+  全量集合并排序；checkpoint 的全量数组随后已在 schema v2 中移至持久表；
+- SQLite frontier 校验已由每页三次增长型 `COUNT(*)` 改为基于上一 checkpoint、实际 frontier
+  插入数和 seen 插入数的增量校验；5,000 个单文件目录的 Release 扫描由 4.06 秒降至
+  稳定约 2.29 秒，同时避免为非文件目录生成无用 UUID；
 - `LibraryStore` 的多文件页面改为临时批次表上的集合化 merge，unchanged 文件只推进
   `last_seen_run_id`，不刷新 material timestamp，也不重复 enqueue metadata work；
 - missing reconciliation 已由 Swift 拉取候选并逐行 UPDATE 改为 scope-aware 单条集合 SQL，
@@ -38,24 +58,54 @@
   `scan_frontier` / `scan_seen` 通过 library schema v2 持久化，每页条目、frontier transition、
   seen 去重和 checkpoint 在同一 SQLite 事务提交；Scanner 使用增量 FIFO frontier，不再每页全量
   排序/复制前沿。中断恢复测试确认只重放未完成页，完成后 per-run frontier/seen 自动清理；
-- `library.sqlite` 已支持经过 checksum 验证的 v1 → v2 原地迁移，保留已有业务数据；旧版 v1
+- `library.sqlite` 已支持经过 checksum 验证的 v1 → v2 → v3 → v4 → v5 原地迁移，保留已有业务数据；旧版 v1
   checkpoint payload 若被显式加载会返回 conflict 并要求新建 run，避免静默错误恢复。
+- `library.sqlite` schema v3 已加入 per-run `scan_discovery`：枚举页只写 staging，不再提前修改
+  正式 `media_file`；完整成功时，added/changed/moved/unchanged、metadata enqueue、scoped missing、
+  run completion 在同一事务集合化发布。失败/取消会保留 staging 供同一 run 恢复，正式快照不变；
+- schema v3 同时以 partial unique index 强制每个 source 只有一个 active run；v2 → v3 迁移会保留
+  最新 unfinished run 并将更旧的重叠 run 标为 cancelled，避免现有库因历史重叠状态无法迁移。
+- schema v4 为 `media_file` 增加只在 material change 时递增的 revision，`scan_queue` 捕获
+  `input_revision`、claim token、worker、heartbeat 和 lease；SDK 以原子 claim 分发任务，过期 lease
+  可回收，完成、重试与 remote metadata 提交均以 lease + revision compare-and-set 防止陈旧写回。
+  Demo 已切换到 claim/heartbeat，暂停会主动释放任务，provider 错误按退避时间重新入队；
+  对应 lease 独占、过期回收、v3 迁移和 stale worker 拒绝测试已加入。
+- schema v5 为 metadata worker 增加仅覆盖 actionable state 的 `(stage, priority, id)` partial
+  claim 顺序索引，并将 claim 顺序从媒体路径改为队列优先级/插入顺序；50,000 条 ready work
+  上重复 200 次小批选择由 3.80 秒降至
+  约 0.01 秒，SQLite 不再为 Demo 的每个 4-item claim 建立全队列临时排序树；完成任务会从索引
+  直接移除，3,000 个连续 4-item claim 的隔离基准相较非 partial 顺序索引由 1.96 秒降至 0.18 秒。
+- SDK 新增按 source 读取最新可恢复 checkpoint 的类型安全 API：先选择最新 run 再判断状态，
+  不会在较新成功 run 之后误复活旧失败 run；同时可查询包含 deferred retry 和未过期 lease
+  在内的 outstanding metadata work。Demo 启动时会恢复 discovery 进度或直接继续 durable metadata
+  队列，后者不再触发一次多余的 SMB 全量扫描；compact checkpoint 的 Pending UI 也已改读
+  `pendingPageCount`，恢复暂停态仍允许重新输入未持久化的 SMB 密码。
+- SQLite publish 现在仅为确认新增的文件生成 `media_file.uid`；失败 run 和 unchanged 文件不再
+  提前构造、保留和绑定无用 UUID。零 material change 时同时跳过 changed update、new-file insert
+  与 metadata queue supersede/enqueue SQL，只保留 observation/missing 所需工作；Local 枚举也以一个
+  `fileResourceType` 属性代替三个重复文件类型属性。
+- Demo 的 4 路 metadata worker 已移除固定 4-item batch barrier：任一请求完成后立即 claim 一个
+  replacement lease，慢请求不会再让同批其余并发槽位空闲；claim 数仍只等于实际执行槽位，
+  不会重新引入大批内存排队和未启动任务占 lease 的问题。
+- Scanner 与 SQLite sink 现在会把最多 32 个小目录页合并到一个原子 frontier/staging 事务，
+  同时把缓冲条目限制在约一个配置 page size；大型目录页仍立即提交，非 SQLite/custom sink 默认
+  保持逐页 durable。批次内失败只重放尚未提交的页面，不会出现 checkpoint 前进但 staging 未落库。
 
-这一阶段没有宣称完成下文全部计划。扫描 staging、真实目录游标、完整 worker
-lease/revision、后台 scheduler 和本地 metadata intake 仍按后续 Phase 推进。当前目录缓存是
+这一阶段没有宣称完成下文全部计划。真实目录游标、后台 scheduler
+和本地 metadata intake 仍按后续 Phase 推进。当前目录缓存是
 伪分页的 P0 止血方案，不等同于 libsmb2 `open/read-batch/close` 真流式句柄；事务内临时批次表
-也不等同于失败 run 不影响正式快照的 per-run discovery staging。
+已用于成功发布 diff，枚举期持久 staging 则由 `scan_discovery` 承担。
 
 ## 1. 结论摘要
 
 当前实现已经具备一个可靠扫描器应有的若干关键基础：来源无关的扫描抽象、分页任务、检查点、稳定 ID、原子提交“页面数据 + 检查点”、完成后才允许 missing reconciliation、SQLite 幂等写入，以及 full/incremental/repair 三种模式的模型。这些设计应保留。
 
-与 Infuse 的实现思路相比，最大的差距不在“是否能扫到文件”，而在下面四个方面：
+与 Infuse 的实现思路相比，最初确认的四个主要瓶颈及当前状态如下：
 
-1. **传输层分页实际重复读取整个目录。** SMB、WebDAV 和本地适配器的逻辑分页都没有形成真正的流式目录游标。以 SMB 为例，每取一页都会重新列举、映射、排序并指纹化完整目录；大目录因而接近二次复杂度，并重复发起网络 I/O。
-2. **检查点随扫描规模和页面数持续膨胀。** 每一页都把全部已见文件、已见目录、完成页面重新构造成集合、排序、JSON 编码并写入数据库。扁平目录和大量小目录都会产生明显 CPU 与写放大。
-3. **发现结果直接逐文件写入正式表。** 扫描未成功结束前，新路径和移动信息已对外可见；数据库提交以逐行查询/更新为主，missing reconciliation 也先拉到 Swift 再逐行修改。Infuse 更接近“临时索引/快照 → 成功后集合合并”的模型。
-4. **元数据阶段串行、N+1、缺少共享缓存和限流。** Demo 会全量加载媒体库、逐文件查 binding、逐文件调用网络服务，并在每个成功项后重写完整 `poster_metadata.json`。同一剧集的 series/artwork 信息被重复请求，重扫不能有效复用，网络失败又会阻塞完成语义。
+1. **重复读取已修复，真实流式目录游标仍缺失。** Local、SMB、WebDAV 现在每个连接内每目录只获取一次完整快照，逻辑页复用快照；尚未形成 libsmb2 `open/read-batch/close`，极大目录仍有整目录内存峰值。
+2. **检查点膨胀已修复。** compact checkpoint 配合持久 `scan_frontier` / `scan_seen`，不再每页编码、排序和重写全部 seen/completed 集合；当前剩余重点是更大规模故障注入和累计写入指标。
+3. **发现结果的非原子发布差距已修复。** 原实现会在扫描成功前暴露新路径和移动；当前已改为 per-run staging，只有成功完成才通过集合 SQL 发布 added/changed/moved/unchanged 与 scoped missing。
+4. **元数据主要热路径已修复，阶段语义仍待拆分。** SQL JOIN/lease worker、provider cache、限流、single-flight、SQLite 原子提交和增量搜索已落地；required/optional、terminal/dead-letter 及 artwork/probe 独立阶段仍待推进。
 
 本机合成基准已经清晰暴露复杂度问题：扁平文件从 1,000 增至 8,000 时，耗时从 0.48 秒增至 26.93 秒；文件数每翻倍，耗时约增长 4 倍。4,000 个完全未变化文件的重扫仍需 6.69 秒，几乎等于首次扫描的 6.66 秒。1,000 个单文件目录产生了 1,002 个页面，耗时 11.70 秒，最终检查点达到 157,858 字节。
 
@@ -293,10 +343,11 @@ MediaScanner.scan
     └── sink.commit(entries + checkpoint)
           ↓
 SQLiteMediaScanSink / LibraryStore
-    ├── media_file upsert
-    ├── scan queue enqueue
+    ├── page → scan_discovery staging
+    ├── success → set-based media_file publish
+    ├── changed files → scan queue enqueue
     ├── scan_run checkpoint
-    └── successful completion → reconcile missing
+    └── successful completion → reconcile missing + run completion（同事务）
 
 MediaLibraryModel.enrichLibrary
     ↓
@@ -313,7 +364,7 @@ poster_metadata.json + queue completion
 - 支持 full、incremental、repair 模式的数据模型；
 - 根目录预检和身份校验可阻止错误根路径参与 missing 判断；
 - 明确建模 path semantics 和 stable identity；
-- 默认 page size 为 500，并使用有界 task group；
+- 默认 page size 为 2,000，并使用有界 task group；
 - 页面条目和更新后的 checkpoint 在同一数据库事务提交；
 - 失败/取消会保存 checkpoint，不会调用成功完成逻辑；
 - missing reconciliation 仅由完成路径授权；
@@ -399,21 +450,33 @@ ceil(D / P) × O(D log D + network_list(D))
 
 10,000 个单文件目录可能上升到 GB 级累计写放大。实际值取决于 identity 长度和数据库日志行为，但复杂度风险明确存在。
 
-## 5.4 本轮优化后复测（2026-09-01）
+## 5.4 本轮优化后复测（2026-09-01 至 2026-09-02）
 
 复测仍使用 Release 构建、真实 `MediaScanner + LocalMediaSource + SQLiteMediaScanSink`，
 命令行 JSON 输出重定向。结果会受本机负载影响，但复杂度和调用次数改善稳定可复现：
 
 | 场景 | 优化前 | 优化后 | 说明 |
 |---|---:|---:|---|
-| flat 8,000 首扫 | 26.93 s | 2.64 s | 每目录完整读取从 16 次降为 1 次 |
-| flat 8,000 unchanged 重扫 | 未单列 | 1.93 s | 不再重写 material timestamp/重复 enqueue |
+| flat 8,000 首扫 | 26.93 s | 1.88 s | 当前 staging/v4 复测；每目录完整读取从 16 次降为 1 次 |
+| flat 8,000 unchanged 重扫 | 未单列 | 1.82 s | 当前 staging/v4 复测；不重写 material timestamp/重复 enqueue |
 | 2,000 文件两次原子提交 + snapshot 测试 | 约 0.191 s | 约 0.10–0.15 s | 多文件页使用临时批次表集合 merge |
 | 1,000 目录 × 1 文件 | 11.70 s | 1.35 s | 1,002 页；最终 checkpoint 660 B，frontier 增量落库 |
+| 5,000 目录 × 1 文件 | 4.06 s | 2.28–2.29 s | 同一当前实现对照；移除每页三次全 frontier/seen `COUNT(*)` |
+| flat 8,000 follow-up 首扫 | 2.55 s | 1.06–1.08 s（冷样本） | 共享 paginator 预计算排序键；Local 复用预取 stable ID |
+| flat 8,000 follow-up unchanged | 1.75 s | 0.38–0.41 s | user CPU 约 1.44 → 0.33 s，system CPU 约 0.28 → 0.04 s |
+| flat 8,000 本轮 unchanged | 0.36 s | 0.29 s | 规范化路径快路、2,000 条 batch 和 WAL checkpoint 调整 |
+| flat 100,000 本轮 unchanged | 5.00 s / 369 MB RSS | 4.56 s / 317 MB RSS | 同一 CLI 端到端命令（含最终 snapshot 构造）；指令数约下降 21% |
+| flat 50,000 首扫 follow-up | 2.73 s / 27.46B instructions | 2.53 s / 24.36B instructions | path name/parent/extension 改用 UTF-8 ASCII 分隔符定位；墙钟受缓存影响，指令数约下降 11% |
+| 50,000 ready work × 200 次 claim SELECT | 3.80 s | 约 0.01 s | v5 顺序索引消除每个小批 claim 的全队列媒体路径排序 |
+| flat 50,000 SDK discovery 首扫（不构造最终 CLI snapshot） | 2.28 s / 21.33B instructions | 2.27 s / 20.14B instructions | ASCII comparison、直接父路径校验和 adapter validated fast path；冷态墙钟受 I/O 影响，指令数下降约 5.6% |
+| flat 50,000 SDK discovery unchanged（不构造最终 CLI snapshot） | 1.44 s / 18.90B instructions | 1.38 s / 17.76B instructions | 同一令流对照，墙钟约下降 4%，指令数约下降 6% |
+| flat 50,000 CLI unchanged follow-up（包含最终 snapshot） | 1.60 s / 21.07B instructions / 205 MB max RSS | 1.51 s / 19.87B instructions / 197 MB max RSS | 新文件 UID 延迟到集合发布、零变更 SQL 快路和 Local 类型属性合并；指令数下降约 5.7%，RSS 下降约 4% |
+| flat 50,000 CLI 首扫 follow-up（包含最终 snapshot） | 1.79 s / 23.43B instructions | 1.80 s / 23.46B instructions | 同批改动未以 unchanged 快路换取首扫退化；墙钟与指令数均在采样噪声内持平 |
+| 5,000 目录 × 1 文件 SDK 首扫 follow-up | 1.58 s / 19.76B instructions | 0.85 s / 10.48B instructions | SQLite sink 合并最多 32 个小页面事务；墙钟下降约 46%，指令数下降约 47%，峰值 RSS 基本持平 |
 
-8k 已接近但尚未稳定满足 2.5 秒初始预算。compact checkpoint 和持久 frontier 已消除大量
-小目录场景的主要非线性开销；下一优先级转为 Phase 3 的 per-run discovery staging 和成功后
-集合发布，不能把当前直接更新正式 `media_file` 的批次事务误认为 staging 已完成。
+8k 当前已满足 2.5 秒初始预算。compact checkpoint、持久 frontier 与 per-run discovery staging
+已消除主要非线性写放大并补齐失败 run 的发布边界；下一优先级是 scheduler、本地 metadata
+intake 和真实目录游标。
 
 ---
 
@@ -421,11 +484,11 @@ ceil(D / P) × O(D log D + network_list(D))
 
 | 主题 | Infuse 观察 | 我方当前实现 | 影响 | 优先级 |
 |---|---|---|---|---|
-| 目录分页 | 批量 enumerator/crawler，保存 section/depth/offset | 每个逻辑页可能重新完整 list/sort | 大目录近二次复杂度，SMB 重复网络 I/O | P0 |
-| SMB 并发 | 有界队列，按来源能力调度 | Scanner 默认 4；单 libsmb2 context 实际串行 | 表面并发与真实吞吐不一致 | P0 |
-| 扫描状态 | 持久爬取状态和 crash 状态 | checkpoint 完整保存 seen/completed 数组 | 每页 O(N) 编码、排序和写入 | P0 |
-| 正式索引 | temp FileIndex，成功后集合合并 | 扫描中逐文件写正式 `media_file` | 中途失败仍暴露部分路径变化 | P0 |
-| 差异合并 | SQL EXCEPT/批量更新 | Swift 拉候选，再逐 ID 更新 | 内存、事务和语句数量放大 | P0 |
+| 目录分页 | 批量 enumerator/crawler，保存 section/depth/offset | 单次完整 snapshot 已落地，真流式 handle 未完成 | 重复 I/O 已消除；极大目录仍有内存峰值 | P1（止血完成） |
+| SMB 并发 | 有界队列，按来源能力调度 | 单 libsmb2 context capability 已限制为 1 | 无效并发已消除；多 session 仅待真实 NAS 数据 | P1（核心完成） |
+| 扫描状态 | 持久爬取状态和 crash 状态 | compact checkpoint + 持久 frontier/seen | 核心写放大已消除；待更大故障注入 | P0（核心完成） |
+| 正式索引 | temp FileIndex，成功后集合合并 | 已使用 per-run `scan_discovery`，成功后发布 | 核心发布边界已对齐；待补大规模故障注入 | P0（核心完成） |
+| 差异合并 | SQL EXCEPT/批量更新 | added/changed/moved/unchanged 与 missing 已集合化 | 待补 100k diff/RSS 基准 | P0（核心完成） |
 | 元数据阶段 | 主元数据、缩略图、次级索引分离 | `.parse` 混合在线匹配/artwork | 慢服务阻塞整体完成 | P0/P1 |
 | 提供商控制 | QPS queue、429 处理、回退 | 无统一 QPS、Retry-After 和退避 | 易触发限流，失败风暴 | P0/P1 |
 | 共享实体复用 | 以媒体实体/剧集层组织 | 同剧集逐 episode 重取 series/artwork | N+1 网络请求 | P0/P1 |
@@ -442,9 +505,9 @@ ceil(D / P) × O(D log D + network_list(D))
 
 ## 7. 关键问题详解
 
-## 7.1 P0：SMB 伪分页
+## 7.1 P0：SMB 伪分页（止血完成，真流式待落地）
 
-当前 `SMB2MediaSourceSession.listDirectory` 对每个 cursor page 都调用底层 `session.listDirectory(at:)`，然后对整个目录：
+原 `SMB2MediaSourceSession.listDirectory` 对每个 cursor page 都调用底层 `session.listDirectory(at:)`，然后对整个目录：
 
 1. 映射协议条目；
 2. 排序；
@@ -453,10 +516,13 @@ ceil(D / P) × O(D log D + network_list(D))
 
 如果目录有 8,000 项、page size 500，就会完整读取并排序 16 次。第一页之后的 15 次并没有获得新的服务器快照，只是在重复构造同一结果。
 
-本地和 WebDAV 适配器也存在类似问题：
+原本地和 WebDAV 适配器也存在类似问题：
 
 - 本地来源在每个逻辑页重建目录快照；
 - WebDAV 的 `Depth: 1 PROPFIND` 通常不提供标准服务器分页，逻辑分页会重复整个 PROPFIND 响应。
+
+当前三类来源已采用下述短期快照方案，每个目录只读取一次；本轮又消除了快照排序中重复计算
+comparison key 的 `O(N log N)` 高常数。剩余工作仅是 libsmb2 真流式 handle，以降低极大目录 RSS。
 
 ### 修复方向
 
@@ -537,9 +603,11 @@ scan_seen(run_id, source_id, stable_key, normalized_path, kind, ...)
 
 如果暂时不希望把它们放入长期 schema，也可以使用每次 run 的临时 SQLite/staging database；关键是恢复状态必须有持久边界，且不能随 page × entries 二次增长。
 
-## 7.4 P0：逐文件正式表写入与非原子发布
+## 7.4 P0：逐文件正式表写入与非原子发布（核心已修复）
 
-`LibraryStore.commit` 当前对每个文件执行查询后 UPDATE/INSERT。即使文件内容没有变化，也会更新 last_seen/updated_at。与此同时，扫描尚未完成时新路径和移动结果已经进入正式 `media_file`。
+原 `LibraryStore.commit` 会在枚举页中直接 UPDATE/INSERT 正式表。当前 schema v3 已将文件事实写入
+per-run `scan_discovery`；只有 completed batch 才用集合 SQL 发布，unchanged 只推进 observation，
+material change 才更新时间戳和 enqueue metadata work。
 
 正确性风险示例：
 
@@ -554,14 +622,13 @@ scan_seen(run_id, source_id, stable_key, normalized_path, kind, ...)
 
 missing 已经受到完成边界保护，但 path/new-file/move 还没有同等强度的发布边界。
 
-### 修复方向
+### 已落地与剩余方向
 
-- 每页批量写 `scan_seen`/staging；
-- 完成后用一笔或少量集合化事务合并至 `media_file`；
-- 使用 SQL UPSERT 的条件更新，仅在内容、路径或 material revision 变化时修改主记录；
-- `last_seen_run_id` 可在集合语句中批量推进；
-- missing 用一次带 scope 的 set-based UPDATE 完成，不把所有候选读进 Swift；
-- scoped scan 先建立权威 candidate scope，避免 source-wide 读取后在内存过滤。
+- 已完成：每页批量写持久 staging，page replay 按 `(run_id, stable_key)` 幂等；
+- 已完成：完成时用单事务集合化合并 `media_file`、enqueue、scoped missing 和 run completion；
+- 已完成：material 条件更新与 unchanged `last_seen_run_id` 快速路径；
+- 已完成：同一 source active run 数据库唯一约束和 v2 历史重叠状态迁移；
+- 待完成：100k diff/RSS 基准、更细 added/moved/unchanged metrics、空根异常保护和 provisional visibility 可选策略。
 
 若产品要求“新发现文件尽快可见”，可以单独允许安全的 progressive insert，但必须把它与权威 path/missing 合并语义明确分开，并记录 `provisional_run_id`。默认更推荐完整快照发布。
 
@@ -713,12 +780,11 @@ SDK parser 已能识别常见 `SxxExx` 和 `x` 形式，但当前观察到的不
 6. 在线模糊搜索；
 7. unmatched placeholder。
 
-## 7.10 P1：队列并发、租约和陈旧结果保护不足
+## 7.10 P1：队列并发、租约和陈旧结果保护（核心已修复）
 
-虽然 `scan_queue` 有 lease 相关字段，但 Demo 没有形成完整的 claim/heartbeat/lease-expiry worker 流程。还缺少：
+schema v4 和 SDK 公共 API 已形成 claim/heartbeat/lease-expiry 流程，并以 `material_revision` /
+`input_revision` compare-and-set 阻止陈旧 worker 写回。Demo 已实际使用该流程。仍缺少：
 
-- `observed_revision` / `input_revision`；
-- worker 写回时比较 revision；
 - 任务 required/optional 标记；
 - provider/request key；
 - terminal failure 与 retryable failure 区分；
@@ -859,7 +925,9 @@ Library Views / UI
 
 ## Phase 2：压缩 checkpoint 与持久 frontier（P0，预计 4–7 天）
 
-> 进度：核心数据路径已完成；更大规模故障注入和累计写入埋点继续纳入回归护栏。
+> 进度：核心数据路径已完成；每页 frontier/seen 全量计数已改为增量差量校验，小目录页进一步
+> 使用有界的 32-page 原子事务批次；5,000 个单文件目录在本轮同机对照中由 1.58 秒降至
+> 0.85 秒。更大规模故障注入和累计写入埋点继续纳入回归护栏。
 
 ### 工作项
 
@@ -880,6 +948,9 @@ Library Views / UI
 - 恢复后的最终索引与一次完成扫描完全一致。
 
 ## Phase 3：staging 索引和集合化发布（P0，预计 1–2 周）
+
+> 进度：per-run staging、集合化成功发布、scoped missing、material-change enqueue、单 source
+> active run 约束和 worker revision/lease 已完成；100k 基准与更大规模故障注入仍待推进。
 
 ### 工作项
 
@@ -905,6 +976,10 @@ Library Views / UI
 - missing 发布与 scan success 在同一可证明事务边界内。
 
 ## Phase 4：重构元数据/刮削流水线（P0/P1，预计 2–3 周）
+
+> 进度：SQL JOIN 任务读取、claim/heartbeat/lease expiry、`input_revision` CAS、provider
+> cache/限流/single-flight、结构化 metadata 原子提交和增量搜索已完成；阶段拆分、required/optional
+> 与 terminal/dead-letter 语义仍待推进。
 
 ### 工作项
 
@@ -933,6 +1008,10 @@ Library Views / UI
 - stale worker 不能覆盖新匹配或新文件 revision。
 
 ## Phase 5：增量调度、恢复和后台策略（P1，预计 1–2 周）
+
+> 进度：按 source 的最新 unfinished run 恢复和 metadata queue 启动恢复已接入 Demo；恢复只使用
+> checkpoint 中的非秘密 request/scope，SMB 密码仍需用户重新输入。trigger merge、后台 scheduler、
+> full/incremental/repair UI 和任务中心仍待推进。
 
 ### 工作项
 

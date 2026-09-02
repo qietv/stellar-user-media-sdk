@@ -59,6 +59,7 @@ struct LocalMediaSourceContractTests {
       at: arrival.locator,
       range: RemoteByteRange(offset: 1, length: 3)
     )
+    #expect(stat.stableID == arrival.stableID)
     #expect(stat.size == 7)
     #expect(String(decoding: data, as: UTF8.self) == "rri")
 

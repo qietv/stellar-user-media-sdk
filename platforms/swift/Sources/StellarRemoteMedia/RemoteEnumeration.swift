@@ -68,7 +68,7 @@ public struct RemotePath: Codable, Equatable, Hashable, Sendable, CustomStringCo
 
   /// Creates a root-relative path, removing redundant separators and `.` components.
   public init(_ path: String = "") throws {
-    guard !path.hasPrefix("/"), !path.contains("\0") else {
+    guard !path.hasPrefix("/"), !path.utf8.contains(0) else {
       throw SDKError(code: .invalidConfiguration, message: "remote path must be root-relative")
     }
 
@@ -86,6 +86,10 @@ public struct RemotePath: Codable, Equatable, Hashable, Sendable, CustomStringCo
     relativePath = components.joined(separator: "/")
   }
 
+  package init(validatedRelativePath: String) {
+    relativePath = validatedRelativePath
+  }
+
   /// Whether this path identifies the configured source root.
   public var isRoot: Bool { relativePath.isEmpty }
 
@@ -95,51 +99,59 @@ public struct RemotePath: Codable, Equatable, Hashable, Sendable, CustomStringCo
   }
 
   /// The final display-path component, or an empty string for the root.
-  public var name: String { components.last ?? "" }
+  public var name: String {
+    guard let separator = relativePath.utf8.lastIndex(of: 47) else { return relativePath }
+    return String(relativePath[relativePath.index(after: separator)...])
+  }
 
   /// The parent path, or `nil` when this is the root.
   public var parent: RemotePath? {
     guard !isRoot else {
       return nil
     }
-    return try? RemotePath(components.dropLast().joined(separator: "/"))
+    guard let separator = relativePath.utf8.lastIndex(of: 47) else {
+      return RemotePath(validatedRelativePath: "")
+    }
+    return RemotePath(validatedRelativePath: String(relativePath[..<separator]))
   }
 
   /// Returns a child path without accepting separators, NUL, or traversal components.
   public func appending(component: String) throws -> RemotePath {
     guard !component.isEmpty, component != ".", component != "..",
-      !component.contains("/"), !component.contains("\0")
+      !component.utf8.contains(47), !component.utf8.contains(0)
     else {
       throw SDKError(code: .invalidConfiguration, message: "invalid remote path component")
     }
-    return try RemotePath(isRoot ? component : "\(relativePath)/\(component)")
+    return RemotePath(
+      validatedRelativePath: isRoot ? component : "\(relativePath)/\(component)"
+    )
   }
 
   /// Produces a same-source comparison key without changing the display path.
   public func comparisonKey(using semantics: RemotePathSemantics) -> String {
-    components
-      .map { component in
-        var result = Self.normalize(component, using: semantics.unicodeNormalization)
-        if semantics.caseSensitivity == .insensitive {
-          result = result.folding(
-            options: [.caseInsensitive],
-            locale: Locale(identifier: "en_US_POSIX")
-          )
-          result = Self.normalize(result, using: semantics.unicodeNormalization)
-        }
-        return result
-      }
-      .joined(separator: "/")
+    if let asciiKey = Self.asciiComparisonKey(
+      relativePath,
+      caseInsensitive: semantics.caseSensitivity == .insensitive
+    ) {
+      return asciiKey
+    }
+    var result = Self.normalize(relativePath, using: semantics.unicodeNormalization)
+    if semantics.caseSensitivity == .insensitive {
+      result = result.folding(
+        options: [.caseInsensitive],
+        locale: Locale(identifier: "en_US_POSIX")
+      )
+      result = Self.normalize(result, using: semantics.unicodeNormalization)
+    }
+    return result
   }
 
   /// Tests descendant scope using path components rather than string prefixes.
   public func isDescendant(of ancestor: RemotePath, using semantics: RemotePathSemantics) -> Bool {
-    let candidateComponents = comparisonKey(using: semantics).split(separator: "/")
-    let ancestorComponents = ancestor.comparisonKey(using: semantics).split(separator: "/")
-    guard candidateComponents.count > ancestorComponents.count else {
-      return false
-    }
-    return candidateComponents.starts(with: ancestorComponents)
+    guard !isRoot else { return false }
+    let candidateKey = comparisonKey(using: semantics)
+    let ancestorKey = ancestor.comparisonKey(using: semantics)
+    return ancestorKey.isEmpty || candidateKey.hasPrefix("\(ancestorKey)/")
   }
 
   /// A redacted representation safe for routine diagnostics.
@@ -178,6 +190,26 @@ public struct RemotePath: Codable, Equatable, Hashable, Sendable, CustomStringCo
       value
     }
   }
+
+  /// ASCII is already NFC/NFD, and its locale-independent case fold is A-Z to a-z.
+  /// Avoid Foundation's Unicode normalization machinery for the overwhelmingly common
+  /// media-path case while preserving the full Unicode path below as a fallback.
+  private static func asciiComparisonKey(
+    _ value: String,
+    caseInsensitive: Bool
+  ) -> String? {
+    var containsUppercase = false
+    for byte in value.utf8 {
+      guard byte < 0x80 else { return nil }
+      containsUppercase = containsUppercase || (0x41...0x5A).contains(byte)
+    }
+    guard caseInsensitive, containsUppercase else { return value }
+    var bytes = Array(value.utf8)
+    for index in bytes.indices where (0x41...0x5A).contains(bytes[index]) {
+      bytes[index] += 0x20
+    }
+    return String(decoding: bytes, as: UTF8.self)
+  }
 }
 
 /// A source-qualified locator. Equal paths from different sources remain different locators.
@@ -194,6 +226,11 @@ public struct RemoteLocator: Codable, Equatable, Hashable, Sendable, CustomStrin
       throw SDKError(code: .invalidConfiguration, message: "remote source UID is invalid")
     }
     self.sourceUID = sourceUID
+    self.path = path
+  }
+
+  package init(validatedSourceUID: String, path: RemotePath) {
+    sourceUID = validatedSourceUID
     self.path = path
   }
 

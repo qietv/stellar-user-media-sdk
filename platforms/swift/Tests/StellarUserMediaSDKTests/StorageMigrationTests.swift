@@ -49,7 +49,7 @@ struct StorageMigrationTests {
     #expect(try await database.verify().isValid)
   }
 
-  @Test("An existing library v1 database migrates in place to v2")
+  @Test("An existing library v1 database migrates in place to v5")
   func existingLibraryV1MigratesInPlace() async throws {
     let directory = temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -78,14 +78,177 @@ struct StorageMigrationTests {
 
     let migrated = try await StorageDatabase.open(kind: .library, at: url)
     let report = try await migrated.verify()
-    #expect(report.userVersion == 2)
-    #expect(report.businessTableCount == 29)
+    #expect(report.userVersion == 5)
+    #expect(report.businessTableCount == 30)
     #expect(report.isValid)
     let preserved = try await migrated.read { database in
       try String.fetchOne(
         database, sql: "SELECT display_name FROM library_source WHERE uid = 'preserved'")
     }
     #expect(preserved == "Preserved")
+  }
+
+  @Test("An existing library v2 database preserves data and normalizes overlapping active runs")
+  func existingLibraryV2MigratesInPlace() async throws {
+    let directory = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("library.sqlite")
+    let schemaRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("specs/storage/sql")
+    let v1SQL = try String(
+      contentsOf: schemaRoot.appendingPathComponent("library-v1.sql"),
+      encoding: .utf8
+    )
+    let v2SQL = try String(
+      contentsOf: schemaRoot.appendingPathComponent("library-v2.sql"),
+      encoding: .utf8
+    )
+    let queue = try DatabaseQueue(path: url.path)
+    try await queue.write { database in
+      try database.execute(sql: v1SQL)
+      try database.execute(
+        sql: "INSERT INTO schema_migration(version, applied_at_ms, checksum) VALUES (1, 1, ?)",
+        arguments: ["860af5576de63d4aa64342204e27ff8a054df188fba0840f07545647bb5a1484"]
+      )
+      try database.execute(sql: v2SQL)
+      try database.execute(
+        sql: "INSERT INTO schema_migration(version, applied_at_ms, checksum) VALUES (2, 2, ?)",
+        arguments: ["8a9f0dac4e9af7c69d2c8a855335e10e9c44adf286eb0339c38beb7afc5688d9"]
+      )
+      try database.execute(
+        sql:
+          "INSERT INTO library_source(uid, kind, display_name, root_uri, created_at_ms, updated_at_ms) VALUES ('v2-source', 'smb', 'V2', 'smb://v2', 1, 1)"
+      )
+      try database.execute(
+        sql: """
+          INSERT INTO scan_run(
+            uid, source_id, mode, state, checkpoint_json, coverage_json, started_at_ms
+          )
+          SELECT ?, id, 'full', ?, '{}', '{}', ?
+          FROM library_source WHERE uid = 'v2-source'
+          """,
+        arguments: ["older-active", "enumerating", 10]
+      )
+      try database.execute(
+        sql: """
+          INSERT INTO scan_run(
+            uid, source_id, mode, state, checkpoint_json, coverage_json, started_at_ms
+          )
+          SELECT ?, id, 'full', ?, '{}', '{}', ?
+          FROM library_source WHERE uid = 'v2-source'
+          """,
+        arguments: ["newer-active", "queued", 20]
+      )
+    }
+
+    let migrated = try await StorageDatabase.open(kind: .library, at: url)
+    let report = try await migrated.verify()
+    #expect(report.userVersion == 5)
+    #expect(report.businessTableCount == 30)
+    #expect(report.isValid)
+    let states = try await migrated.read { database in
+      try Row.fetchAll(
+        database,
+        sql: "SELECT uid, state FROM scan_run ORDER BY id"
+      ).map { row in (row["uid"] as String, row["state"] as String) }
+    }
+    #expect(states.map(\.0) == ["older-active", "newer-active"])
+    #expect(states.map(\.1) == ["cancelled", "queued"])
+  }
+
+  @Test("An existing library v3 queue becomes revisioned and reclaimable")
+  func existingLibraryV3QueueMigratesInPlace() async throws {
+    let directory = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("library.sqlite")
+    let schemaRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("specs/storage/sql")
+    let queue = try DatabaseQueue(path: url.path)
+    try await queue.write { database in
+      for name in ["library-v1.sql", "library-v2.sql", "library-v3.sql"] {
+        try database.execute(
+          sql: try String(
+            contentsOf: schemaRoot.appendingPathComponent(name),
+            encoding: .utf8
+          )
+        )
+      }
+      for (version, checksum) in [
+        (1, "860af5576de63d4aa64342204e27ff8a054df188fba0840f07545647bb5a1484"),
+        (2, "8a9f0dac4e9af7c69d2c8a855335e10e9c44adf286eb0339c38beb7afc5688d9"),
+        (3, "b0707478dc02df733d69adb1a1d7fab0d359cc7f3cad010b34040b628e80cd69"),
+      ] {
+        try database.execute(
+          sql: "INSERT INTO schema_migration(version, applied_at_ms, checksum) VALUES (?, ?, ?)",
+          arguments: [version, version, checksum]
+        )
+      }
+      try database.execute(
+        sql: """
+          INSERT INTO library_source(
+            uid, kind, display_name, root_uri, created_at_ms, updated_at_ms
+          ) VALUES ('v3-source', 'smb', 'V3', 'smb://v3', 1, 1)
+          """
+      )
+      try database.execute(
+        sql: """
+          INSERT INTO scan_run(
+            uid, source_id, mode, state, checkpoint_json, coverage_json, started_at_ms,
+            finished_at_ms
+          )
+          SELECT 'v3-run', id, 'full', 'completed', '{}', '{}', 1, 2
+          FROM library_source WHERE uid = 'v3-source'
+          """
+      )
+      try database.execute(
+        sql: """
+          INSERT INTO media_file(
+            uid, source_id, stable_key, relative_path, path_compare_key, display_name,
+            availability, updated_at_ms
+          )
+          SELECT 'v3-file', id, 'persistent:v3-file', 'Movie.mkv', 'Movie.mkv',
+                 'Movie.mkv', 'present', 2
+          FROM library_source WHERE uid = 'v3-source'
+          """
+      )
+      try database.execute(
+        sql: """
+          INSERT INTO scan_queue(
+            run_id, media_file_id, stage, state, lease_until_ms, updated_at_ms
+          )
+          SELECT run.id, file.id, 'parse', 'running', 999999, 3
+          FROM scan_run run, media_file file
+          WHERE run.uid = 'v3-run' AND file.uid = 'v3-file'
+          """
+      )
+    }
+
+    let migrated = try await StorageDatabase.open(kind: .library, at: url)
+    #expect(try await migrated.verify().isValid)
+    let store = try LibraryStore(
+      database: migrated,
+      clock: StorageFixedClock(now: 10_000)
+    )
+    let leases = try await store.claimScanFileWork(
+      sourceUID: "v3-source",
+      stage: .parse,
+      workerID: "migration-worker",
+      leaseDurationMilliseconds: 1_000
+    )
+    #expect(leases.count == 1)
+    #expect(leases.first?.inputRevision == 1)
   }
 
   @Test("Database application IDs prevent cross-domain migration")
@@ -145,7 +308,7 @@ struct StorageMigrationTests {
       )
     }
     #expect(checksum == "corrupt")
-    #expect(tableCount == 29)
+    #expect(tableCount == 30)
     #expect(try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == sizeBefore)
   }
 
@@ -175,7 +338,7 @@ struct StorageMigrationTests {
   private func expectedTableCount(_ kind: StorageDatabaseKind) -> Int {
     switch kind {
     case .account: 6
-    case .library: 29
+    case .library: 30
     case .metadataCache: 3
     }
   }

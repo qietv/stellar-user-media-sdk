@@ -59,6 +59,7 @@ public struct LibraryScanPersistenceBatch: Sendable {
   public let processedPageCount: Int64?
   public let errorCode: String?
   public let enumerationState: LibraryScanEnumerationState?
+  package let pageTransitions: [LibraryScanPageTransition]
   public let pageTransition: LibraryScanPageTransition?
 
   public init(
@@ -113,6 +114,44 @@ public struct LibraryScanPersistenceBatch: Sendable {
     enumerationState: LibraryScanEnumerationState?,
     pageTransition: LibraryScanPageTransition?
   ) throws {
+    try self.init(
+      runUID: runUID,
+      sourceUID: sourceUID,
+      mode: mode,
+      state: state,
+      checkpointJSON: checkpointJSON,
+      coverageJSON: coverageJSON,
+      entries: entries,
+      capabilities: capabilities,
+      coveredRoots: coveredRoots,
+      reconcileMissingEligible: reconcileMissingEligible,
+      discoveredEntryCount: discoveredEntryCount,
+      pendingPageCount: pendingPageCount,
+      processedPageCount: processedPageCount,
+      errorCode: errorCode,
+      enumerationState: enumerationState,
+      pageTransitions: pageTransition.map { [$0] } ?? []
+    )
+  }
+
+  package init(
+    runUID: String,
+    sourceUID: String,
+    mode: String,
+    state: String,
+    checkpointJSON: String,
+    coverageJSON: String,
+    entries: [RemoteEntry],
+    capabilities: MediaSourceCapabilities?,
+    coveredRoots: [RemoteLocator] = [],
+    reconcileMissingEligible: Bool = false,
+    discoveredEntryCount: Int64,
+    pendingPageCount: Int?,
+    processedPageCount: Int64?,
+    errorCode: String? = nil,
+    enumerationState: LibraryScanEnumerationState?,
+    pageTransitions: [LibraryScanPageTransition]
+  ) throws {
     let modes = ["full", "incremental", "repair"]
     let states = ["queued", "enumerating", "finalizing", "completed", "failed", "cancelled"]
     guard !runUID.isEmpty, !sourceUID.isEmpty, modes.contains(mode), states.contains(state),
@@ -126,12 +165,10 @@ public struct LibraryScanPersistenceBatch: Sendable {
           $0.directory.sourceUID == sourceUID
         }
       }) ?? true,
-      pageTransition.map({ transition in
-        ([transition.completedPage] + transition.enqueuedPages).allSatisfy {
-          $0.directory.sourceUID == sourceUID
-        }
-      }) ?? true,
-      enumerationState == nil || pageTransition == nil,
+      pageTransitions.flatMap({ [$0.completedPage] + $0.enqueuedPages }).allSatisfy({
+        $0.directory.sourceUID == sourceUID
+      }),
+      enumerationState == nil || pageTransitions.isEmpty,
       !reconcileMissingEligible || state == "completed",
       !reconcileMissingEligible || capabilities != nil
     else {
@@ -152,7 +189,8 @@ public struct LibraryScanPersistenceBatch: Sendable {
     self.processedPageCount = processedPageCount
     self.errorCode = errorCode
     self.enumerationState = enumerationState
-    self.pageTransition = pageTransition
+    self.pageTransitions = pageTransitions
+    pageTransition = pageTransitions.count == 1 ? pageTransitions[0] : nil
   }
 }
 
@@ -298,6 +336,64 @@ public struct LibraryScanFileWorkItem: Equatable, Sendable {
     self.file = file
     self.attempts = attempts
     self.hasMatchingBinding = hasMatchingBinding
+  }
+}
+
+/// Exclusive, time-bounded ownership of one file-stage task.
+///
+/// Workers must use the lease-aware completion APIs so results are committed only
+/// while the claim is current and the file's material input revision still matches.
+public struct LibraryScanWorkLease: Equatable, Sendable {
+  package let queueID: Int64
+  public let file: LibraryFileFact
+  public let stage: LibraryScanQueueStage
+  public let attempts: Int
+  public let hasMatchingBinding: Bool
+  public let inputRevision: Int64
+  public let workerID: String
+  public let claimToken: String
+  public let leaseUntilMilliseconds: Int64
+
+  package init(
+    queueID: Int64,
+    file: LibraryFileFact,
+    stage: LibraryScanQueueStage,
+    attempts: Int,
+    hasMatchingBinding: Bool,
+    inputRevision: Int64,
+    workerID: String,
+    claimToken: String,
+    leaseUntilMilliseconds: Int64
+  ) throws {
+    guard queueID > 0, attempts >= 0, inputRevision > 0,
+      !workerID.isEmpty, !workerID.contains("\0"),
+      !claimToken.isEmpty, !claimToken.contains("\0"), leaseUntilMilliseconds > 0
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "scan work lease is invalid")
+    }
+    self.queueID = queueID
+    self.file = file
+    self.stage = stage
+    self.attempts = attempts
+    self.hasMatchingBinding = hasMatchingBinding
+    self.inputRevision = inputRevision
+    self.workerID = workerID
+    self.claimToken = claimToken
+    self.leaseUntilMilliseconds = leaseUntilMilliseconds
+  }
+
+  package func renewed(until leaseUntilMilliseconds: Int64) throws -> Self {
+    try Self(
+      queueID: queueID,
+      file: file,
+      stage: stage,
+      attempts: attempts,
+      hasMatchingBinding: hasMatchingBinding,
+      inputRevision: inputRevision,
+      workerID: workerID,
+      claimToken: claimToken,
+      leaseUntilMilliseconds: leaseUntilMilliseconds
+    )
   }
 }
 
@@ -727,7 +823,6 @@ public struct LibraryStore: Sendable {
   /// Atomically writes entries, the checkpoint that acknowledges them, and optional completion.
   public func commit(_ batch: LibraryScanPersistenceBatch) async throws {
     let now = clock.nowMilliseconds()
-    let generatedUIDs = batch.entries.map { _ in uuidGenerator.makeUUID().uuidString.lowercased() }
     do {
       try await database.write { database in
         guard
@@ -742,10 +837,16 @@ public struct LibraryStore: Sendable {
 
         let existingRun = try Row.fetchOne(
           database,
-          sql: "SELECT id, source_id, mode, state, checkpoint_json FROM scan_run WHERE uid = ?",
+          sql: """
+            SELECT id, source_id, mode, state, checkpoint_json, discovered_count
+            FROM scan_run
+            WHERE uid = ?
+            """,
           arguments: [batch.runUID]
         )
         let runID: Int64
+        let previousEnumerationProgress: StoredCheckpointProgress?
+        let previousDiscoveredCount: Int64
         if let existingRun {
           let storedSourceID: Int64 = existingRun["source_id"]
           let storedMode: String = existingRun["mode"]
@@ -761,7 +862,17 @@ public struct LibraryStore: Sendable {
             return
           }
           runID = existingRun["id"]
+          previousDiscoveredCount = existingRun["discovered_count"]
+          previousEnumerationProgress =
+            batch.pageTransitions.isEmpty
+            ? nil : try Self.decodeStoredCheckpointProgress(storedCheckpoint)
         } else {
+          try Self.requireNoOtherActiveRun(
+            sourceID: sourceID,
+            excludingRunID: nil,
+            requestedState: batch.state,
+            database: database
+          )
           try database.execute(
             sql: """
               INSERT INTO scan_run(
@@ -775,10 +886,32 @@ public struct LibraryStore: Sendable {
             ]
           )
           runID = database.lastInsertedRowID
+          previousEnumerationProgress = nil
+          previousDiscoveredCount = 0
         }
 
-        let hasEnumerationMutation = batch.enumerationState != nil || batch.pageTransition != nil
+        try Self.requireNoOtherActiveRun(
+          sourceID: sourceID,
+          excludingRunID: runID,
+          requestedState: batch.state,
+          database: database
+        )
+        try Self.requireRunIsNotSuperseded(
+          sourceID: sourceID,
+          runID: runID,
+          requestedState: batch.state,
+          database: database
+        )
+
+        let hasEnumerationMutation =
+          batch.enumerationState != nil || !batch.pageTransitions.isEmpty
         if let state = batch.enumerationState {
+          try Self.validateEnumerationSnapshot(
+            state,
+            pendingPageCount: batch.pendingPageCount,
+            processedPageCount: batch.processedPageCount,
+            discoveredEntryCount: batch.discoveredEntryCount
+          )
           try Self.replaceEnumerationState(
             state,
             runID: runID,
@@ -786,56 +919,74 @@ public struct LibraryStore: Sendable {
             database: database
           )
         }
-        if let transition = batch.pageTransition {
-          try Self.applyEnumerationTransition(
-            transition,
-            runID: runID,
-            now: now,
-            database: database
+        if !batch.pageTransitions.isEmpty {
+          guard let previousEnumerationProgress else {
+            throw SDKError(code: .storageFailure, message: "scan frontier progress is missing")
+          }
+          var insertedPageCount = 0
+          var insertedSeenCount: Int64 = 0
+          for transition in batch.pageTransitions {
+            let applied = try Self.applyEnumerationTransition(
+              transition,
+              runID: runID,
+              now: now,
+              database: database
+            )
+            insertedPageCount += applied.insertedPageCount
+            insertedSeenCount += applied.insertedSeenCount
+          }
+          try Self.validateEnumerationTransitions(
+            previous: previousEnumerationProgress,
+            previousDiscoveredCount: previousDiscoveredCount,
+            completedPageCount: batch.pageTransitions.count,
+            insertedPageCount: insertedPageCount,
+            insertedSeenCount: insertedSeenCount,
+            pendingPageCount: batch.pendingPageCount,
+            processedPageCount: batch.processedPageCount,
+            discoveredEntryCount: batch.discoveredEntryCount
           )
         }
-        if hasEnumerationMutation {
-          guard let pendingPageCount = batch.pendingPageCount,
-            let processedPageCount = batch.processedPageCount
-          else {
-            throw SDKError(code: .storageFailure, message: "scan frontier counters are missing")
-          }
-          try Self.validateEnumerationCounts(
-            runID: runID,
-            pendingCount: pendingPageCount,
-            processedCount: processedPageCount,
-            discoveredCount: batch.discoveredEntryCount,
-            database: database
-          )
+        if hasEnumerationMutation,
+          batch.pendingPageCount == nil || batch.processedPageCount == nil
+        {
+          throw SDKError(code: .storageFailure, message: "scan frontier counters are missing")
         }
 
         var changedCount = 0
         if let capabilities = batch.capabilities {
-          changedCount = try Self.upsert(
+          try Self.stage(
             entries: batch.entries,
-            generatedUIDs: generatedUIDs,
-            sourceID: sourceID,
             runID: runID,
             capabilities: capabilities,
-            now: now,
             database: database
           )
         } else if batch.entries.contains(where: { $0.kind == .file }) {
           throw SDKError(code: .storageFailure, message: "file batch has no source capabilities")
         }
 
-        if batch.reconcileMissingEligible {
-          guard let capabilities = batch.capabilities else {
-            throw SDKError(code: .storageFailure, message: "completion has no source capabilities")
-          }
-          try Self.reconcileMissing(
+        if batch.state == "completed" {
+          changedCount = try Self.publishStagedFiles(
             sourceID: sourceID,
             runID: runID,
-            roots: batch.coveredRoots,
-            semantics: capabilities.pathSemantics,
             now: now,
             database: database
           )
+          if batch.reconcileMissingEligible {
+            guard let capabilities = batch.capabilities else {
+              throw SDKError(
+                code: .storageFailure,
+                message: "missing reconciliation has no source capabilities"
+              )
+            }
+            try Self.reconcileMissing(
+              sourceID: sourceID,
+              runID: runID,
+              roots: batch.coveredRoots,
+              semantics: capabilities.pathSemantics,
+              now: now,
+              database: database
+            )
+          }
         }
 
         let terminal = ["completed", "failed", "cancelled"].contains(batch.state)
@@ -869,6 +1020,10 @@ public struct LibraryStore: Sendable {
             arguments: [runID]
           )
           try database.execute(sql: "DELETE FROM scan_seen WHERE run_id = ?", arguments: [runID])
+          try database.execute(
+            sql: "DELETE FROM scan_discovery WHERE run_id = ?",
+            arguments: [runID]
+          )
         }
       }
     } catch let error as SDKError {
@@ -890,6 +1045,43 @@ public struct LibraryStore: Sendable {
       }
     } catch {
       throw SDKError(code: .storageFailure, message: "scan checkpoint read failed")
+    }
+  }
+
+  /// Returns the latest run checkpoint only when the source's newest run can be resumed.
+  ///
+  /// Selecting the newest run before filtering its state prevents an older failed run
+  /// from being revived after a newer run has already completed successfully.
+  package func latestRecoverableCheckpointJSON(sourceUID: String) async throws -> String? {
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0") else {
+      throw SDKError(code: .invalidConfiguration, message: "scan recovery source is invalid")
+    }
+    do {
+      return try await database.read { database in
+        try String.fetchOne(
+          database,
+          sql: """
+            SELECT run.checkpoint_json
+            FROM scan_run run
+            JOIN library_source source ON source.id = run.source_id
+            WHERE source.uid = ?
+              AND source.deleted_at_ms IS NULL
+              AND run.id = (
+                SELECT MAX(latest.id)
+                FROM scan_run latest
+                WHERE latest.source_id = source.id
+              )
+              AND run.state IN (
+                'queued', 'enumerating', 'processing', 'finalizing', 'cancelled', 'failed'
+              )
+            """,
+          arguments: [sourceUID]
+        )
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "recoverable scan checkpoint read failed")
     }
   }
 
@@ -969,6 +1161,7 @@ public struct LibraryStore: Sendable {
     guard !sourceUID.isEmpty, !sourceUID.contains("\0") else {
       throw SDKError(code: .invalidConfiguration, message: "scan work source is invalid")
     }
+    let now = clock.nowMilliseconds()
     do {
       return try await database.read { database in
         let rows = try Row.fetchAll(
@@ -984,10 +1177,12 @@ public struct LibraryStore: Sendable {
               AND f.availability = 'present'
               AND q.stage = ?
               AND q.state IN ('queued', 'retry', 'failed')
+              AND q.input_revision = f.material_revision
+              AND (q.next_attempt_at_ms IS NULL OR q.next_attempt_at_ms <= ?)
             GROUP BY f.id, f.relative_path, f.path_compare_key
             ORDER BY f.path_compare_key, f.id
             """,
-          arguments: [sourceUID, stage.rawValue]
+          arguments: [sourceUID, stage.rawValue, now]
         )
         return try rows.map { row in
           try LibraryScanWorkItem(
@@ -1000,6 +1195,210 @@ public struct LibraryStore: Sendable {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "pending scan work read failed")
+    }
+  }
+
+  /// Reports whether current file revisions still have durable work in a stage.
+  ///
+  /// Unlike ready-work queries, this includes deferred retries and unexpired leases,
+  /// allowing schedulers to recover work after process termination without rescanning
+  /// the source merely to rediscover the queue.
+  public func hasOutstandingScanWork(
+    sourceUID: String,
+    stage: LibraryScanQueueStage
+  ) async throws -> Bool {
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0") else {
+      throw SDKError(code: .invalidConfiguration, message: "scan work source is invalid")
+    }
+    do {
+      return try await database.read { database in
+        try Bool.fetchOne(
+          database,
+          sql: """
+            SELECT EXISTS(
+              SELECT 1
+              FROM scan_queue q
+              JOIN media_file f ON f.id = q.media_file_id
+              JOIN library_source s ON s.id = f.source_id
+              WHERE s.uid = ?
+                AND s.deleted_at_ms IS NULL
+                AND f.deleted_at_ms IS NULL
+                AND f.availability = 'present'
+                AND q.stage = ?
+                AND q.state IN ('queued', 'running', 'retry', 'failed')
+                AND q.input_revision = f.material_revision
+            )
+            """,
+          arguments: [sourceUID, stage.rawValue]
+        ) ?? false
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "outstanding scan work query failed")
+    }
+  }
+
+  /// Atomically claims a bounded batch of ready work for one worker.
+  ///
+  /// Expired leases are reclaimable. Work created for an older material revision is
+  /// never returned, so a slow worker cannot later overwrite newer scan input.
+  public func claimScanFileWork(
+    sourceUID: String,
+    stage: LibraryScanQueueStage,
+    workerID: String,
+    limit: Int = 50,
+    leaseDurationMilliseconds: Int64 = 120_000
+  ) async throws -> [LibraryScanWorkLease] {
+    let normalizedWorkerID = workerID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0"),
+      !normalizedWorkerID.isEmpty, normalizedWorkerID.count <= 256,
+      !normalizedWorkerID.contains("\0"), (1...500).contains(limit),
+      (1_000...86_400_000).contains(leaseDurationMilliseconds)
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "scan work claim is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    let leaseUntil = now + leaseDurationMilliseconds
+    let uuidGenerator = self.uuidGenerator
+    do {
+      return try await database.write { database in
+        let rows = try Row.fetchAll(
+          database,
+          sql: """
+            SELECT q.id AS queue_id, q.attempts, q.input_revision,
+                   f.id AS file_id, s.uid AS source_uid, f.stable_key,
+                   f.relative_path, f.path_compare_key, f.size_bytes,
+                   f.modified_at_ms, f.etag, f.availability, f.missing_scan_count,
+                   EXISTS(
+                     SELECT 1
+                     FROM file_binding b
+                     WHERE b.media_file_id = f.id
+                       AND b.binding_role IN ('primary', 'version')
+                   ) AS has_matching_binding
+            FROM scan_queue q
+            JOIN media_file f ON f.id = q.media_file_id
+            JOIN library_source s ON s.id = f.source_id
+            WHERE s.uid = ?
+              AND s.deleted_at_ms IS NULL
+              AND f.deleted_at_ms IS NULL
+              AND f.availability = 'present'
+              AND q.stage = ?
+              AND q.state IN ('queued', 'running', 'retry', 'failed')
+              AND q.input_revision = f.material_revision
+              AND (
+                (q.state IN ('queued', 'retry', 'failed')
+                  AND (q.next_attempt_at_ms IS NULL OR q.next_attempt_at_ms <= ?))
+                OR (q.state = 'running' AND q.lease_until_ms IS NOT NULL
+                  AND q.lease_until_ms <= ?)
+              )
+            ORDER BY q.priority DESC, q.id
+            LIMIT ?
+            """,
+          arguments: [sourceUID, stage.rawValue, now, now, limit]
+        )
+        var leases: [LibraryScanWorkLease] = []
+        leases.reserveCapacity(rows.count)
+        for row in rows {
+          let queueID: Int64 = row["queue_id"]
+          let inputRevision: Int64 = row["input_revision"]
+          let claimToken =
+            uuidGenerator.makeUUID().uuidString.lowercased() + ":" + String(queueID)
+          try database.execute(
+            sql: """
+              UPDATE scan_queue
+              SET state = 'running', claimed_by = ?, claim_token = ?,
+                  lease_until_ms = ?, heartbeat_at_ms = ?,
+                  error_code = NULL, error_message = NULL, updated_at_ms = ?
+              WHERE id = ? AND input_revision = ?
+                AND (
+                  (state IN ('queued', 'retry', 'failed')
+                    AND (next_attempt_at_ms IS NULL OR next_attempt_at_ms <= ?))
+                  OR (state = 'running' AND lease_until_ms IS NOT NULL
+                    AND lease_until_ms <= ?)
+                )
+              """,
+            arguments: [
+              normalizedWorkerID, claimToken, leaseUntil, now, now,
+              queueID, inputRevision, now, now,
+            ]
+          )
+          guard database.changesCount == 1 else {
+            throw SDKError(code: .conflict, message: "scan work claim became stale")
+          }
+          let file = LibraryFileFact(
+            sourceUID: row["source_uid"],
+            stableKey: row["stable_key"],
+            relativePath: row["relative_path"],
+            sizeBytes: row["size_bytes"],
+            modifiedAtMilliseconds: row["modified_at_ms"],
+            entityTag: row["etag"],
+            availability: row["availability"],
+            missingScanCount: row["missing_scan_count"]
+          )
+          leases.append(
+            try LibraryScanWorkLease(
+              queueID: queueID,
+              file: file,
+              stage: stage,
+              attempts: row["attempts"],
+              hasMatchingBinding: (row["has_matching_binding"] as Int) != 0,
+              inputRevision: inputRevision,
+              workerID: normalizedWorkerID,
+              claimToken: claimToken,
+              leaseUntilMilliseconds: leaseUntil
+            )
+          )
+        }
+        return leases
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "scan work claim failed")
+    }
+  }
+
+  /// Extends an unexpired lease while preserving the same ownership token.
+  public func renewScanWorkLease(
+    _ lease: LibraryScanWorkLease,
+    leaseDurationMilliseconds: Int64 = 120_000
+  ) async throws -> LibraryScanWorkLease {
+    guard (1_000...86_400_000).contains(leaseDurationMilliseconds) else {
+      throw SDKError(code: .invalidConfiguration, message: "scan work lease duration is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    let leaseUntil = now + leaseDurationMilliseconds
+    do {
+      return try await database.write { database in
+        try database.execute(
+          sql: """
+            UPDATE scan_queue
+            SET lease_until_ms = ?, heartbeat_at_ms = ?, updated_at_ms = ?
+            WHERE id = ? AND stage = ? AND state = 'running'
+              AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+              AND lease_until_ms > ?
+              AND EXISTS(
+                SELECT 1 FROM media_file f
+                WHERE f.id = scan_queue.media_file_id
+                  AND f.material_revision = scan_queue.input_revision
+                  AND f.availability = 'present' AND f.deleted_at_ms IS NULL
+              )
+            """,
+          arguments: [
+            leaseUntil, now, now, lease.queueID, lease.stage.rawValue,
+            lease.workerID, lease.claimToken, lease.inputRevision, now,
+          ]
+        )
+        guard database.changesCount == 1 else {
+          throw SDKError(code: .conflict, message: "scan work lease is expired or stale")
+        }
+        return try lease.renewed(until: leaseUntil)
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "scan work lease renewal failed")
     }
   }
 
@@ -1027,6 +1426,7 @@ public struct LibraryStore: Sendable {
       decodedCursor = nil
     }
 
+    let now = clock.nowMilliseconds()
     do {
       return try await database.read { database in
         let cursorPredicate: String
@@ -1037,13 +1437,13 @@ public struct LibraryStore: Sendable {
                 OR (f.path_compare_key = ? AND f.id > ?))
             """
           arguments = [
-            stage.rawValue, sourceUID,
+            stage.rawValue, now, sourceUID,
             decodedCursor.pathCompareKey, decodedCursor.pathCompareKey, decodedCursor.fileID,
             pageSize + 1,
           ]
         } else {
           cursorPredicate = ""
-          arguments = [stage.rawValue, sourceUID, pageSize + 1]
+          arguments = [stage.rawValue, now, sourceUID, pageSize + 1]
         }
         let rows = try Row.fetchAll(
           database,
@@ -1051,7 +1451,10 @@ public struct LibraryStore: Sendable {
             WITH pending AS (
               SELECT q.media_file_id, MAX(q.attempts) AS attempts
               FROM scan_queue q
+              JOIN media_file current_file ON current_file.id = q.media_file_id
               WHERE q.stage = ? AND q.state IN ('queued', 'retry', 'failed')
+                AND q.input_revision = current_file.material_revision
+                AND (q.next_attempt_at_ms IS NULL OR q.next_attempt_at_ms <= ?)
               GROUP BY q.media_file_id
             )
             SELECT f.id AS file_id, s.uid AS source_uid, f.stable_key,
@@ -1193,6 +1596,38 @@ public struct LibraryStore: Sendable {
   }
 
   /// Marks every outstanding copy of one file-stage task as successfully processed.
+  public func completeScanWork(_ lease: LibraryScanWorkLease) async throws {
+    let now = clock.nowMilliseconds()
+    do {
+      try await database.write { database in
+        try Self.requireActiveScanWorkLease(lease, now: now, database: database)
+        try database.execute(
+          sql: """
+            UPDATE scan_queue
+            SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                error_code = NULL, error_message = NULL, updated_at_ms = ?
+            WHERE id = ? AND stage = ? AND state = 'running'
+              AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+            """,
+          arguments: [
+            now, lease.queueID, lease.stage.rawValue, lease.workerID,
+            lease.claimToken, lease.inputRevision,
+          ]
+        )
+        guard database.changesCount == 1 else {
+          throw SDKError(code: .conflict, message: "scan work completion lost its lease")
+        }
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "scan work completion failed")
+    }
+  }
+
+  /// Marks every outstanding copy of one file-stage task as successfully processed.
+  @available(*, deprecated, message: "Claim work and complete it with LibraryScanWorkLease")
   public func completeScanWork(
     sourceUID: String,
     relativePath: String,
@@ -1209,9 +1644,10 @@ public struct LibraryStore: Sendable {
           sql: """
             UPDATE scan_queue
             SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
                 error_code = NULL, error_message = NULL, updated_at_ms = ?
             WHERE stage = ?
-              AND state IN ('queued', 'running', 'retry', 'failed')
+              AND state IN ('queued', 'retry', 'failed')
               AND media_file_id = (
                 SELECT f.id
                 FROM media_file f
@@ -1230,13 +1666,45 @@ public struct LibraryStore: Sendable {
     }
   }
 
+  /// Materializes provider metadata and completes its claimed work item atomically.
+  @discardableResult
+  public func commitRemoteMetadata(
+    _ metadata: LibraryRemoteMetadata,
+    completing lease: LibraryScanWorkLease
+  ) async throws -> String {
+    try await commitRemoteMetadata(
+      metadata,
+      sourceUID: lease.file.sourceUID,
+      relativePath: lease.file.relativePath,
+      completing: lease.stage,
+      lease: lease
+    )
+  }
+
   /// Materializes provider metadata and completes the corresponding work item atomically.
   @discardableResult
+  @available(*, deprecated, message: "Claim work and commit it with LibraryScanWorkLease")
   public func commitRemoteMetadata(
     _ metadata: LibraryRemoteMetadata,
     sourceUID: String,
     relativePath: String,
     completing stage: LibraryScanQueueStage
+  ) async throws -> String {
+    try await commitRemoteMetadata(
+      metadata,
+      sourceUID: sourceUID,
+      relativePath: relativePath,
+      completing: stage,
+      lease: nil
+    )
+  }
+
+  private func commitRemoteMetadata(
+    _ metadata: LibraryRemoteMetadata,
+    sourceUID: String,
+    relativePath: String,
+    completing stage: LibraryScanQueueStage,
+    lease: LibraryScanWorkLease?
   ) async throws -> String {
     let path = try RemotePath(relativePath)
     guard !sourceUID.isEmpty, !sourceUID.contains("\0"), !path.isRoot else {
@@ -1262,6 +1730,20 @@ public struct LibraryStore: Sendable {
           throw SDKError(code: .metadataNotFound, message: "remote metadata file was not found")
         }
         let mediaFileID: Int64 = file["id"]
+        if let lease {
+          guard lease.file.sourceUID == sourceUID,
+            lease.file.relativePath == path.relativePath,
+            lease.stage == stage
+          else {
+            throw SDKError(code: .conflict, message: "scan work lease target changed")
+          }
+          try Self.requireActiveScanWorkLease(
+            lease,
+            expectedMediaFileID: mediaFileID,
+            now: now,
+            database: database
+          )
+        }
         guard
           let entity = try Row.fetchOne(
             database,
@@ -1393,16 +1875,37 @@ public struct LibraryStore: Sendable {
           database: database
         )
 
-        try database.execute(
-          sql: """
-            UPDATE scan_queue
-            SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
-                error_code = NULL, error_message = NULL, updated_at_ms = ?
-            WHERE stage = ? AND media_file_id = ?
-              AND state IN ('queued', 'running', 'retry', 'failed')
-            """,
-          arguments: [now, stage.rawValue, mediaFileID]
-        )
+        if let lease {
+          try database.execute(
+            sql: """
+              UPDATE scan_queue
+              SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                  claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                  error_code = NULL, error_message = NULL, updated_at_ms = ?
+              WHERE id = ? AND stage = ? AND state = 'running'
+                AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+              """,
+            arguments: [
+              now, lease.queueID, stage.rawValue, lease.workerID,
+              lease.claimToken, lease.inputRevision,
+            ]
+          )
+          guard database.changesCount == 1 else {
+            throw SDKError(code: .conflict, message: "remote metadata commit lost its lease")
+          }
+        } else {
+          try database.execute(
+            sql: """
+              UPDATE scan_queue
+              SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                  claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                  error_code = NULL, error_message = NULL, updated_at_ms = ?
+              WHERE stage = ? AND media_file_id = ?
+                AND state IN ('queued', 'retry', 'failed')
+              """,
+            arguments: [now, stage.rawValue, mediaFileID]
+          )
+        }
         return entityUID
       }
     } catch let error as SDKError {
@@ -1412,7 +1915,48 @@ public struct LibraryStore: Sendable {
     }
   }
 
+  /// Releases claimed work for a later retry if the lease and input revision are current.
+  public func retryScanWork(
+    _ lease: LibraryScanWorkLease,
+    errorCode: SDKErrorCode,
+    retryAfterMilliseconds: Int64? = nil
+  ) async throws {
+    guard retryAfterMilliseconds.map({ (0...604_800_000).contains($0) }) ?? true else {
+      throw SDKError(code: .invalidConfiguration, message: "scan work retry delay is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    let nextAttempt = retryAfterMilliseconds.map { now + $0 }
+    do {
+      try await database.write { database in
+        try Self.requireActiveScanWorkLease(lease, now: now, database: database)
+        try database.execute(
+          sql: """
+            UPDATE scan_queue
+            SET state = 'retry', attempts = attempts + 1,
+                next_attempt_at_ms = ?, lease_until_ms = NULL,
+                claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                error_code = ?, error_message = NULL, updated_at_ms = ?
+            WHERE id = ? AND stage = ? AND state = 'running'
+              AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+            """,
+          arguments: [
+            nextAttempt, errorCode.rawValue, now, lease.queueID, lease.stage.rawValue,
+            lease.workerID, lease.claimToken, lease.inputRevision,
+          ]
+        )
+        guard database.changesCount == 1 else {
+          throw SDKError(code: .conflict, message: "scan work retry lost its lease")
+        }
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "scan work retry update failed")
+    }
+  }
+
   /// Keeps one file-stage task durable so a later manual or repair scan can retry it.
+  @available(*, deprecated, message: "Claim work and retry it with LibraryScanWorkLease")
   public func retryScanWork(
     sourceUID: String,
     relativePath: String,
@@ -1430,7 +1974,7 @@ public struct LibraryStore: Sendable {
           let row = try Row.fetchOne(
             database,
             sql: """
-              SELECT f.id AS media_file_id, r.id AS run_id
+              SELECT f.id AS media_file_id, f.material_revision, r.id AS run_id
               FROM media_file f
               JOIN library_source s ON s.id = f.source_id
               JOIN scan_run r ON r.source_id = s.id
@@ -1445,23 +1989,32 @@ public struct LibraryStore: Sendable {
           throw SDKError(code: .metadataNotFound, message: "scan work file was not found")
         }
         let mediaFileID: Int64 = row["media_file_id"]
+        let inputRevision: Int64 = row["material_revision"]
         let runID: Int64 = row["run_id"]
         try database.execute(
           sql: """
             INSERT INTO scan_queue(
               run_id, media_file_id, stage, state, attempts,
-              next_attempt_at_ms, lease_until_ms, error_code, error_message, updated_at_ms
-            ) VALUES (?, ?, ?, 'retry', 1, NULL, NULL, ?, NULL, ?)
+              next_attempt_at_ms, lease_until_ms, error_code, error_message,
+              input_revision, updated_at_ms
+            ) VALUES (?, ?, ?, 'retry', 1, NULL, NULL, ?, NULL, ?, ?)
             ON CONFLICT(run_id, media_file_id, stage) DO UPDATE SET
               state = 'retry',
               attempts = scan_queue.attempts + 1,
               next_attempt_at_ms = NULL,
               lease_until_ms = NULL,
+              claimed_by = NULL,
+              claim_token = NULL,
+              heartbeat_at_ms = NULL,
               error_code = excluded.error_code,
               error_message = NULL,
+              input_revision = excluded.input_revision,
               updated_at_ms = excluded.updated_at_ms
+            WHERE scan_queue.state <> 'running'
             """,
-          arguments: [runID, mediaFileID, stage.rawValue, errorCode.rawValue, now]
+          arguments: [
+            runID, mediaFileID, stage.rawValue, errorCode.rawValue, inputRevision, now,
+          ]
         )
       }
     } catch let error as SDKError {
@@ -1821,7 +2374,7 @@ public struct LibraryStore: Sendable {
     for page in state.completedPages {
       try insertFrontierPage(page, state: "completed", runID: runID, now: now, database: database)
     }
-    try insertSeenIdentities(
+    _ = try insertSeenIdentities(
       state.seenEntryIdentityKeys,
       directoryKeys: Set(state.seenDirectoryIdentityKeys),
       runID: runID,
@@ -1834,7 +2387,7 @@ public struct LibraryStore: Sendable {
     runID: Int64,
     now: Int64,
     database: Database
-  ) throws {
+  ) throws -> AppliedEnumerationTransition {
     let completed = try encodedFrontierPage(transition.completedPage)
     try database.execute(
       sql: """
@@ -1847,6 +2400,7 @@ public struct LibraryStore: Sendable {
     guard database.changesCount == 1 else {
       throw SDKError(code: .storageFailure, message: "scan frontier transition is stale")
     }
+    var insertedPageCount = 0
     for page in transition.enqueuedPages {
       try insertFrontierPage(
         page,
@@ -1856,12 +2410,17 @@ public struct LibraryStore: Sendable {
         database: database,
         ignoresConflict: true
       )
+      insertedPageCount += database.changesCount
     }
-    try insertSeenIdentities(
+    let insertedSeenCount = try insertSeenIdentities(
       transition.seenEntryIdentityKeys,
       directoryKeys: Set(transition.seenDirectoryIdentityKeys),
       runID: runID,
       database: database
+    )
+    return AppliedEnumerationTransition(
+      insertedPageCount: insertedPageCount,
+      insertedSeenCount: insertedSeenCount
     )
   }
 
@@ -1900,305 +2459,350 @@ public struct LibraryStore: Sendable {
     directoryKeys: Set<String>,
     runID: Int64,
     database: Database
-  ) throws {
+  ) throws -> Int64 {
+    let identityKeySet = Set(identityKeys)
+    guard identityKeySet.count == identityKeys.count else {
+      throw SDKError(code: .storageFailure, message: "scan seen transition is duplicated")
+    }
     let statement = try database.makeStatement(
       sql: """
-        INSERT INTO scan_seen(run_id, identity_key, is_directory)
+        INSERT OR IGNORE INTO scan_seen(run_id, identity_key, is_directory)
         VALUES (?, ?, ?)
-        ON CONFLICT(run_id, identity_key) DO UPDATE SET
-          is_directory = MAX(scan_seen.is_directory, excluded.is_directory)
         """
     )
+    var insertedCount: Int64 = 0
+    var directoryKeysToPromote = directoryKeys.subtracting(identityKeySet)
     for identityKey in identityKeys {
       try statement.execute(arguments: [
         runID, identityKey, directoryKeys.contains(identityKey) ? 1 : 0,
       ])
+      let inserted = database.changesCount
+      insertedCount += Int64(inserted)
+      if inserted == 0, directoryKeys.contains(identityKey) {
+        directoryKeysToPromote.insert(identityKey)
+      }
     }
-    for identityKey in directoryKeys where !identityKeys.contains(identityKey) {
-      try statement.execute(arguments: [runID, identityKey, 1])
+    let markDirectory = try database.makeStatement(
+      sql: "UPDATE scan_seen SET is_directory = 1 WHERE run_id = ? AND identity_key = ?"
+    )
+    for identityKey in directoryKeysToPromote {
+      try markDirectory.execute(arguments: [runID, identityKey])
+      guard database.changesCount == 1 else {
+        throw SDKError(code: .storageFailure, message: "scan directory identity is missing")
+      }
     }
+    return insertedCount
   }
 
-  private static func validateEnumerationCounts(
-    runID: Int64,
-    pendingCount: Int,
-    processedCount: Int64,
-    discoveredCount: Int64,
-    database: Database
+  private static func validateEnumerationSnapshot(
+    _ state: LibraryScanEnumerationState,
+    pendingPageCount: Int?,
+    processedPageCount: Int64?,
+    discoveredEntryCount: Int64
   ) throws {
-    let storedPending =
-      try Int.fetchOne(
-        database,
-        sql: "SELECT COUNT(*) FROM scan_frontier WHERE run_id = ? AND state = 'pending'",
-        arguments: [runID]
-      ) ?? 0
-    let storedCompleted =
-      try Int64.fetchOne(
-        database,
-        sql: "SELECT COUNT(*) FROM scan_frontier WHERE run_id = ? AND state = 'completed'",
-        arguments: [runID]
-      ) ?? 0
-    let storedSeen =
-      try Int64.fetchOne(
-        database,
-        sql: "SELECT COUNT(*) FROM scan_seen WHERE run_id = ?",
-        arguments: [runID]
-      ) ?? 0
-    guard storedPending == pendingCount,
-      storedCompleted == processedCount,
-      storedSeen == discoveredCount
+    guard pendingPageCount == state.pendingPages.count,
+      processedPageCount == Int64(state.completedPages.count),
+      discoveredEntryCount == Int64(state.seenEntryIdentityKeys.count)
     else {
       throw SDKError(code: .storageFailure, message: "scan frontier counters are inconsistent")
     }
   }
 
-  private static func upsert(
-    entries: [RemoteEntry],
-    generatedUIDs: [String],
+  private static func validateEnumerationTransitions(
+    previous: StoredCheckpointProgress,
+    previousDiscoveredCount: Int64,
+    completedPageCount: Int,
+    insertedPageCount: Int,
+    insertedSeenCount: Int64,
+    pendingPageCount: Int?,
+    processedPageCount: Int64?,
+    discoveredEntryCount: Int64
+  ) throws {
+    guard
+      pendingPageCount == previous.pendingPageCount - completedPageCount + insertedPageCount,
+      processedPageCount == previous.processedPageCount + Int64(completedPageCount),
+      discoveredEntryCount == previousDiscoveredCount + insertedSeenCount
+    else {
+      throw SDKError(code: .storageFailure, message: "scan frontier counters are inconsistent")
+    }
+  }
+
+  private static func decodeStoredCheckpointProgress(
+    _ checkpointJSON: String
+  ) throws -> StoredCheckpointProgress {
+    do {
+      return try JSONDecoder().decode(
+        StoredCheckpointProgress.self,
+        from: Data(checkpointJSON.utf8)
+      )
+    } catch {
+      throw SDKError(code: .storageFailure, message: "stored scan progress is invalid")
+    }
+  }
+
+  private struct AppliedEnumerationTransition {
+    let insertedPageCount: Int
+    let insertedSeenCount: Int64
+  }
+
+  private struct StoredCheckpointProgress: Decodable {
+    let pendingPageCount: Int
+    let processedPageCount: Int64
+
+    private enum CodingKeys: String, CodingKey {
+      case pendingPageCount = "pending_page_count"
+      case processedPageCount = "processed_page_count"
+    }
+  }
+
+  private static func requireNoOtherActiveRun(
+    sourceID: Int64,
+    excludingRunID: Int64?,
+    requestedState: String,
+    database: Database
+  ) throws {
+    let activeStates = ["queued", "enumerating", "processing", "finalizing"]
+    guard activeStates.contains(requestedState) || requestedState == "completed" else { return }
+    let conflictingRunID = try Int64.fetchOne(
+      database,
+      sql: """
+        SELECT id
+        FROM scan_run
+        WHERE source_id = ?
+          AND state IN ('queued', 'enumerating', 'processing', 'finalizing')
+          AND (? IS NULL OR id <> ?)
+        LIMIT 1
+        """,
+      arguments: [sourceID, excludingRunID, excludingRunID]
+    )
+    guard conflictingRunID == nil else {
+      throw SDKError(code: .conflict, message: "library source already has an active scan run")
+    }
+  }
+
+  private static func requireRunIsNotSuperseded(
     sourceID: Int64,
     runID: Int64,
-    capabilities: MediaSourceCapabilities,
-    now: Int64,
+    requestedState: String,
     database: Database
-  ) throws -> Int {
-    let files = zip(entries, generatedUIDs).compactMap { entry, generatedUID in
+  ) throws {
+    let publishingStates = ["queued", "enumerating", "processing", "finalizing", "completed"]
+    guard publishingStates.contains(requestedState) else { return }
+    let hasNewerRun =
+      try Bool.fetchOne(
+        database,
+        sql: "SELECT EXISTS(SELECT 1 FROM scan_run WHERE source_id = ? AND id > ?)",
+        arguments: [sourceID, runID]
+      ) ?? false
+    guard !hasNewerRun else {
+      throw SDKError(code: .conflict, message: "scan run has been superseded by a newer run")
+    }
+  }
+
+  private static func stage(
+    entries: [RemoteEntry],
+    runID: Int64,
+    capabilities: MediaSourceCapabilities,
+    database: Database
+  ) throws {
+    let files = entries.compactMap { entry in
       entry.kind == .file
         ? PreparedScanFile(
           entry: entry,
-          generatedUID: generatedUID,
           capabilities: capabilities
         ) : nil
     }
-    guard !files.isEmpty else { return 0 }
-    if files.count == 1, let file = files.first {
-      return try upsertSingle(
-        file,
-        sourceID: sourceID,
-        runID: runID,
-        now: now,
-        database: database
-      )
-    }
-
-    try database.execute(
-      sql: """
-        CREATE TEMP TABLE IF NOT EXISTS stellar_scan_batch_file (
-          stable_key TEXT PRIMARY KEY,
-          generated_uid TEXT NOT NULL,
-          stable_id TEXT,
-          parent_stable_key TEXT,
-          relative_path TEXT NOT NULL,
-          path_compare_key TEXT NOT NULL,
-          display_name TEXT NOT NULL,
-          extension TEXT,
-          size_bytes INTEGER,
-          modified_at_ms INTEGER,
-          etag TEXT,
-          existing_id INTEGER,
-          material_changed INTEGER NOT NULL DEFAULT 1
-        ) WITHOUT ROWID
-        """
-    )
-    try database.execute(sql: "DELETE FROM stellar_scan_batch_file")
+    guard !files.isEmpty else { return }
+    // Keep the staging row lightweight. A durable UID is generated only after publish confirms
+    // that no media_file already owns this stable key.
     let insert = try database.makeStatement(
       sql: """
-        INSERT OR REPLACE INTO stellar_scan_batch_file(
-          stable_key, generated_uid, stable_id, parent_stable_key, relative_path,
-          path_compare_key, display_name, extension, size_bytes, modified_at_ms, etag
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scan_discovery(
+          run_id, stable_key, generated_uid, stable_id, parent_stable_key,
+          relative_path, path_compare_key, display_name, extension, size_bytes,
+          modified_at_ms, etag
+        ) VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(run_id, stable_key) DO UPDATE SET
+          stable_id = excluded.stable_id,
+          parent_stable_key = excluded.parent_stable_key,
+          relative_path = excluded.relative_path,
+          path_compare_key = excluded.path_compare_key,
+          display_name = excluded.display_name,
+          extension = excluded.extension,
+          size_bytes = excluded.size_bytes,
+          modified_at_ms = excluded.modified_at_ms,
+          etag = excluded.etag
         """
     )
     for file in files {
       try insert.execute(
         arguments: [
-          file.stableKey, file.generatedUID, file.stableID, file.parentStableKey,
+          runID, file.stableKey, file.stableID, file.parentStableKey,
           file.relativePath, file.pathCompareKey, file.displayName, file.fileExtension,
           file.sizeBytes, file.modifiedAtMilliseconds, file.entityTag,
         ]
       )
     }
-
-    try database.execute(
-      sql: """
-        UPDATE stellar_scan_batch_file AS batch SET
-          existing_id = file.id,
-          material_changed = CASE WHEN
-            file.relative_path IS NOT batch.relative_path
-            OR file.path_compare_key IS NOT batch.path_compare_key
-            OR file.size_bytes IS NOT batch.size_bytes
-            OR file.modified_at_ms IS NOT batch.modified_at_ms
-            OR file.etag IS NOT batch.etag
-            OR file.availability <> 'present'
-          THEN 1 ELSE 0 END
-        FROM media_file AS file
-        WHERE file.source_id = ? AND file.stable_key = batch.stable_key
-        """,
-      arguments: [sourceID]
-    )
-    try database.execute(
-      sql: """
-        UPDATE media_file AS file SET
-          stable_id = batch.stable_id,
-          parent_stable_key = batch.parent_stable_key,
-          relative_path = batch.relative_path,
-          path_compare_key = batch.path_compare_key,
-          display_name = batch.display_name,
-          extension = batch.extension,
-          size_bytes = batch.size_bytes,
-          modified_at_ms = batch.modified_at_ms,
-          etag = batch.etag,
-          availability = 'present',
-          last_seen_run_id = ?,
-          missing_since_ms = NULL,
-          missing_scan_count = 0,
-          deleted_at_ms = NULL,
-          updated_at_ms = ?
-        FROM stellar_scan_batch_file AS batch
-        WHERE file.id = batch.existing_id AND batch.material_changed = 1
-        """,
-      arguments: [runID, now]
-    )
-    try database.execute(
-      sql: """
-        UPDATE media_file AS file SET
-          stable_id = batch.stable_id,
-          parent_stable_key = batch.parent_stable_key,
-          last_seen_run_id = ?,
-          missing_since_ms = NULL,
-          missing_scan_count = 0,
-          deleted_at_ms = NULL
-        FROM stellar_scan_batch_file AS batch
-        WHERE file.id = batch.existing_id AND batch.material_changed = 0
-          AND (file.last_seen_run_id IS NULL OR file.last_seen_run_id <> ?
-               OR file.stable_id IS NOT batch.stable_id)
-        """,
-      arguments: [runID, runID]
-    )
-    try database.execute(
-      sql: """
-        INSERT INTO media_file(
-          uid, source_id, stable_key, stable_id, parent_stable_key, relative_path,
-          path_compare_key, display_name, extension, size_bytes, modified_at_ms, etag,
-          availability, last_seen_run_id, updated_at_ms
-        )
-        SELECT generated_uid, ?, stable_key, stable_id, parent_stable_key, relative_path,
-               path_compare_key, display_name, extension, size_bytes, modified_at_ms, etag,
-               'present', ?, ?
-        FROM stellar_scan_batch_file
-        WHERE existing_id IS NULL
-        """,
-      arguments: [sourceID, runID, now]
-    )
-    try database.execute(
-      sql: """
-        INSERT INTO scan_queue(run_id, media_file_id, stage, state, updated_at_ms)
-        SELECT ?, file.id, 'parse', 'queued', ?
-        FROM stellar_scan_batch_file AS batch
-        JOIN media_file AS file ON file.source_id = ? AND file.stable_key = batch.stable_key
-        WHERE batch.material_changed = 1
-        ON CONFLICT(run_id, media_file_id, stage) DO NOTHING
-        """,
-      arguments: [runID, now, sourceID]
-    )
-    return try Int.fetchOne(
-      database,
-      sql: "SELECT COUNT(*) FROM stellar_scan_batch_file WHERE material_changed = 1"
-    ) ?? 0
   }
 
-  private static func upsertSingle(
-    _ file: PreparedScanFile,
+  private static func publishStagedFiles(
     sourceID: Int64,
     runID: Int64,
     now: Int64,
     database: Database
   ) throws -> Int {
-    let existing = try Row.fetchOne(
-      database,
+    try database.execute(
       sql: """
-        SELECT id, relative_path, path_compare_key, size_bytes, modified_at_ms, etag,
-               availability
-        FROM media_file
-        WHERE source_id = ? AND stable_key = ?
-        """,
-      arguments: [sourceID, file.stableKey]
+        CREATE TEMP TABLE IF NOT EXISTS stellar_scan_publish_file (
+          stable_key TEXT PRIMARY KEY,
+          media_file_id INTEGER,
+          material_changed INTEGER NOT NULL
+        ) WITHOUT ROWID
+        """
     )
-    let mediaFileID: Int64
-    let changed: Bool
-    if let existing {
-      mediaFileID = existing["id"]
-      changed =
-        (existing["relative_path"] as String) != file.relativePath
-        || (existing["path_compare_key"] as String) != file.pathCompareKey
-        || (existing["size_bytes"] as Int64?) != file.sizeBytes
-        || (existing["modified_at_ms"] as Int64?) != file.modifiedAtMilliseconds
-        || (existing["etag"] as String?) != file.entityTag
-        || (existing["availability"] as String) != "present"
-      if changed {
-        try database.execute(
-          sql: """
-            UPDATE media_file SET
-              stable_id = ?, parent_stable_key = ?, relative_path = ?, path_compare_key = ?,
-              display_name = ?, extension = ?, size_bytes = ?, modified_at_ms = ?, etag = ?,
-              availability = 'present', last_seen_run_id = ?, missing_since_ms = NULL,
-              missing_scan_count = 0, deleted_at_ms = NULL, updated_at_ms = ?
-            WHERE id = ?
-            """,
-          arguments: [
-            file.stableID, file.parentStableKey, file.relativePath, file.pathCompareKey,
-            file.displayName, file.fileExtension, file.sizeBytes, file.modifiedAtMilliseconds,
-            file.entityTag, runID, now, mediaFileID,
-          ]
-        )
-      } else {
-        try database.execute(
-          sql: """
-            UPDATE media_file SET
-              stable_id = ?, parent_stable_key = ?, last_seen_run_id = ?,
-              missing_since_ms = NULL, missing_scan_count = 0, deleted_at_ms = NULL
-            WHERE id = ? AND (last_seen_run_id IS NULL OR last_seen_run_id <> ?
-                              OR stable_id IS NOT ?)
-            """,
-          arguments: [
-            file.stableID, file.parentStableKey, runID, mediaFileID, runID, file.stableID,
-          ]
-        )
-      }
-    } else {
-      changed = true
+    try database.execute(sql: "DELETE FROM stellar_scan_publish_file")
+    try database.execute(
+      sql: """
+        INSERT INTO stellar_scan_publish_file(stable_key, media_file_id, material_changed)
+        SELECT discovery.stable_key, file.id, CASE WHEN
+            file.id IS NULL
+            OR file.relative_path IS NOT discovery.relative_path
+            OR file.path_compare_key IS NOT discovery.path_compare_key
+            OR file.size_bytes IS NOT discovery.size_bytes
+            OR file.modified_at_ms IS NOT discovery.modified_at_ms
+            OR file.etag IS NOT discovery.etag
+            OR file.availability <> 'present'
+          THEN 1 ELSE 0 END
+        FROM scan_discovery AS discovery
+        LEFT JOIN media_file AS file
+          ON file.source_id = ? AND file.stable_key = discovery.stable_key
+        WHERE discovery.run_id = ?
+        """,
+      arguments: [sourceID, runID]
+    )
+    let changedCount =
+      try Int.fetchOne(
+        database,
+        sql: "SELECT COUNT(*) FROM stellar_scan_publish_file WHERE material_changed = 1"
+      ) ?? 0
+    if changedCount > 0 {
       try database.execute(
         sql: """
+          UPDATE media_file AS file SET
+            stable_id = discovery.stable_id,
+            parent_stable_key = discovery.parent_stable_key,
+            relative_path = discovery.relative_path,
+            path_compare_key = discovery.path_compare_key,
+            display_name = discovery.display_name,
+            extension = discovery.extension,
+            size_bytes = discovery.size_bytes,
+            modified_at_ms = discovery.modified_at_ms,
+            etag = discovery.etag,
+            availability = 'present',
+            last_seen_run_id = ?,
+            missing_since_ms = NULL,
+            missing_scan_count = 0,
+            deleted_at_ms = NULL,
+            material_revision = material_revision + 1,
+            updated_at_ms = ?
+          FROM scan_discovery AS discovery
+          JOIN stellar_scan_publish_file AS publish
+            ON publish.stable_key = discovery.stable_key
+          WHERE discovery.run_id = ?
+            AND file.id = publish.media_file_id
+            AND publish.material_changed = 1
+          """,
+        arguments: [runID, now, runID]
+      )
+    }
+    try database.execute(
+      sql: """
+        UPDATE media_file AS file SET
+          stable_id = discovery.stable_id,
+          parent_stable_key = discovery.parent_stable_key,
+          last_seen_run_id = ?,
+          missing_since_ms = NULL,
+          missing_scan_count = 0,
+          deleted_at_ms = NULL
+        FROM scan_discovery AS discovery
+        JOIN stellar_scan_publish_file AS publish
+          ON publish.stable_key = discovery.stable_key
+        WHERE discovery.run_id = ?
+          AND file.id = publish.media_file_id
+          AND publish.material_changed = 0
+          AND (file.last_seen_run_id IS NULL OR file.last_seen_run_id <> ?
+               OR file.stable_id IS NOT discovery.stable_id)
+        """,
+      arguments: [runID, runID, runID]
+    )
+    if changedCount > 0 {
+      try database.execute(
+        sql: """
+          -- Materializing the random bytes once keeps every UUID segment from evaluating a
+          -- different randomblob expression while preserving a set-based insert.
+          WITH new_file AS MATERIALIZED (
+            SELECT discovery.*, lower(hex(randomblob(16))) AS uid_hex
+            FROM scan_discovery AS discovery
+            JOIN stellar_scan_publish_file AS publish
+              ON publish.stable_key = discovery.stable_key
+            WHERE discovery.run_id = ? AND publish.media_file_id IS NULL
+          )
           INSERT INTO media_file(
             uid, source_id, stable_key, stable_id, parent_stable_key, relative_path,
             path_compare_key, display_name, extension, size_bytes, modified_at_ms, etag,
             availability, last_seen_run_id, updated_at_ms
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'present', ?, ?)
+          )
+          SELECT substr(uid_hex, 1, 8) || '-' || substr(uid_hex, 9, 4) || '-4'
+                   || substr(uid_hex, 14, 3) || '-8' || substr(uid_hex, 18, 3) || '-'
+                   || substr(uid_hex, 21, 12),
+                 ?, stable_key, stable_id, parent_stable_key, relative_path,
+                 path_compare_key, display_name, extension, size_bytes, modified_at_ms, etag,
+                 'present', ?, ?
+          FROM new_file
           """,
-        arguments: [
-          file.generatedUID, sourceID, file.stableKey, file.stableID, file.parentStableKey,
-          file.relativePath, file.pathCompareKey, file.displayName, file.fileExtension,
-          file.sizeBytes, file.modifiedAtMilliseconds, file.entityTag, runID, now,
-        ]
+        arguments: [runID, sourceID, runID, now]
       )
-      mediaFileID = database.lastInsertedRowID
     }
-
-    if changed {
+    if changedCount > 0 {
       try database.execute(
         sql: """
-          INSERT INTO scan_queue(run_id, media_file_id, stage, state, updated_at_ms)
-          VALUES (?, ?, 'parse', 'queued', ?)
+          UPDATE scan_queue AS queue
+          SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+              claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+              error_code = 'conflict', error_message = 'Superseded by a newer file revision.',
+              updated_at_ms = ?
+          WHERE queue.state IN ('queued', 'running', 'retry', 'failed')
+            AND EXISTS(
+              SELECT 1
+              FROM stellar_scan_publish_file AS publish
+              JOIN media_file AS file
+                ON file.source_id = ? AND file.stable_key = publish.stable_key
+              WHERE publish.material_changed = 1
+                AND queue.media_file_id = file.id
+                AND queue.input_revision <> file.material_revision
+            )
+          """,
+        arguments: [now, sourceID]
+      )
+      try database.execute(
+        sql: """
+          INSERT INTO scan_queue(
+            run_id, media_file_id, stage, state, input_revision, updated_at_ms
+          )
+          SELECT ?, file.id, 'parse', 'queued', file.material_revision, ?
+          FROM stellar_scan_publish_file AS publish
+          JOIN media_file AS file ON file.source_id = ? AND file.stable_key = publish.stable_key
+          WHERE publish.material_changed = 1
           ON CONFLICT(run_id, media_file_id, stage) DO NOTHING
           """,
-        arguments: [runID, mediaFileID, now]
+        arguments: [runID, now, sourceID]
       )
     }
-    return changed ? 1 : 0
+    return changedCount
   }
 
   private struct PreparedScanFile {
     let stableKey: String
-    let generatedUID: String
     let stableID: String?
     let parentStableKey: String?
     let relativePath: String
@@ -2211,7 +2815,6 @@ public struct LibraryStore: Sendable {
 
     init(
       entry: RemoteEntry,
-      generatedUID: String,
       capabilities: MediaSourceCapabilities
     ) {
       pathCompareKey = entry.locator.pathComparisonKey(using: capabilities.pathSemantics)
@@ -2220,18 +2823,60 @@ public struct LibraryStore: Sendable {
       } else {
         stableKey = "path:\(pathCompareKey)"
       }
-      parentStableKey = entry.locator.path.parent.map {
-        "path:\($0.comparisonKey(using: capabilities.pathSemantics))"
+      if let separator = pathCompareKey.lastIndex(of: "/") {
+        parentStableKey = "path:\(pathCompareKey[..<separator])"
+      } else {
+        parentStableKey = "path:"
       }
       relativePath = entry.locator.path.relativePath
       displayName = entry.locator.path.name
-      let pathExtension = (displayName as NSString).pathExtension
-      fileExtension = pathExtension.isEmpty ? nil : pathExtension.lowercased()
-      self.generatedUID = generatedUID
+      if let separator = displayName.utf8.lastIndex(of: 46), separator != displayName.startIndex {
+        let extensionStart = displayName.index(after: separator)
+        fileExtension =
+          extensionStart == displayName.endIndex
+          ? nil : displayName[extensionStart...].lowercased()
+      } else {
+        fileExtension = nil
+      }
       stableID = entry.stableID
       sizeBytes = entry.size
       modifiedAtMilliseconds = entry.modifiedAtMilliseconds
       entityTag = entry.entityTag
+    }
+  }
+
+  private static func requireActiveScanWorkLease(
+    _ lease: LibraryScanWorkLease,
+    expectedMediaFileID: Int64? = nil,
+    now: Int64,
+    database: Database
+  ) throws {
+    let isCurrent =
+      try Bool.fetchOne(
+        database,
+        sql: """
+          SELECT EXISTS(
+            SELECT 1
+            FROM scan_queue q
+            JOIN media_file f ON f.id = q.media_file_id
+            JOIN library_source s ON s.id = f.source_id
+            WHERE q.id = ? AND q.stage = ? AND q.state = 'running'
+              AND q.claimed_by = ? AND q.claim_token = ? AND q.input_revision = ?
+              AND q.lease_until_ms IS NOT NULL AND q.lease_until_ms > ?
+              AND q.input_revision = f.material_revision
+              AND s.uid = ? AND f.stable_key = ? AND f.relative_path = ?
+              AND f.availability = 'present' AND f.deleted_at_ms IS NULL
+              AND (? IS NULL OR f.id = ?)
+          )
+          """,
+        arguments: [
+          lease.queueID, lease.stage.rawValue, lease.workerID, lease.claimToken,
+          lease.inputRevision, now, lease.file.sourceUID, lease.file.stableKey,
+          lease.file.relativePath, expectedMediaFileID, expectedMediaFileID,
+        ]
+      ) ?? false
+    guard isCurrent else {
+      throw SDKError(code: .conflict, message: "scan work lease is expired or stale")
     }
   }
 

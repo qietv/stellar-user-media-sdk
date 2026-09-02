@@ -678,6 +678,9 @@ extension StorageDatabaseKind {
     case (.library, 1): "860af5576de63d4aa64342204e27ff8a054df188fba0840f07545647bb5a1484"
     case (.metadataCache, 1): "f87fb61ba3c89d93df90465276adf81200bd8dd86d937e242c70042709f16cab"
     case (.library, 2): "8a9f0dac4e9af7c69d2c8a855335e10e9c44adf286eb0339c38beb7afc5688d9"
+    case (.library, 3): "b0707478dc02df733d69adb1a1d7fab0d359cc7f3cad010b34040b628e80cd69"
+    case (.library, 4): "9220c87520ea0baf790151e5c91869012b39faeb339b07bbd6c22d6d45c9be13"
+    case (.library, 5): "6b3cd6c8c46bba16eab0335a2ed745bcd375537332df568066a18d434848f44b"
     default: nil
     }
   }
@@ -706,6 +709,111 @@ extension StorageDatabaseKind {
       ) WITHOUT ROWID;
 
       PRAGMA user_version = 2;
+      """#
+    case (.library, 2):
+      #"""
+      -- Preserve only the newest unfinished run for each source before enforcing the
+      -- invariant for databases created by SDK versions that allowed overlap.
+      UPDATE scan_run AS older
+      SET state = 'cancelled',
+          finished_at_ms = COALESCE(older.finished_at_ms, older.started_at_ms),
+          error_code = COALESCE(older.error_code, 'conflict'),
+          error_summary = COALESCE(
+              older.error_summary,
+              'Superseded while enabling the single-active-scan invariant.'
+          )
+      WHERE older.state IN ('queued', 'enumerating', 'processing', 'finalizing')
+        AND EXISTS (
+            SELECT 1
+            FROM scan_run AS newer
+            WHERE newer.source_id = older.source_id
+              AND newer.state IN ('queued', 'enumerating', 'processing', 'finalizing')
+              AND newer.id > older.id
+        );
+
+      CREATE UNIQUE INDEX uq_scan_run_one_active_source
+          ON scan_run(source_id)
+          WHERE state IN ('queued', 'enumerating', 'processing', 'finalizing');
+
+      -- File facts discovered by an unfinished run remain private until the run can
+      -- atomically publish a complete authoritative snapshot.
+      CREATE TABLE scan_discovery (
+          run_id              INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+          stable_key          TEXT NOT NULL,
+          generated_uid       TEXT NOT NULL,
+          stable_id           TEXT,
+          parent_stable_key   TEXT,
+          relative_path       TEXT NOT NULL,
+          path_compare_key    TEXT NOT NULL,
+          display_name        TEXT NOT NULL,
+          extension           TEXT,
+          size_bytes          INTEGER,
+          modified_at_ms      INTEGER,
+          etag                TEXT,
+          PRIMARY KEY(run_id, stable_key),
+          UNIQUE(run_id, path_compare_key)
+      ) WITHOUT ROWID;
+
+      PRAGMA user_version = 3;
+      """#
+    case (.library, 3):
+      #"""
+      -- Give every published file fact a material revision. Observation-only scans do
+      -- not change this value; any change that can alter metadata worker output does.
+      ALTER TABLE media_file
+      ADD COLUMN material_revision INTEGER NOT NULL DEFAULT 1
+          CHECK (material_revision > 0);
+
+      -- Queue work captures the material revision it was created for. Claim tokens
+      -- make worker ownership explicit and allow completion/retry to use compare-and-
+      -- set semantics instead of updating every task for a path.
+      ALTER TABLE scan_queue
+      ADD COLUMN input_revision INTEGER NOT NULL DEFAULT 1
+          CHECK (input_revision > 0);
+
+      ALTER TABLE scan_queue
+      ADD COLUMN claimed_by TEXT;
+
+      ALTER TABLE scan_queue
+      ADD COLUMN claim_token TEXT;
+
+      ALTER TABLE scan_queue
+      ADD COLUMN heartbeat_at_ms INTEGER;
+
+      -- Older SDKs could leave a task in running state with only lease_until_ms. Such
+      -- a task has no verifiable owner, so make it immediately reclaimable.
+      UPDATE scan_queue
+      SET state = 'retry',
+          lease_until_ms = NULL,
+          claimed_by = NULL,
+          claim_token = NULL,
+          heartbeat_at_ms = NULL
+      WHERE state = 'running';
+
+      UPDATE scan_queue
+      SET input_revision = COALESCE(
+          (SELECT material_revision FROM media_file WHERE media_file.id = scan_queue.media_file_id),
+          1
+      );
+
+      CREATE UNIQUE INDEX uq_scan_queue_claim_token
+          ON scan_queue(claim_token)
+          WHERE claim_token IS NOT NULL;
+
+      CREATE INDEX idx_scan_queue_stage_dispatch
+          ON scan_queue(stage, state, next_attempt_at_ms, lease_until_ms, priority DESC, id);
+
+      PRAGMA user_version = 4;
+      """#
+    case (.library, 4):
+      #"""
+      -- Workers claim only a small ready batch. Preserve queue priority and insertion order
+      -- so SQLite can stop at LIMIT instead of sorting an entire source by media path.
+      CREATE INDEX idx_scan_queue_claim_order
+          ON scan_queue(stage, priority DESC, id)
+          WHERE state IN ('queued', 'running', 'retry', 'failed');
+
+      PRAGMA user_version = 5;
       """#
     default: nil
     }

@@ -234,7 +234,7 @@ public actor LocalMediaSourceSession: MediaSourceSession {
       entries.reserveCapacity(urls.count)
       for url in urls {
         let child = try locator.path.appending(component: url.lastPathComponent)
-        let childLocator = try RemoteLocator(sourceUID: sourceUID, path: child)
+        let childLocator = RemoteLocator(validatedSourceUID: sourceUID, path: child)
         entries.append(try makeEntry(at: url, locator: childLocator))
       }
       return entries
@@ -247,13 +247,13 @@ public actor LocalMediaSourceSession: MediaSourceSession {
 
   private func makeEntry(at url: URL, locator: RemoteLocator) throws -> RemoteEntry {
     do {
-      let values = try url.resourceValues(forKeys: Set(Self.resourceKeys))
+      let values = try url.resourceValues(forKeys: Self.resourceKeySet)
       let kind: RemoteEntryKind
-      if values.isSymbolicLink == true {
+      if values.fileResourceType == .symbolicLink {
         kind = .symbolicLink
-      } else if values.isDirectory == true {
+      } else if values.fileResourceType == .directory {
         kind = .directory
-      } else if values.isRegularFile == true {
+      } else if values.fileResourceType == .regular {
         kind = .file
       } else {
         kind = .unknown
@@ -266,7 +266,11 @@ public actor LocalMediaSourceSession: MediaSourceSession {
       if kind == .symbolicLink {
         stableID = nil
       } else {
-        stableID = Self.stableID(at: url, fileManager: fileManager)
+        stableID = Self.stableID(
+          at: url,
+          prefetchedResourceIdentifier: values.fileResourceIdentifier as? Data,
+          fileManager: fileManager
+        )
       }
       return try RemoteEntry(
         locator: locator,
@@ -283,14 +287,21 @@ public actor LocalMediaSourceSession: MediaSourceSession {
   }
 
   private static let resourceKeys: [URLResourceKey] = [
-    .isSymbolicLinkKey,
-    .isDirectoryKey,
-    .isRegularFileKey,
+    .fileResourceTypeKey,
     .fileSizeKey,
     .contentModificationDateKey,
+    .fileResourceIdentifierKey,
   ]
+  private static let resourceKeySet = Set(resourceKeys)
 
-  private static func stableID(at url: URL, fileManager: FileManager) -> String? {
+  private static func stableID(
+    at url: URL,
+    prefetchedResourceIdentifier: Data?,
+    fileManager: FileManager
+  ) -> String? {
+    if let identifier = prefetchedResourceIdentifier {
+      return "resource:\(identifier.base64EncodedString())"
+    }
     guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
       let fileSystem = attributes[.systemNumber] as? NSNumber,
       let file = attributes[.systemFileNumber] as? NSNumber

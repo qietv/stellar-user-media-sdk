@@ -209,6 +209,7 @@ struct SQLiteMediaScanSinkTests {
     #expect(firstSnapshot.files.map(\.relativePath) == ["Arrival.mkv", "Old.mkv"])
     #expect(firstSnapshot.files.allSatisfy({ $0.availability == "present" }))
     #expect(try await sink.loadCheckpoint(runUID: firstRequest.runUID) == firstResult.checkpoint)
+    #expect(try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == nil)
 
     try FileManager.default.moveItem(
       at: fixture.mediaURL.appendingPathComponent("Arrival.mkv"),
@@ -266,6 +267,9 @@ struct SQLiteMediaScanSinkTests {
 
     #expect(storedFailure.phase == .failed)
     #expect(
+      try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == storedFailure
+    )
+    #expect(
       interruptedSnapshot.files.first(where: { $0.relativePath == "Arrival Renamed.mkv" })?
         .availability == "present")
     #expect(
@@ -307,11 +311,114 @@ struct SQLiteMediaScanSinkTests {
     #expect(cancelledCheckpoint.phase == .cancelled)
     #expect(cancelledCheckpoint.lastErrorCode == .cancelled)
     #expect(
+      try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == cancelledCheckpoint
+    )
+    #expect(
       cancelledSnapshot.files.first(where: { $0.relativePath == "Arrival Renamed.mkv" })?
         .availability == "present")
     #expect(
       cancelledSnapshot.files.first(where: { $0.relativePath == "New.mkv" })?.availability
         == "present")
+
+    let recoverySuppressingRequest = try MediaScanRequest(
+      runUID: "sqlite-full-5",
+      sourceUID: sourceUID,
+      mode: .full,
+      roots: [root]
+    )
+    _ = try await scanner.scan(recoverySuppressingRequest, using: connector, sink: sink)
+    #expect(try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == nil)
+  }
+
+  @Test("A failed later page cannot publish an observed move")
+  func failedRunDoesNotPublishMove() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "stellar-sqlite-staged-move-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let database = try await StorageDatabase.open(
+      kind: .library,
+      at: directory.appendingPathComponent("library.sqlite")
+    )
+    let store = try LibraryStore(database: database)
+    let sourceUID = "staged-move-source"
+    try await store.registerSource(
+      LibrarySourceDefinition(
+        uid: sourceUID,
+        kind: .smb,
+        displayName: "Staged Move",
+        rootURI: "smb://staged-move-fixture"
+      )
+    )
+    let capabilities = try MediaSourceCapabilities(
+      stableIDScope: .persistent,
+      pathSemantics: RemotePathSemantics(
+        caseSensitivity: .sensitive,
+        unicodeNormalization: .preserve
+      ),
+      supportsRangeReads: false,
+      supportsChangeCursor: false,
+      deltaDeletionsComplete: false
+    )
+    let root = try RemoteLocator(sourceUID: sourceUID, path: RemotePath())
+    let original = try RemoteEntry(
+      locator: RemoteLocator(sourceUID: sourceUID, path: RemotePath("Movie.mkv")),
+      kind: .file,
+      stableID: "movie-file",
+      size: 100
+    )
+    try await store.commit(
+      LibraryScanPersistenceBatch(
+        runUID: "staged-move-seed",
+        sourceUID: sourceUID,
+        mode: "full",
+        state: "completed",
+        checkpointJSON: #"{"phase":"completed"}"#,
+        coverageJSON: #"{"roots":[""]}"#,
+        entries: [original],
+        capabilities: capabilities,
+        coveredRoots: [root],
+        reconcileMissingEligible: true,
+        discoveredEntryCount: 1
+      )
+    )
+    let publishedBeforeFailure = try await store.snapshot()
+    let request = try MediaScanRequest(
+      runUID: "staged-move-failed",
+      sourceUID: sourceUID,
+      mode: .full,
+      roots: [root]
+    )
+
+    await #expect(throws: SDKError.self) {
+      _ = try await MediaScanner().scan(
+        request,
+        using: try InterruptingSQLiteConnector(
+          sourceUID: sourceUID,
+          entryPath: "Movie Renamed.mkv",
+          stableID: "movie-file",
+          size: 100
+        ),
+        sink: SQLiteMediaScanSink(store: store)
+      )
+    }
+
+    #expect(try await store.snapshot() == publishedBeforeFailure)
+    let stagedPath = try await database.read { database in
+      try String.fetchOne(
+        database,
+        sql: """
+          SELECT discovery.relative_path
+          FROM scan_discovery AS discovery
+          JOIN scan_run AS run ON run.id = discovery.run_id
+          WHERE run.uid = 'staged-move-failed'
+          """
+      )
+    }
+    // The first page is still inside the bounded commit batch when the next request fails.
+    // Neither its staging fact nor its frontier advancement may become partially durable.
+    #expect(stagedPath == nil)
   }
 
   @Test("Unchanged files stay done while changed and failed files remain actionable")
@@ -373,16 +480,22 @@ struct SQLiteMediaScanSinkTests {
     }
 
     try await commit(runUID: "queue-run-1", size: 100)
+    #expect(try await store.hasOutstandingScanWork(sourceUID: sourceUID, stage: .parse))
     #expect(
       try await store.pendingScanWork(sourceUID: sourceUID, stage: .parse)
         == [try LibraryScanWorkItem(relativePath: "Movie.mkv", attempts: 0)]
     )
 
-    try await store.completeScanWork(
-      sourceUID: sourceUID,
-      relativePath: "Movie.mkv",
-      stage: .parse
+    let firstLease = try #require(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "queue-worker"
+      ).first
     )
+    #expect(try await store.hasOutstandingScanWork(sourceUID: sourceUID, stage: .parse))
+    try await store.completeScanWork(firstLease)
+    #expect(!(try await store.hasOutstandingScanWork(sourceUID: sourceUID, stage: .parse)))
     #expect(try await store.pendingScanWork(sourceUID: sourceUID, stage: .parse).isEmpty)
 
     try await commit(runUID: "queue-run-2", size: 100)
@@ -394,10 +507,15 @@ struct SQLiteMediaScanSinkTests {
         == [try LibraryScanWorkItem(relativePath: "Movie.mkv", attempts: 0)]
     )
 
+    let retryLease = try #require(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "queue-worker"
+      ).first
+    )
     try await store.retryScanWork(
-      sourceUID: sourceUID,
-      relativePath: "Movie.mkv",
-      stage: .parse,
+      retryLease,
       errorCode: .networkUnavailable
     )
     #expect(
@@ -405,12 +523,186 @@ struct SQLiteMediaScanSinkTests {
         == [try LibraryScanWorkItem(relativePath: "Movie.mkv", attempts: 1)]
     )
 
-    try await store.completeScanWork(
-      sourceUID: sourceUID,
-      relativePath: "Movie.mkv",
-      stage: .parse
+    let finalLease = try #require(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "queue-worker"
+      ).first
     )
+    try await store.completeScanWork(finalLease)
+    #expect(!(try await store.hasOutstandingScanWork(sourceUID: sourceUID, stage: .parse)))
     #expect(try await store.pendingScanWork(sourceUID: sourceUID, stage: .parse).isEmpty)
+  }
+
+  @Test("Scan work leases are exclusive and become reclaimable only after expiry")
+  func scanWorkLeaseExpiry() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "stellar-sqlite-lease-expiry-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let database = try await StorageDatabase.open(
+      kind: .library,
+      at: directory.appendingPathComponent("library.sqlite")
+    )
+    let sourceUID = "lease-expiry-source"
+    let initialStore = try LibraryStore(database: database, clock: SQLiteScanClock(now: 100))
+    try await initialStore.registerSource(
+      LibrarySourceDefinition(
+        uid: sourceUID,
+        kind: .smb,
+        displayName: "Lease expiry",
+        rootURI: "smb://lease-expiry"
+      )
+    )
+    let capabilities = try MediaSourceCapabilities(
+      stableIDScope: .persistent,
+      pathSemantics: RemotePathSemantics(
+        caseSensitivity: .sensitive,
+        unicodeNormalization: .nfc
+      ),
+      supportsRangeReads: true,
+      supportsChangeCursor: false,
+      deltaDeletionsComplete: false
+    )
+    let entry = try RemoteEntry(
+      locator: RemoteLocator(sourceUID: sourceUID, path: RemotePath("Movie.mkv")),
+      kind: .file,
+      stableID: "lease-file",
+      size: 100
+    )
+    try await initialStore.commit(
+      LibraryScanPersistenceBatch(
+        runUID: "lease-expiry-run",
+        sourceUID: sourceUID,
+        mode: "full",
+        state: "completed",
+        checkpointJSON: #"{"phase":"completed"}"#,
+        coverageJSON: #"{"roots":[""]}"#,
+        entries: [entry],
+        capabilities: capabilities,
+        coveredRoots: [RemoteLocator(sourceUID: sourceUID, path: RemotePath())],
+        reconcileMissingEligible: true,
+        discoveredEntryCount: 1
+      )
+    )
+
+    let original = try #require(
+      try await initialStore.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "worker-a",
+        leaseDurationMilliseconds: 1_000
+      ).first
+    )
+    let beforeExpiry = try LibraryStore(database: database, clock: SQLiteScanClock(now: 1_099))
+    #expect(
+      try await beforeExpiry.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "worker-b",
+        leaseDurationMilliseconds: 1_000
+      ).isEmpty
+    )
+
+    let afterExpiry = try LibraryStore(database: database, clock: SQLiteScanClock(now: 1_100))
+    let reclaimed = try #require(
+      try await afterExpiry.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "worker-b",
+        leaseDurationMilliseconds: 1_000
+      ).first
+    )
+    #expect(reclaimed.claimToken != original.claimToken)
+    await #expect(throws: SDKError.self) {
+      try await initialStore.completeScanWork(original)
+    }
+    try await afterExpiry.completeScanWork(reclaimed)
+  }
+
+  @Test("A newer material revision invalidates an in-flight worker")
+  func materialRevisionInvalidatesLease() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "stellar-sqlite-stale-worker-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let database = try await StorageDatabase.open(
+      kind: .library,
+      at: directory.appendingPathComponent("library.sqlite")
+    )
+    let sourceUID = "stale-worker-source"
+    let store = try LibraryStore(database: database, clock: SQLiteScanClock(now: 100))
+    try await store.registerSource(
+      LibrarySourceDefinition(
+        uid: sourceUID,
+        kind: .smb,
+        displayName: "Stale worker",
+        rootURI: "smb://stale-worker"
+      )
+    )
+    let capabilities = try MediaSourceCapabilities(
+      stableIDScope: .persistent,
+      pathSemantics: RemotePathSemantics(
+        caseSensitivity: .sensitive,
+        unicodeNormalization: .nfc
+      ),
+      supportsRangeReads: true,
+      supportsChangeCursor: false,
+      deltaDeletionsComplete: false
+    )
+    let root = try RemoteLocator(sourceUID: sourceUID, path: RemotePath())
+
+    func publish(runUID: String, size: Int64) async throws {
+      let entry = try RemoteEntry(
+        locator: RemoteLocator(sourceUID: sourceUID, path: RemotePath("Movie.mkv")),
+        kind: .file,
+        stableID: "stale-file",
+        size: size
+      )
+      try await store.commit(
+        LibraryScanPersistenceBatch(
+          runUID: runUID,
+          sourceUID: sourceUID,
+          mode: "full",
+          state: "completed",
+          checkpointJSON: #"{"phase":"completed"}"#,
+          coverageJSON: #"{"roots":[""]}"#,
+          entries: [entry],
+          capabilities: capabilities,
+          coveredRoots: [root],
+          reconcileMissingEligible: true,
+          discoveredEntryCount: 1
+        )
+      )
+    }
+
+    try await publish(runUID: "stale-run-1", size: 100)
+    let staleLease = try #require(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "slow-worker"
+      ).first
+    )
+    #expect(staleLease.inputRevision == 1)
+
+    try await publish(runUID: "stale-run-2", size: 200)
+    await #expect(throws: SDKError.self) {
+      try await store.completeScanWork(staleLease)
+    }
+    let currentLease = try #require(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "current-worker"
+      ).first
+    )
+    #expect(currentLease.inputRevision == 2)
+    #expect(currentLease.file.sizeBytes == 200)
+    try await store.completeScanWork(currentLease)
   }
 
   @Test("Compact checkpoint restores its frontier and replays only unfinished pages")
@@ -465,6 +757,7 @@ struct SQLiteMediaScanSinkTests {
     #expect(checkpointJSON.utf8.count < 2_048)
     #expect(!checkpointJSON.contains("seen_entry_identity_keys"))
     #expect(!checkpointJSON.contains("completed_pages"))
+    #expect(try await store.snapshot().files.isEmpty)
     let durableCounts = try await database.read { database in
       (
         try Int.fetchOne(
@@ -475,12 +768,14 @@ struct SQLiteMediaScanSinkTests {
           database,
           sql: "SELECT COUNT(*) FROM scan_frontier WHERE state = 'completed'"
         ) ?? 0,
-        try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM scan_seen") ?? 0
+        try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM scan_seen") ?? 0,
+        try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM scan_discovery") ?? 0
       )
     }
     #expect(durableCounts.0 == 1)
     #expect(durableCounts.1 == 1)
     #expect(durableCounts.2 == 1)
+    #expect(durableCounts.3 == 1)
 
     let result = try await scanner.scan(
       request,
@@ -497,11 +792,13 @@ struct SQLiteMediaScanSinkTests {
     let retainedRunState = try await database.read { database in
       (
         try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM scan_frontier") ?? 0,
-        try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM scan_seen") ?? 0
+        try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM scan_seen") ?? 0,
+        try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM scan_discovery") ?? 0
       )
     }
     #expect(retainedRunState.0 == 0)
     #expect(retainedRunState.1 == 0)
+    #expect(retainedRunState.2 == 0)
   }
 
   @Test("Pending scan work joins file facts and paginates without a full snapshot")
@@ -652,11 +949,14 @@ struct SQLiteMediaScanSinkTests {
     }
 
     try await commit(firstStore, runUID: "unchanged-run-1")
-    try await firstStore.completeScanWork(
-      sourceUID: sourceUID,
-      relativePath: "Movie.mkv",
-      stage: .parse
+    let lease = try #require(
+      try await firstStore.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "unchanged-worker"
+      ).first
     )
+    try await firstStore.completeScanWork(lease)
     let secondStore = try LibraryStore(
       database: database,
       clock: SQLiteScanClock(now: 200)
@@ -787,6 +1087,72 @@ struct SQLiteMediaScanSinkTests {
     )
   }
 
+  @Test("Only one unfinished scan run can be active for a source")
+  func oneActiveRunPerSource() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "stellar-sqlite-active-run-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let database = try await StorageDatabase.open(
+      kind: .library,
+      at: directory.appendingPathComponent("library.sqlite")
+    )
+    let store = try LibraryStore(database: database)
+    let sourceUID = "active-run-source"
+    try await store.registerSource(
+      LibrarySourceDefinition(
+        uid: sourceUID,
+        kind: .smb,
+        displayName: "Active Run",
+        rootURI: "smb://active-run-fixture"
+      )
+    )
+
+    func batch(runUID: String, state: String) throws -> LibraryScanPersistenceBatch {
+      try LibraryScanPersistenceBatch(
+        runUID: runUID,
+        sourceUID: sourceUID,
+        mode: "full",
+        state: state,
+        checkpointJSON: #"{"phase":"pending"}"#,
+        coverageJSON: #"{"roots":[""]}"#,
+        entries: [],
+        capabilities: nil,
+        discoveredEntryCount: 0
+      )
+    }
+
+    try await store.commit(batch(runUID: "active-run-1", state: "queued"))
+    do {
+      try await store.commit(batch(runUID: "active-run-2", state: "queued"))
+      Issue.record("a second active scan run was accepted")
+    } catch let error as SDKError {
+      #expect(error.code == .conflict)
+    }
+
+    try await store.commit(batch(runUID: "active-run-1", state: "failed"))
+    try await store.commit(batch(runUID: "active-run-2", state: "queued"))
+    let activeRunUIDs = try await database.read { database in
+      try String.fetchAll(
+        database,
+        sql: """
+          SELECT uid FROM scan_run
+          WHERE state IN ('queued', 'enumerating', 'processing', 'finalizing')
+          """
+      )
+    }
+    #expect(activeRunUIDs == ["active-run-2"])
+
+    try await store.commit(batch(runUID: "active-run-2", state: "failed"))
+    do {
+      try await store.commit(batch(runUID: "active-run-1", state: "queued"))
+      Issue.record("a superseded scan run was resumed")
+    } catch let error as SDKError {
+      #expect(error.code == .conflict)
+    }
+  }
+
   private var scannerFixtureURL: URL {
     URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
@@ -831,8 +1197,18 @@ private struct SQLiteScanClock: SDKClock {
 private struct InterruptingSQLiteConnector: MediaSourceConnector {
   let session: InterruptingSQLiteSession
 
-  init(sourceUID: String) throws {
-    session = try InterruptingSQLiteSession(sourceUID: sourceUID)
+  init(
+    sourceUID: String,
+    entryPath: String = "Partial.mkv",
+    stableID: String = "partial-file",
+    size: Int64 = 7
+  ) throws {
+    session = try InterruptingSQLiteSession(
+      sourceUID: sourceUID,
+      entryPath: entryPath,
+      stableID: stableID,
+      size: size
+    )
   }
 
   func connect() async throws -> any MediaSourceSession { session }
@@ -844,7 +1220,7 @@ private actor InterruptingSQLiteSession: MediaSourceSession {
   private let root: RemoteLocator
   private let entry: RemoteEntry
 
-  init(sourceUID: String) throws {
+  init(sourceUID: String, entryPath: String, stableID: String, size: Int64) throws {
     self.sourceUID = sourceUID
     capabilities = try MediaSourceCapabilities(
       stableIDScope: .persistent,
@@ -858,10 +1234,10 @@ private actor InterruptingSQLiteSession: MediaSourceSession {
     )
     root = try RemoteLocator(sourceUID: sourceUID, path: RemotePath())
     entry = try RemoteEntry(
-      locator: RemoteLocator(sourceUID: sourceUID, path: RemotePath("Partial.mkv")),
+      locator: RemoteLocator(sourceUID: sourceUID, path: RemotePath(entryPath)),
       kind: .file,
-      stableID: "partial-file",
-      size: 7
+      stableID: stableID,
+      size: size
     )
   }
 

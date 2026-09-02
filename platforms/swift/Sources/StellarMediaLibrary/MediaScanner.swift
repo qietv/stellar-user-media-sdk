@@ -378,6 +378,11 @@ public struct MediaScanBatch: Sendable {
   public let checkpoint: MediaScanCheckpoint
   public let completion: MediaScanCompletion?
   public let enumerationState: MediaScanEnumerationState?
+
+  /// Ordered frontier transitions acknowledged atomically by this batch.
+  public let pageTransitions: [MediaScanPageTransition]
+
+  /// The transition for a legacy single-page batch, or `nil` for a coalesced batch.
   public let pageTransition: MediaScanPageTransition?
 
   public init(
@@ -390,7 +395,7 @@ public struct MediaScanBatch: Sendable {
       checkpoint: checkpoint,
       completion: completion,
       enumerationState: nil,
-      pageTransition: nil
+      pageTransitions: []
     )
   }
 
@@ -401,21 +406,46 @@ public struct MediaScanBatch: Sendable {
     enumerationState: MediaScanEnumerationState?,
     pageTransition: MediaScanPageTransition?
   ) {
+    self.init(
+      entries: entries,
+      checkpoint: checkpoint,
+      completion: completion,
+      enumerationState: enumerationState,
+      pageTransitions: pageTransition.map { [$0] } ?? []
+    )
+  }
+
+  public init(
+    entries: [RemoteEntry],
+    checkpoint: MediaScanCheckpoint,
+    completion: MediaScanCompletion? = nil,
+    enumerationState: MediaScanEnumerationState?,
+    pageTransitions: [MediaScanPageTransition]
+  ) {
     self.entries = entries
     self.checkpoint = checkpoint
     self.completion = completion
     self.enumerationState = enumerationState
-    self.pageTransition = pageTransition
+    self.pageTransitions = pageTransitions
+    pageTransition = pageTransitions.count == 1 ? pageTransitions[0] : nil
   }
 }
 
 /// Atomic persistence seam implemented by S4 storage and by fixture-backed tests.
 public protocol MediaScanSink: Sendable {
+  /// Preferred number of small directory pages to persist in one atomic commit.
+  ///
+  /// The default of one preserves per-page durability for general-purpose sinks. Durable
+  /// database sinks may opt into a larger bounded batch to amortize transaction overhead.
+  var preferredPageCommitBatchSize: Int { get }
+
   func commit(_ batch: MediaScanBatch) async throws
   func loadEnumerationState(runUID: String) async throws -> MediaScanEnumerationState?
 }
 
 extension MediaScanSink {
+  public var preferredPageCommitBatchSize: Int { 1 }
+
   public func loadEnumerationState(runUID _: String) async throws -> MediaScanEnumerationState? {
     nil
   }
@@ -484,7 +514,7 @@ public struct MediaScannerConfiguration: Equatable, Sendable {
   public let maxConcurrentDirectoryRequests: Int
 
   public init() {
-    pageSize = 500
+    pageSize = 2_000
     maxConcurrentDirectoryRequests = 4
   }
 
@@ -662,10 +692,14 @@ public struct MediaScanner: Sendable {
       capabilities.preferredDirectoryRequestConcurrency
     )
     var workingState = EnumerationWorkingState(state: initialState)
+    let pageCommitBatchSize = max(1, min(sink.preferredPageCommitBatchSize, 64))
+    var durableCheckpoint = checkpoint
 
     do {
       return try await withThrowingTaskGroup(of: PageResponse.self) { group in
         var active = Set<MediaScanPageCursor>()
+        var bufferedEntries: [RemoteEntry] = []
+        var bufferedTransitions: [MediaScanPageTransition] = []
 
         while workingState.pendingPageCount > 0 {
           try Task.checkCancellation()
@@ -694,23 +728,54 @@ public struct MediaScanner: Sendable {
           }
           active.remove(response.cursor)
 
+          // Keep entry memory bounded to approximately one configured source page. This still
+          // coalesces the common many-small-directories case without retaining several large
+          // directory pages at once.
+          if !bufferedTransitions.isEmpty,
+            bufferedEntries.count + response.page.items.count > configuration.pageSize
+          {
+            try await sink.commit(
+              MediaScanBatch(
+                entries: bufferedEntries,
+                checkpoint: checkpoint,
+                enumerationState: nil,
+                pageTransitions: bufferedTransitions
+              )
+            )
+            durableCheckpoint = checkpoint
+            bufferedEntries.removeAll(keepingCapacity: true)
+            bufferedTransitions.removeAll(keepingCapacity: true)
+            await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
+          }
+
           let processed = try process(
             response,
             checkpoint: checkpoint,
             capabilities: capabilities,
             workingState: &workingState
           )
-          try await sink.commit(
-            MediaScanBatch(
-              entries: response.page.items,
-              checkpoint: processed.checkpoint,
-              enumerationState: nil,
-              pageTransition: processed.transition
-            )
-          )
           checkpoint = processed.checkpoint
+          bufferedEntries.append(contentsOf: response.page.items)
+          bufferedTransitions.append(processed.transition)
           await observer.emit(MediaScanEvent(kind: .progress, checkpoint: checkpoint))
-          await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
+
+          if bufferedTransitions.count >= pageCommitBatchSize
+            || bufferedEntries.count >= configuration.pageSize
+            || workingState.pendingPageCount == 0
+          {
+            try await sink.commit(
+              MediaScanBatch(
+                entries: bufferedEntries,
+                checkpoint: checkpoint,
+                enumerationState: nil,
+                pageTransitions: bufferedTransitions
+              )
+            )
+            durableCheckpoint = checkpoint
+            bufferedEntries.removeAll(keepingCapacity: true)
+            bufferedTransitions.removeAll(keepingCapacity: true)
+            await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
+          }
         }
 
         checkpoint = checkpoint.updating(
@@ -723,7 +788,7 @@ public struct MediaScanner: Sendable {
         return checkpoint
       }
     } catch {
-      throw EnumerationInterruption(checkpoint: checkpoint, underlying: error)
+      throw EnumerationInterruption(checkpoint: durableCheckpoint, underlying: error)
     }
   }
 
@@ -738,10 +803,10 @@ public struct MediaScanner: Sendable {
     }
 
     let semantics = capabilities.pathSemantics
-    let parentKey = response.cursor.directory.pathComparisonKey(using: semantics)
+    let parentPath = response.cursor.directory.path
     for entry in response.page.items {
       guard entry.locator.sourceUID == checkpoint.request.sourceUID,
-        entry.locator.path.parent?.comparisonKey(using: semantics) == parentKey
+        Self.hasDirectParent(entry.locator.path, parent: parentPath, semantics: semantics)
       else {
         throw SDKError(
           code: .parseFailure,
@@ -871,6 +936,24 @@ public struct MediaScanner: Sendable {
       return "stable:\(stableID)"
     }
     return "path:\(entry.locator.pathComparisonKey(using: capabilities.pathSemantics))"
+  }
+
+  private static func hasDirectParent(
+    _ entry: RemotePath,
+    parent: RemotePath,
+    semantics: RemotePathSemantics
+  ) -> Bool {
+    let entryPath = entry.relativePath
+    let parentPath = parent.relativePath
+    if let separator = entryPath.utf8.lastIndex(of: 47) {
+      if entryPath[..<separator] == parentPath {
+        return true
+      }
+    } else if parentPath.isEmpty {
+      return true
+    }
+    return entry.parent?.comparisonKey(using: semantics)
+      == parent.comparisonKey(using: semantics)
   }
 
   private func initialEnumerationState(

@@ -3,8 +3,9 @@
 状态：已接受  
 日期：2026-08-16
 
-2026-09-01 修订：`library.sqlite` 通过 checksum 固定的 v2 migration 增加
-`scan_frontier` 与 `scan_seen`，当前为 29 张表；v1 的 27 表 DDL 继续作为迁移基线保留。
+2026-09-02 修订：`library.sqlite` 通过 checksum 固定的 v2/v3/v4/v5 migration 增加
+`scan_frontier`、`scan_seen`、`scan_discovery`、revision-safe worker lease 与 claim 顺序索引，并强制单来源只有一个 active scan run；
+当前为 30 张表，v1 的 27 表 DDL 继续作为迁移基线保留。
 
 ## 背景
 
@@ -17,9 +18,10 @@ Swift reference implementation 已完成来源无关 scanner。S4 需要把 chec
 - `library.sqlite` 和 `account.sqlite` 使用 `DatabasePool`，每个数据库再由一个 writer actor 协调业务写入；读取可并发。
 - 每条连接启用 foreign keys、5000 ms busy timeout 与 `synchronous=NORMAL`；可写数据库使用 WAL。
 - 迁移 SQL、版本和 SHA-256 checksum 由仓库 guard 校验。迁移在事务内完成，只有 DDL、`schema_migration` 记录、`application_id` 与 `user_version` 全部成功才提交。
-- `library.sqlite` 当前保存 29 张核心业务表；`metadata_cache.sqlite` 只保存 3 张可删除缓存表；`account.sqlite` 保存来源配置、v1 明文 `CredentialRecord`、冲突候选、transactional outbox 与同步 cursor。凭据保护决策以后续 [ADR-0005](0005-synced-credential-storage.md) 为准。
+- `library.sqlite` 当前保存 30 张核心业务表；`metadata_cache.sqlite` 只保存 3 张可删除缓存表；`account.sqlite` 保存来源配置、v1 明文 `CredentialRecord`、冲突候选、transactional outbox 与同步 cursor。凭据保护决策以后续 [ADR-0005](0005-synced-credential-storage.md) 为准。
 - 数据库之间不建立外键。跨库关联只使用稳定 UID，并由应用层检查。
-- scanner 每页 entries、durable frontier/seen transition、compact checkpoint 和 scan counters 在一个短事务中提交。只有携带最终 `MediaScanCompletion` 且 `reconcile_missing_eligible=true` 的事务可以协调 covered roots 内的 missing。
+- scanner 每页 entries 只写 per-run discovery staging，并与 durable frontier/seen transition、compact checkpoint 和 scan counters 在一个短事务中提交。最终 completion 在单事务中发布正式文件快照、changed work 与 scoped missing；失败或取消保留 staging 供恢复，不能修改已发布快照。
+- metadata work 通过带 claim token、heartbeat 和 expiry 的 lease 独占处理；队列保存创建时的 file material revision，所有结果写回以 lease 与 revision compare-and-set，过期或陈旧 worker 不得修改正式 metadata。
 - `change_log`/`account_change_log` 故意不引用业务表；业务行删除不能级联丢失尚未上传的 upsert 或 tombstone。
 
 ## 数据库身份

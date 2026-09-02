@@ -84,6 +84,12 @@ public actor StorageDatabase {
       configuration.foreignKeysEnabled = true
       configuration.busyMode = .timeout(5)
       configuration.maximumReaderCount = 5
+      configuration.prepareDatabase { database in
+        guard !database.configuration.readonly else { return }
+        // Keep large scan batches from repeatedly checkpointing SQLite's small default WAL.
+        // 4,096 pages is about 16 MiB with the default page size and remains bounded.
+        try database.execute(sql: "PRAGMA wal_autocheckpoint = 4096")
+      }
       let pool = try DatabasePool(path: path, configuration: configuration)
       let database = StorageDatabase(kind: kind, url: url, pool: pool, clock: clock)
       try await database.migrateIfNeeded()

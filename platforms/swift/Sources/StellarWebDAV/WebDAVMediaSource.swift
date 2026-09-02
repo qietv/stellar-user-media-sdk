@@ -361,7 +361,7 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
   }
 
   fileprivate func validateRoot() async throws {
-    let root = try RemoteLocator(sourceUID: sourceUID, path: RemotePath())
+    let root = RemoteLocator(validatedSourceUID: sourceUID, path: try RemotePath())
     let entry = try await stat(root)
     guard entry.kind == .directory else {
       throw SDKError(code: .invalidConfiguration, message: "WebDAV root is not a collection")
@@ -540,15 +540,37 @@ private enum WebDAVMultiStatusParser {
   private final class MultiStatusDelegate: NSObject, XMLParserDelegate, @unchecked Sendable {
     private let sourceUID: String
     private let baseURL: URL
+    private let baseScheme: String?
+    private let baseHost: String?
+    private let basePort: Int?
+    private let basePathComponents: [String]
+    private let httpDateFormatter: DateFormatter
     private var current: ResponseFields?
     private var currentPropstat: PropertyFields?
     private var elementStack: [String] = []
     private var text = ""
-    fileprivate var entries: Result<[RemoteEntry], Error> = .success([])
+    private var parsedEntries: [RemoteEntry] = []
+    private var parsingError: Error?
+
+    fileprivate var entries: Result<[RemoteEntry], Error> {
+      if let parsingError {
+        return .failure(parsingError)
+      }
+      return .success(parsedEntries)
+    }
 
     init(sourceUID: String, baseURL: URL) {
       self.sourceUID = sourceUID
       self.baseURL = baseURL
+      baseScheme = baseURL.scheme?.lowercased()
+      baseHost = baseURL.host?.lowercased()
+      basePort = baseURL.port
+      basePathComponents = baseURL.pathComponents
+      let formatter = DateFormatter()
+      formatter.locale = Locale(identifier: "en_US_POSIX")
+      formatter.timeZone = TimeZone(secondsFromGMT: 0)
+      formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+      httpDateFormatter = formatter
     }
 
     func parser(
@@ -590,14 +612,14 @@ private enum WebDAVMultiStatusParser {
         }
         text = ""
       }
-      guard entries.isSuccess else { return }
+      guard parsingError == nil else { return }
       switch name {
       case "href" where parentName == "response":
         current?.href = value
       case "getcontentlength":
         currentPropstat?.size = Int64(value)
       case "getlastmodified":
-        currentPropstat?.modifiedAtMilliseconds = Self.parseHTTPDate(value)
+        currentPropstat?.modifiedAtMilliseconds = parseHTTPDate(value)
       case "getetag":
         currentPropstat?.entityTag = value.isEmpty ? nil : value
       case "status":
@@ -615,9 +637,9 @@ private enum WebDAVMultiStatusParser {
         if let current, current.isSuccessful {
           do {
             let entry = try makeEntry(current)
-            entries = entries.map { $0 + [entry] }
+            parsedEntries.append(entry)
           } catch {
-            entries = .failure(error)
+            parsingError = error
           }
         }
         current = nil
@@ -630,22 +652,21 @@ private enum WebDAVMultiStatusParser {
     private func makeEntry(_ fields: ResponseFields) throws -> RemoteEntry {
       guard let href = fields.href,
         let hrefURL = URL(string: href, relativeTo: baseURL)?.absoluteURL,
-        hrefURL.scheme?.lowercased() == baseURL.scheme?.lowercased(),
-        hrefURL.host?.lowercased() == baseURL.host?.lowercased(),
-        hrefURL.port == baseURL.port
+        hrefURL.scheme?.lowercased() == baseScheme,
+        hrefURL.host?.lowercased() == baseHost,
+        hrefURL.port == basePort
       else {
         throw SDKError(code: .parseFailure, message: "WebDAV href is invalid")
       }
-      let baseComponents = baseURL.pathComponents
       let hrefComponents = hrefURL.pathComponents
-      guard hrefComponents.count >= baseComponents.count,
-        hrefComponents.prefix(baseComponents.count).elementsEqual(baseComponents)
+      guard hrefComponents.count >= basePathComponents.count,
+        hrefComponents.prefix(basePathComponents.count).elementsEqual(basePathComponents)
       else {
         throw SDKError(code: .forbidden, message: "WebDAV href escaped the configured root")
       }
-      let relativeComponents = hrefComponents.dropFirst(baseComponents.count)
+      let relativeComponents = hrefComponents.dropFirst(basePathComponents.count)
       let path = try RemotePath(relativeComponents.joined(separator: "/"))
-      let locator = try RemoteLocator(sourceUID: sourceUID, path: path)
+      let locator = RemoteLocator(validatedSourceUID: sourceUID, path: path)
       return try RemoteEntry(
         locator: locator,
         kind: fields.isCollection ? .directory : .file,
@@ -656,16 +677,13 @@ private enum WebDAVMultiStatusParser {
     }
 
     private func localName(_ name: String) -> String {
-      name.split(separator: ":").last.map { $0.lowercased() } ?? name.lowercased()
+      guard let separator = name.utf8.lastIndex(of: 58) else { return name.lowercased() }
+      return name[name.index(after: separator)...].lowercased()
     }
 
-    private static func parseHTTPDate(_ value: String) -> Int64? {
+    private func parseHTTPDate(_ value: String) -> Int64? {
       guard !value.isEmpty else { return nil }
-      let formatter = DateFormatter()
-      formatter.locale = Locale(identifier: "en_US_POSIX")
-      formatter.timeZone = TimeZone(secondsFromGMT: 0)
-      formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
-      return formatter.date(from: value).map {
+      return httpDateFormatter.date(from: value).map {
         Int64(($0.timeIntervalSince1970 * 1_000).rounded(.towardZero))
       }
     }
@@ -701,12 +719,5 @@ private enum WebDAVMultiStatusParser {
       var entityTag: String?
       var isSuccessful = false
     }
-  }
-}
-
-extension Result {
-  fileprivate var isSuccess: Bool {
-    if case .success = self { return true }
-    return false
   }
 }

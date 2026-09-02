@@ -2336,6 +2336,24 @@
           ]
         },
         {
+          "declaration": "var preferredPageCommitBatchSize: Int { get }",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV28preferredPageCommitBatchSizeSivp",
+          "kind": "swift.property",
+          "path": [
+            "SQLiteMediaScanSink",
+            "preferredPageCommitBatchSize"
+          ]
+        },
+        {
+          "declaration": "func loadLatestRecoverableCheckpoint(sourceUID: String) async throws -> MediaScanCheckpoint?",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV31loadLatestRecoverableCheckpoint9sourceUIDAA0beJ0VSgSS_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaScanSink",
+            "loadLatestRecoverableCheckpoint(sourceUID:)"
+          ]
+        },
+        {
           "declaration": "let store: LibraryStore",
           "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV5store0A7Storage0C5StoreVvp",
           "kind": "swift.property",
@@ -5146,6 +5164,15 @@
           ]
         },
         {
+          "declaration": "var preferredPageCommitBatchSize: Int { get }",
+          "identifier": "s:19StellarMediaLibrary0B8ScanSinkP28preferredPageCommitBatchSizeSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanSink",
+            "preferredPageCommitBatchSize"
+          ]
+        },
+        {
           "declaration": "func commit(_ batch: MediaScanBatch) async throws",
           "identifier": "s:19StellarMediaLibrary0B8ScanSinkP6commityyAA0bD5BatchVYaKF",
           "kind": "swift.method",
@@ -5161,6 +5188,15 @@
           "path": [
             "MediaScanSink",
             "loadEnumerationState(runUID:)"
+          ]
+        },
+        {
+          "declaration": "var preferredPageCommitBatchSize: Int { get }",
+          "identifier": "s:19StellarMediaLibrary0B8ScanSinkPAAE28preferredPageCommitBatchSizeSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanSink",
+            "preferredPageCommitBatchSize"
           ]
         },
         {
@@ -5199,6 +5235,15 @@
           ]
         },
         {
+          "declaration": "let pageTransitions: [MediaScanPageTransition]",
+          "identifier": "s:19StellarMediaLibrary0B9ScanBatchV15pageTransitionsSayAA0bD14PageTransitionVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanBatch",
+            "pageTransitions"
+          ]
+        },
+        {
           "declaration": "let enumerationState: MediaScanEnumerationState?",
           "identifier": "s:19StellarMediaLibrary0B9ScanBatchV16enumerationStateAA0bd11EnumerationG0VSgvp",
           "kind": "swift.property",
@@ -5214,6 +5259,15 @@
           "path": [
             "MediaScanBatch",
             "init(entries:checkpoint:completion:enumerationState:pageTransition:)"
+          ]
+        },
+        {
+          "declaration": "init(entries: [RemoteEntry], checkpoint: MediaScanCheckpoint, completion: MediaScanCompletion? = nil, enumerationState: MediaScanEnumerationState?, pageTransitions: [MediaScanPageTransition])",
+          "identifier": "s:19StellarMediaLibrary0B9ScanBatchV7entries10checkpoint10completion16enumerationState15pageTransitionsACSay0a6RemoteB00M5EntryVG_AA0bD10CheckpointVAA0bD10CompletionVSgAA0bd11EnumerationJ0VSgSayAA0bD14PageTransitionVGtcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanBatch",
+            "init(entries:checkpoint:completion:enumerationState:pageTransitions:)"
           ]
         },
         {
@@ -11756,6 +11810,15 @@
           ]
         },
         {
+          "declaration": "func retryScanWork(_ lease: LibraryScanWorkLease, errorCode: SDKErrorCode, retryAfterMilliseconds: Int64? = nil) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV13retryScanWork_9errorCode0E17AfterMillisecondsyAA0cfG5LeaseV_0A4Core08SDKErrorI0Os5Int64VSgtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "retryScanWork(_:errorCode:retryAfterMilliseconds:)"
+          ]
+        },
+        {
           "declaration": "func checkpointJSON(runUID: String) async throws -> String?",
           "identifier": "s:14StellarStorage12LibraryStoreV14checkpointJSON6runUIDSSSgSS_tYaKF",
           "kind": "swift.method",
@@ -11792,12 +11855,48 @@
           ]
         },
         {
+          "declaration": "func completeScanWork(_ lease: LibraryScanWorkLease) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV16completeScanWorkyyAA0cfG5LeaseVYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "completeScanWork(_:)"
+          ]
+        },
+        {
+          "declaration": "func claimScanFileWork(sourceUID: String, stage: LibraryScanQueueStage, workerID: String, limit: Int = 50, leaseDurationMilliseconds: Int64 = 120_000) async throws -> [LibraryScanWorkLease]",
+          "identifier": "s:14StellarStorage12LibraryStoreV17claimScanFileWork9sourceUID5stage8workerID5limit25leaseDurationMillisecondsSayAA0cfH5LeaseVGSS_AA0cF10QueueStageOSSSis5Int64VtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "claimScanFileWork(sourceUID:stage:workerID:limit:leaseDurationMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "func renewScanWorkLease(_ lease: LibraryScanWorkLease, leaseDurationMilliseconds: Int64 = 120_000) async throws -> LibraryScanWorkLease",
+          "identifier": "s:14StellarStorage12LibraryStoreV18renewScanWorkLease_25leaseDurationMillisecondsAA0cfgH0VAG_s5Int64VtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "renewScanWorkLease(_:leaseDurationMilliseconds:)"
+          ]
+        },
+        {
           "declaration": "func sourceMediaSummary(sourceUID: String) async throws -> LibrarySourceMediaSummary",
           "identifier": "s:14StellarStorage12LibraryStoreV18sourceMediaSummary0E3UIDAA0c6SourcefG0VSS_tYaKF",
           "kind": "swift.method",
           "path": [
             "LibraryStore",
             "sourceMediaSummary(sourceUID:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func commitRemoteMetadata(_ metadata: LibraryRemoteMetadata, completing lease: LibraryScanWorkLease) async throws -> String",
+          "identifier": "s:14StellarStorage12LibraryStoreV20commitRemoteMetadata_10completingSSAA0cfG0V_AA0C13ScanWorkLeaseVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "commitRemoteMetadata(_:completing:)"
           ]
         },
         {
@@ -11816,6 +11915,15 @@
           "path": [
             "LibraryStore",
             "scanEnumerationState(runUID:)"
+          ]
+        },
+        {
+          "declaration": "func hasOutstandingScanWork(sourceUID: String, stage: LibraryScanQueueStage) async throws -> Bool",
+          "identifier": "s:14StellarStorage12LibraryStoreV22hasOutstandingScanWork9sourceUID5stageSbSS_AA0cG10QueueStageOtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "hasOutstandingScanWork(sourceUID:stage:)"
           ]
         },
         {
@@ -12287,6 +12395,86 @@
           "path": [
             "LibraryScanWorkItem",
             "attempts"
+          ]
+        },
+        {
+          "declaration": "struct LibraryScanWorkLease",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryScanWorkLease"
+          ]
+        },
+        {
+          "declaration": "let claimToken: String",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV10claimTokenSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanWorkLease",
+            "claimToken"
+          ]
+        },
+        {
+          "declaration": "let inputRevision: Int64",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV13inputRevisions5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanWorkLease",
+            "inputRevision"
+          ]
+        },
+        {
+          "declaration": "let hasMatchingBinding: Bool",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV18hasMatchingBindingSbvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanWorkLease",
+            "hasMatchingBinding"
+          ]
+        },
+        {
+          "declaration": "let leaseUntilMilliseconds: Int64",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV22leaseUntilMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanWorkLease",
+            "leaseUntilMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let file: LibraryFileFact",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV4fileAA0C8FileFactVvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanWorkLease",
+            "file"
+          ]
+        },
+        {
+          "declaration": "let stage: LibraryScanQueueStage",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV5stageAA0cD10QueueStageOvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanWorkLease",
+            "stage"
+          ]
+        },
+        {
+          "declaration": "let attempts: Int",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV8attemptsSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanWorkLease",
+            "attempts"
+          ]
+        },
+        {
+          "declaration": "let workerID: String",
+          "identifier": "s:14StellarStorage20LibraryScanWorkLeaseV8workerIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanWorkLease",
+            "workerID"
           ]
         },
         {
@@ -14207,6 +14395,14 @@
           "kind": "swift.typealias",
           "path": [
             "FilenameProviderHint"
+          ]
+        },
+        {
+          "declaration": "typealias LibraryScanWorkLease = LibraryScanWorkLease",
+          "identifier": "s:19StellarUserMediaSDK20LibraryScanWorkLeasea",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryScanWorkLease"
           ]
         },
         {

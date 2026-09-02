@@ -118,6 +118,13 @@ struct ProviderCacheAndRemoteMetadataTests {
       mediaRelativePath: path
     )
     #expect(match.state == .automaticBound)
+    let lease = try #require(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "metadata-worker"
+      ).first
+    )
 
     let wrongMetadata = try LibraryRemoteMetadata(
       provider: "test-provider",
@@ -129,13 +136,15 @@ struct ProviderCacheAndRemoteMetadataTests {
     await #expect(throws: SDKError.self) {
       try await store.commitRemoteMetadata(
         wrongMetadata,
-        sourceUID: sourceUID,
-        relativePath: path,
-        completing: .parse
+        completing: lease
       )
     }
-    let stillPending = try await store.pendingScanWork(sourceUID: sourceUID, stage: .parse)
-    #expect(stillPending.map(\.relativePath) == [path])
+    let competingClaims = try await store.claimScanFileWork(
+      sourceUID: sourceUID,
+      stage: .parse,
+      workerID: "other-worker"
+    )
+    #expect(competingClaims.isEmpty)
 
     let metadata = try LibraryRemoteMetadata(
       provider: "test-provider",
@@ -150,11 +159,46 @@ struct ProviderCacheAndRemoteMetadataTests {
       posterWidth: 1_000,
       posterHeight: 1_500
     )
+
+    let changedEntry = try RemoteEntry(
+      locator: RemoteLocator(sourceUID: sourceUID, path: RemotePath(path)),
+      kind: .file,
+      stableID: "movie-42",
+      size: 43
+    )
+    try await store.commit(
+      LibraryScanPersistenceBatch(
+        runUID: "remote-metadata-run-2",
+        sourceUID: sourceUID,
+        mode: "full",
+        state: "completed",
+        checkpointJSON: #"{"phase":"completed"}"#,
+        coverageJSON: #"{"roots":[""]}"#,
+        entries: [changedEntry],
+        capabilities: capabilities,
+        coveredRoots: [RemoteLocator(sourceUID: sourceUID, path: RemotePath())],
+        reconcileMissingEligible: true,
+        discoveredEntryCount: 1
+      )
+    )
+    await #expect(throws: SDKError.self) {
+      try await store.commitRemoteMetadata(metadata, completing: lease)
+    }
+    let localizedCount = try await libraryDatabase.read { database in
+      try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM localized_metadata") ?? 0
+    }
+    #expect(localizedCount == 0)
+    let currentLease = try #require(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "metadata-worker"
+      ).first
+    )
+    #expect(currentLease.inputRevision == lease.inputRevision + 1)
     let rootUID = try await store.commitRemoteMetadata(
       metadata,
-      sourceUID: sourceUID,
-      relativePath: path,
-      completing: .parse
+      completing: currentLease
     )
     let pending = try await store.pendingScanWork(sourceUID: sourceUID, stage: .parse)
     #expect(pending.isEmpty)

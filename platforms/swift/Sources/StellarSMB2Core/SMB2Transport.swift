@@ -8,7 +8,7 @@ public struct SMB2Path: Equatable, Hashable, Sendable, CustomStringConvertible {
 
   /// Creates a share-relative path and rejects parent traversal or NUL bytes.
   public init(_ path: String = "") throws {
-    guard !path.contains("\0"), !path.contains("\\") else {
+    guard !path.utf8.contains(0), !path.utf8.contains(92) else {
       throw SDKError(code: .invalidConfiguration, message: "SMB path contains invalid characters")
     }
     var components: [Substring] = []
@@ -24,20 +24,29 @@ public struct SMB2Path: Equatable, Hashable, Sendable, CustomStringConvertible {
     relativePath = components.joined(separator: "/")
   }
 
+  private init(normalizedRelativePath: String) {
+    relativePath = normalizedRelativePath
+  }
+
   /// Whether this path names the root of the share.
   public var isRoot: Bool { relativePath.isEmpty }
 
   /// The last path component, or an empty string for the share root.
-  public var name: String { relativePath.split(separator: "/").last.map(String.init) ?? "" }
+  public var name: String {
+    guard let separator = relativePath.utf8.lastIndex(of: 47) else { return relativePath }
+    return String(relativePath[relativePath.index(after: separator)...])
+  }
 
   /// Returns a child path without accepting separators or traversal components in the name.
   public func appending(component: String) throws -> SMB2Path {
     guard !component.isEmpty, component != ".", component != "..",
-      !component.contains("/"), !component.contains("\\"), !component.contains("\0")
+      !component.utf8.contains(47), !component.utf8.contains(92), !component.utf8.contains(0)
     else {
       throw SDKError(code: .invalidConfiguration, message: "invalid SMB path component")
     }
-    return try SMB2Path(isRoot ? component : "\(relativePath)/\(component)")
+    return SMB2Path(
+      normalizedRelativePath: isRoot ? component : "\(relativePath)/\(component)"
+    )
   }
 
   /// A redacted representation safe for routine diagnostics.

@@ -18,7 +18,7 @@ public enum StorageDatabaseKind: String, CaseIterable, Codable, Sendable {
   /// Latest schema version supported by this SDK.
   public var currentVersion: Int {
     switch self {
-    case .library: 2
+    case .library: 5
     case .account, .metadataCache: 1
     }
   }
@@ -27,7 +27,7 @@ public enum StorageDatabaseKind: String, CaseIterable, Codable, Sendable {
   public var expectedBusinessTableCount: Int {
     switch self {
     case .account: 6
-    case .library: 29
+    case .library: 30
     case .metadataCache: 3
     }
   }
