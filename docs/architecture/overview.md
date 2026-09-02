@@ -97,17 +97,17 @@ entity + selected media_file
 - v1 推荐每账户独立数据库目录，降低查询漏过滤风险；
 - 退出登录默认锁定本地用户域，不立即删除媒体文件缓存；用户明确“删除本机数据”时才回收。
 
-## 6. 平台实现策略
+## 6. Apple 平台实现策略
 
-首版采用三套原生实现，共享规范和测试向量：
+首版只维护一套 Swift 实现，并在 Apple 设备族间共享规范和测试向量：
 
 | 平台 | 并发/API 风格 | 安全存储 | 后台工作 |
 |---|---|---|---|
-| Swift | `async/await`、actor、`AsyncSequence` | Keychain | 系统允许的后台任务 + 前台恢复 |
-| Android | Kotlin coroutine、`Flow` | Keystore-backed storage | WorkManager |
-| OHOS | ArkTS `Promise`、事件/异步迭代接口 | HUKS/系统安全存储 | 系统允许的后台任务 + 前台恢复 |
+| iOS/iPadOS | `async/await`、actor、`AsyncSequence` | Data Protection Keychain | 系统允许的后台任务 + 前台恢复 |
+| macOS | `async/await`、actor、`AsyncSequence` | Data Protection Keychain | 应用生命周期调度 |
+| tvOS | `async/await`、actor、`AsyncSequence` | Data Protection Keychain | 系统允许的后台任务 + 前台恢复 |
 
-跨平台一致性依靠：
+设备族一致性依靠：
 
 - 同一组规范化 JSON 测试向量；
 - 同一份 SQLite DDL 和迁移 checksum；

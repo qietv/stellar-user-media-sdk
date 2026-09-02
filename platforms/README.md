@@ -1,12 +1,10 @@
-# 平台实现
+# Apple 平台实现
 
-三端使用原生语言实现，共享 `specs/` 中的业务契约和 SQLite 逻辑 schema。
+本项目只维护 Apple 平台的原生 Swift 实现；业务契约和 SQLite 逻辑 schema 位于 `specs/`。
 
-| 平台 | 目录 | 语言 | 首选异步模型 |
+| 平台 | 目录 | 语言 | 异步模型 |
 | --- | --- | --- | --- |
-| Apple | [swift](swift/README.md) | Swift | async/await、actor、AsyncSequence |
-| Android | [android](android/README.md) | Kotlin | coroutines、Flow |
-| OpenHarmony | [ohos](ohos/README.md) | ArkTS | Promise、TaskPool、事件订阅 |
+| iOS/iPadOS、macOS、tvOS | [swift](swift/README.md) | Swift | async/await、actor、AsyncSequence |
 
 每端均按以下模块拆分：
 
@@ -18,5 +16,4 @@
 - `MediaLibrary`：扫描、文件解析、匹配与媒体关系。
 - `PosterWall`：分页查询、增量事件、图片选择和缓存。
 
-平台 SDK 不互相复制业务规则；任何行为差异先修改公共规范或记录 ADR，再实现。
-
+设备族之间的行为差异必须先修改规范或记录 ADR，再实现。

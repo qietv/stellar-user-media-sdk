@@ -1,8 +1,8 @@
 # Stellar User Media SDK
 
-为“恒星播放器”提供跨平台的用户身份、远程媒体配置同步、媒体库扫描和海报墙数据能力。
+为 Apple 平台上的“恒星播放器”提供用户身份、远程媒体配置同步、媒体库扫描和海报墙数据能力。
 
-当前仓库处于架构与合同初始化阶段，目标平台为 Swift（最低 iOS/iPadOS 17、macOS 14、tvOS 17）、Android（Kotlin）和 OpenHarmony/HarmonyOS（ArkTS）。Swift 实现使用当前最新稳定 Swift 6.3 工具链与 Swift 6 语言模式。播放器解码、渲染和音视频输出不属于本 SDK；SDK 负责在播放前提供用户会话、可访问的媒体来源、媒体实体、海报和可播放资源描述。
+本项目只支持 Apple 平台：最低 iOS/iPadOS 17、macOS 14 与 tvOS 17。SDK 使用 Swift 6.3 工具链与 Swift 6 语言模式；SwiftPM 清单必须在 macOS 上解析。播放器解码、渲染和音视频输出不属于本 SDK；SDK 负责在播放前提供用户会话、可访问的媒体来源、媒体实体、海报和可播放资源描述。
 
 ## 核心能力
 
@@ -49,17 +49,15 @@ flowchart LR
     Imaging --> Adapters
 ```
 
-三端分别使用平台原生语言和并发模型，但共享 `specs/` 中的数据语义、状态机、错误分类、SQLite 迁移和同步格式。每台设备维护自己的数据库，不在多设备之间直接共享活动 SQLite 文件。
+Apple 各设备族共享 `specs/` 中的数据语义、状态机、错误分类、SQLite 迁移和同步格式。每台设备维护自己的数据库，不在设备之间直接共享活动 SQLite 文件。
 
 ## 仓库结构
 
 ```text
 docs/                 架构、决策、安全、路线图和研究资料
-specs/                三平台必须共同遵守的产品与数据合同
-platforms/swift/       Swift Package、SDK library 与 stellar-media CLI
-platforms/android/     Android/Kotlin library 预留结构
-platforms/ohos/        OHOS ArkTS HAR 预留结构
-examples/              三个平台的示例应用规划
+specs/                Apple SDK 与服务端共同遵守的产品和数据合同
+platforms/swift/       Apple Swift Package、SDK library 与 macOS stellar-media CLI
+examples/swift/        Apple 示例应用
 tools/reference/       研究和验证脚本，不属于生产 SDK
 debug-infuse/          本地保留的 Infuse IPA 静态分析工作区（大文件默认忽略）
 ```
@@ -88,4 +86,4 @@ debug-infuse/          本地保留的 Infuse IPA 静态分析工作区（大文
 - 人工匹配、观看状态、片单和未上传同步事件不能随索引重建丢失。
 - `docs/research/` 只用于 clean-room 行为研究，不作为复制第三方私有实现的来源。
 
-Swift 构建清单已经固定 Apple 平台首版兼容基线；Android 与 OHOS 的最低版本、包标识和发布渠道仍需确定。
+Swift 构建清单已固定 Apple 平台首版兼容基线。Linux、Windows、Android 与 OpenHarmony/HarmonyOS 不属于支持范围。

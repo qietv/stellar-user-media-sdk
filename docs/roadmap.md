@@ -1,75 +1,68 @@
-# 开发路线图
+# Apple SDK 开发路线图
 
-> 当前依赖迁移：Apple SMB backend 已改用 AMSMB2，旧自编译 libsmb2 链路已移除；FFmpegKit/libav 截图首版见 [ADR-0006](decisions/0006-amsmb2-ffmpegkit-and-screenshot.md)。下文早期 Linux/libsmb2 里程碑保留为历史完成记录。
+本项目只支持 iOS/iPadOS 17、macOS 14 与 tvOS 17。平台范围见
+[ADR-0007](decisions/0007-apple-only-platform-scope.md)。旧 Linux backend、非 Apple
+Swift 兼容层、Ubuntu 构建门禁以及 Android/OHOS 占位工程均不再维护。
 
-本文描述三平台共同的产品阶段。Swift 的实际开发顺序、Linux/libsmb2 首个验收里程碑及完成定义见 [Swift Reference Implementation Plan](plans/swift-reference-implementation.md)。
+## M0：Apple 包边界与基础合同
 
-## M0：仓库与合同
-
-- 确认三平台最低系统版本、包名和发布渠道；
-- 固化公共错误码、JSON 命名和时间/ID 规则；
-- 固化明文 `CredentialRecord`、同步冲突、删除和未来 `protection_mode` 升级合同；
-- 从 27 表设计提取可执行 DDL 与迁移测试；
-- 建立 CI、格式化、单元测试和 secret scanning。
+- 固定 Swift 6.3、Swift 6 language mode 与 Apple 最低系统版本；
+- 固化错误码、JSON 命名、时间/ID 规则与 SQLite migration；
+- macOS CI 执行格式、依赖锁定、公共 API、单元测试、release build 和 secret scan；
+- iOS device/simulator 编译验证主 SDK、Apple SMB 与截图产品。
 
 ## M1：OAuth 与账户
 
-- PKCE 登录、回调和会话状态机；
-- Token 安全存储和单飞刷新；
-- 退出、撤销、需要重新认证；
-- 多账户数据目录；
-- 每设备独立且默认无需生物识别读取的 Stellar OAuth token；
-- 三端相同的会话测试向量。
+- Authorization Code + PKCE 登录和 claimed HTTPS callback；
+- Data Protection Keychain 中的设备绑定、非交互 Token 存储；
+- 单飞刷新、恢复、退出、撤销、需要重新认证和多账户隔离；
+- iOS 真机继续覆盖登录、恢复、刷新、切换与注销。
 
-Swift reference 已建立真实开发 Gateway profile、PKCE/回调校验、session actor、单飞 refresh、资料读取、撤销和非交互 Apple Keychain，并以 `gateway-oauth-v1.json` 固定公开协议字段。Gateway 已注册 `stellarplayer-ios-demo` 移动端 Public Client 和 claimed HTTPS 回调；2026-08-18 已使用 `examples/swift/StellarOAuthDemo` 在真机完成登录、Keychain 会话恢复、资料与令牌刷新、账户切换和注销验收，验收过程无生物识别、设备密码或运行时权限弹框。desktop 动态 loopback 仍可使用独立 presenter。
+当前 Swift 实现已完成开发 Gateway profile、PKCE/回调校验、session actor、单飞
+refresh、资料读取、撤销和非交互 Keychain。同步 transport 与生产 Gateway 配置仍需推进。
 
-## M2：远程媒体配置同步
+## M2：远程媒体与凭据同步
 
-Swift reference 当前已完成 `MediaSourceConfig` v1、配置/墓碑 SQLite 原子 outbox，以及五种受限明文 `CredentialPayload` 的跨语言 fixture；OAuth App 端到端真机验收已通过，pull/push、冲突应用和来源变更触发仍在推进。
+- `MediaSourceConfig`、Favorite、扫描策略和墓碑；
+- 配置 pull/push、revision、冲突和原子 outbox；
+- 版本化 `CredentialRecord` 与受限 `CredentialPayload`；
+- AMSMB2 与 WebDAV connector；
+- 来源变化触发连通性检查与扫描。
 
-- `MediaSourceConfig`、Favorite 和扫描策略模型；
-- 配置 pull/push、版本和 tombstone；
-- 第三方用户名、密码和 Token 的明文 `CredentialRecord` 本地持久化与跨平台同步；
-- 新设备完成 Stellar OAuth 后直接恢复来源凭据，不增加 Vault 授权步骤；
-- SMB/WebDAV 一个基础 adapter；
-- 配置变化触发本地 scanner。
+## M3：媒体库与截图 MVP
 
-## M3：媒体库 MVP
-
-- SQLite v1、迁移和 repository；
-- 本地目录 + SMB 枚举；
-- full/scoped incremental scan；
-- 文件名 parser、NFO 和 TMDB match；
-- missing 宽限、来源离线保护和崩溃恢复。
+- SQLite migration、repository 和可恢复 scanner；
+- Apple 本地目录、SMB 与 WebDAV 枚举；
+- 文件名解析、NFO/JSON、技术探测和 TMDB matching；
+- missing 宽限、来源离线保护和崩溃恢复；
+- FFmpegKit/libav 本地与远端帧截图。
 
 ## M4：海报墙
 
-- 电影/剧集/继续观看/最近添加查询；
-- 分页、稳定排序、筛选和搜索；
-- 图片配置、缓存和预取；
-- 多版本绑定；
-- 三端示例应用。
+- 电影、剧集、继续观看和最近添加查询；
+- 稳定分页、排序、筛选与搜索；
+- 图片选择、缓存、预取和多版本绑定；
+- Apple 示例应用覆盖核心用户路径。
 
 ## M5：更多来源与同步
 
 - 云盘 delta adapter；
 - Plex/Emby/Jellyfin Library Mode；
 - Direct Mode 按需缓存；
-- 用户播放状态和片单同步；
-- provider 限流、离线和后台调度。
+- 播放状态、片单、provider 限流与后台恢复。
 
-## M6：重建与稳定发布
+## M6：稳定发布
 
-- metadata、derived index、full index 重建；
-- 数据库损坏恢复和用户域导入；
+- metadata、derived index 和 full index 重建；
+- 数据库损坏恢复与用户域导入；
 - 大型媒体库性能测试；
-- API compatibility、迁移回滚和发布文档；
-- 安全审计和隐私检查。
+- API compatibility、migration rollback、隐私清单和许可证审查；
+- iOS/iPadOS、macOS 与 tvOS 发布构建验收。
 
 ## 尚未决定
 
-- Android/OHOS 最低系统版本；Swift 已确定最低 iOS/iPadOS 17、macOS 14、tvOS 17；
 - Stellar account/config API 的最终 URL 与认证 scope；
-- 第三方凭据未来升级为服务端托管加密或 E2EE 的真实需求与迁移时机；
+- 第三方凭据未来保护模式及迁移时机；
 - PosterWall UI 组件是否作为独立包发布；
-- Swift reference v1 的 TMDB 直连 adapter 使用宿主应用运行时提供的 v3 API key 或 API Read Access Token；正式产品是否改由 Stellar 后端代理仍待决定。
+- TMDB 正式产品采用宿主凭据直连还是后端代理；
+- 远端截图从整文件暂存升级为自定义 libav I/O 的优先级。

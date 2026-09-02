@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare portable Swift public symbol graphs with a reviewed baseline."""
+"""Compare Swift public symbol graphs with a reviewed Apple SDK baseline."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ DEFAULT_MODULES = (
 
 
 def portable_identifier(identifier: str) -> str:
-    """Canonicalize SDK module ownership that differs across Swift platforms."""
+    """Canonicalize Foundation module ownership across Swift toolchain revisions."""
     return identifier.replace("20FoundationEssentials", "10Foundation")
 
 
@@ -150,13 +150,7 @@ def index_symbols(payload: dict[str, Any]) -> dict[tuple[str, str], dict[str, An
 
 
 def portable_signature(module: str, symbol: dict[str, Any]) -> tuple[str, str, tuple[str, ...], str]:
-    """Identify the same declaration when Swift mangles imported types differently.
-
-    Swift's precise identifiers are not fully portable across Darwin and Linux. In
-    particular, Foundation overlay substitutions can give an otherwise identical
-    declaration a different mangled identifier. The human-readable declaration,
-    path, and symbol kind remain stable and together preserve overload identity.
-    """
+    """Identify the same declaration when Foundation overlay mangling changes."""
     return (
         module,
         symbol.get("kind", ""),

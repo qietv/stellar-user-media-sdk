@@ -39,7 +39,7 @@ public struct LocalMediaSourceConfiguration: Sendable, CustomStringConvertible,
   public var debugDescription: String { description }
 }
 
-/// Connects the shared scanner contract to a macOS or Linux local directory.
+/// Connects the shared scanner contract to an Apple-platform local directory.
 public struct LocalMediaSourceConnector: MediaSourceConnector {
   public let configuration: LocalMediaSourceConfiguration
 
@@ -92,20 +92,16 @@ public struct LocalMediaSourceConnector: MediaSourceConnector {
   }
 
   private static func detectPathSemantics(at rootURL: URL) -> RemotePathSemantics {
-    #if os(Linux)
-      let caseSensitivity = RemotePathCaseSensitivity.sensitive
-    #else
-      let values = try? rootURL.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey])
-      let caseSensitivity: RemotePathCaseSensitivity
-      switch values?.volumeSupportsCaseSensitiveNames {
-      case true:
-        caseSensitivity = .sensitive
-      case false:
-        caseSensitivity = .insensitive
-      case nil:
-        caseSensitivity = .unknown
-      }
-    #endif
+    let values = try? rootURL.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey])
+    let caseSensitivity: RemotePathCaseSensitivity
+    switch values?.volumeSupportsCaseSensitiveNames {
+    case true:
+      caseSensitivity = .sensitive
+    case false:
+      caseSensitivity = .insensitive
+    case nil:
+      caseSensitivity = .unknown
+    }
     return RemotePathSemantics(
       caseSensitivity: caseSensitivity,
       unicodeNormalization: .preserve

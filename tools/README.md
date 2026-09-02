@@ -1,6 +1,6 @@
 # 工具
 
-`reference/` 保存调研阶段形成的可运行参考实现，不属于三端 SDK 的公共 API。
+`reference/` 保存调研阶段形成的可运行参考实现，不属于 Apple SDK 的公共 API。
 
 ## Infuse/TMDB 匹配器
 
@@ -16,5 +16,4 @@ TMDB_API_KEY="your-key" python3 reference/infuse_tmdb_matcher.py --help
 
 - `ci/check_swift_dependencies.py`：拒绝 SwiftPM branch/range 依赖；存在外部依赖时要求提交 `Package.resolved`。
 - `ci/check_swift_api.py`：从 Swift symbol graph 校验顶层 DocC 注释，并对比 `platforms/swift/API/PublicAPI.json`。
-- `ci/check_portable_swift_imports.py`：阻止 portable Swift targets 无条件导入 Apple-only framework。
 - `ci/secret_scan.py`：扫描已跟踪文件中的高置信度 secret，不打印匹配值。

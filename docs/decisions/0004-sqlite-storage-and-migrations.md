@@ -9,12 +9,12 @@
 
 ## 背景
 
-Swift reference implementation 已完成来源无关 scanner。S4 需要把 checkpoint、文件事实和完成边界持久化，同时向 Kotlin/ArkTS 提供完全相同的 DDL、约束、迁移编号和 checksum。活动 SQLite 文件不会跨设备共享，跨平台共享的是 SQL 合同和规范化 snapshot。
+Swift SDK 已完成来源无关 scanner。S4 需要把 checkpoint、文件事实和完成边界持久化，并在 Apple 设备族间提供完全相同的 DDL、约束、迁移编号和 checksum。活动 SQLite 文件不会跨设备共享，共享的是 SQL 合同和规范化 snapshot。
 
 ## 决策
 
-- `specs/storage/sql/` 是 SQL 的唯一跨平台合同入口，分别版本化 `library.sqlite`、`account.sqlite` 与 `metadata_cache.sqlite`。
-- Swift 精确固定 GRDB.swift 7.11.1，使用目标系统 SQLite；不使用 GRDB 私有 schema 作为跨平台事实。
+- `specs/storage/sql/` 是 SQL 的唯一合同入口，分别版本化 `library.sqlite`、`account.sqlite` 与 `metadata_cache.sqlite`。
+- Swift 精确固定 GRDB.swift 7.11.1，使用 Apple 系统 SQLite；不使用 GRDB 私有 schema 作为产品事实。
 - `library.sqlite` 和 `account.sqlite` 使用 `DatabasePool`，每个数据库再由一个 writer actor 协调业务写入；读取可并发。
 - 每条连接启用 foreign keys、5000 ms busy timeout 与 `synchronous=NORMAL`；可写数据库使用 WAL。
 - 迁移 SQL、版本和 SHA-256 checksum 由仓库 guard 校验。迁移在事务内完成，只有 DDL、`schema_migration` 记录、`application_id` 与 `user_version` 全部成功才提交。
@@ -43,4 +43,4 @@ Swift reference implementation 已完成来源无关 scanner。S4 需要把 chec
 
 ## 后果
 
-三端可以使用不同 SQLite 封装，但必须执行同一 SQL、保存同一 migration checksum，并通过相同 normalized snapshot。GRDB 只负责 Swift 的连接、事务和查询调度，不成为 wire format 或 schema 的所有者。
+Apple 设备族必须执行同一 SQL、保存同一 migration checksum，并通过相同 normalized snapshot。GRDB 只负责 Swift 的连接、事务和查询调度，不成为 wire format 或 schema 的所有者。

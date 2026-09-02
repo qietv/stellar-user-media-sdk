@@ -69,7 +69,7 @@ public struct SMB2MediaSourceConfiguration: Sendable, CustomStringConvertible,
   public var debugDescription: String { description }
 }
 
-/// Adapts any SMB2 transport, including the Linux and fake transports, to the shared scanner.
+/// Adapts an Apple SMB2 transport or test double to the shared scanner.
 public struct SMB2MediaSourceConnector: MediaSourceConnector {
   public let configuration: SMB2MediaSourceConfiguration
   private let transport: any SMB2Transport

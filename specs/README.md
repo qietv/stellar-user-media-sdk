@@ -1,10 +1,10 @@
-# 跨平台公共契约
+# Apple SDK 公共契约
 
-本目录定义 Swift、Android 与 OpenHarmony 三端必须保持一致的业务语义。平台实现可以使用各自最合适的语言和系统 API，但不应自行改变字段含义、状态转换、冲突规则或错误分类。
+本目录定义 Apple Swift SDK 与 Stellar 服务必须保持一致的业务语义。各 Apple 设备族不应自行改变字段含义、状态转换、冲突规则或错误分类。
 
 ## 规范层级
 
-- `MUST`：三端必须一致，否则会造成数据或协议不兼容。
+- `MUST`：SDK 与服务端必须一致，否则会造成数据或协议不兼容。
 - `SHOULD`：原则上保持一致，平台限制下可以偏离，但需记录原因。
 - `MAY`：平台可自行决定。
 
@@ -61,4 +61,4 @@
 
 ## 公共测试向量
 
-`fixtures/` 保存所有平台共同执行的输入与期望输出。当前包括 [`wire-format-v1.json`](fixtures/core/wire-format-v1.json)、[`gateway-oauth-v1.json`](fixtures/auth/gateway-oauth-v1.json)、[`source-config-sync-v1.json`](fixtures/remote-media/source-config-sync-v1.json)、[`credential-payload-v1.json`](fixtures/security/credential-payload-v1.json)、[`filename-parser-v1.json`](fixtures/media-library/filename-parser-v1.json)、[`remote-enumeration-v1.json`](fixtures/media-library/remote-enumeration-v1.json)、[`scanner-state-v1.json`](fixtures/media-library/scanner-state-v1.json)、[`metadata-intake-v1.json`](fixtures/media-library/metadata-intake-v1.json)、[`metadata-matching-v1.json`](fixtures/media-library/metadata-matching-v1.json)、[`metadata-match-persistence-v1.json`](fixtures/media-library/metadata-match-persistence-v1.json)、[`tmdb-provider-v1.json`](fixtures/media-library/tmdb-provider-v1.json) 和 [`poster-wall-v1.json`](fixtures/media-library/poster-wall-v1.json)；fixture 变更即合同变更，必须由对应规范或 ADR 解释。TMDB 原始录制不得提交，必须先通过 `tools/metadata/sanitize_tmdb_fixture.py` 清洗。
+`fixtures/` 保存 Apple SDK 与服务端共同执行的输入与期望输出。当前包括 [`wire-format-v1.json`](fixtures/core/wire-format-v1.json)、[`gateway-oauth-v1.json`](fixtures/auth/gateway-oauth-v1.json)、[`source-config-sync-v1.json`](fixtures/remote-media/source-config-sync-v1.json)、[`credential-payload-v1.json`](fixtures/security/credential-payload-v1.json)、[`filename-parser-v1.json`](fixtures/media-library/filename-parser-v1.json)、[`remote-enumeration-v1.json`](fixtures/media-library/remote-enumeration-v1.json)、[`scanner-state-v1.json`](fixtures/media-library/scanner-state-v1.json)、[`metadata-intake-v1.json`](fixtures/media-library/metadata-intake-v1.json)、[`metadata-matching-v1.json`](fixtures/media-library/metadata-matching-v1.json)、[`metadata-match-persistence-v1.json`](fixtures/media-library/metadata-match-persistence-v1.json)、[`tmdb-provider-v1.json`](fixtures/media-library/tmdb-provider-v1.json) 和 [`poster-wall-v1.json`](fixtures/media-library/poster-wall-v1.json)；fixture 变更即合同变更，必须由对应规范或 ADR 解释。TMDB 原始录制不得提交，必须先通过 `tools/metadata/sanitize_tmdb_fixture.py` 清洗。

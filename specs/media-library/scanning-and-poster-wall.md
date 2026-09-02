@@ -126,7 +126,7 @@ Infuse 行为与参考脚本的已知边界见[匹配器一致性审计](../../d
 
 ## 海报墙查询
 
-SDK v1 输出数据模型和分页查询，不内置三端 UI 组件。公开查询至少支持：
+SDK v1 输出数据模型和分页查询，不内置 Apple UI 组件。公开查询至少支持：
 
 - 继续观看、最近添加、最近播放、电影、剧集、类型、收藏和自定义媒体库。
 - `sort`：标题、添加时间、发行日期、最近播放、评分、随机种子。
@@ -153,7 +153,7 @@ v1 固定以下 section：
 
 过滤支持 media kind、一个或多个 source UID、类型名、年份范围、聚合可用性和 profile 观看状态。多个 media kind 或 source 采用“任一命中”，多个类型名采用“全部命中”。搜索对标题、alias、人物、类型和 romanized 投影执行 Unicode 宽度/变音符号/大小写折叠，再以规范化子串匹配；不得依赖 SQLite 平台私有 tokenizer。
 
-`title` 排序使用同一 Unicode 规范化文本并以 `media_uid` 收尾；`added_at`、`release_date`、`recently_played` 均为降序并以 `media_uid` 收尾；`random` 使用请求 `random_seed` 与 `media_uid` 计算跨平台稳定的 FNV-1a 64-bit 顺序。实现不得使用进程随机化 hash。
+`title` 排序使用同一 Unicode 规范化文本并以 `media_uid` 收尾；`added_at`、`release_date`、`recently_played` 均为降序并以 `media_uid` 收尾；`random` 使用请求 `random_seed` 与 `media_uid` 计算稳定的 FNV-1a 64-bit 顺序。实现不得使用进程随机化 hash。
 
 响应携带不透明 `library_revision`。cursor MUST 绑定规范化查询身份、library revision 和上一页最后一个 `media_uid`；查询参数不一致、revision 改变、anchor 消失或 cursor 无法解码时失败关闭，映射为 `conflict` 或 `invalid_configuration`，不得静默跳页或重复页。一次数据库 read transaction 内构造的 page/detail 使用同一 snapshot。
 

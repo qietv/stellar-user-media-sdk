@@ -1,10 +1,7 @@
 import Foundation
+import LocalAuthentication
+import Security
 import StellarCore
-
-#if canImport(Security) && canImport(LocalAuthentication)
-  import LocalAuthentication
-  import Security
-#endif
 
 /// Device-bound Keychain accessibility used for the Stellar refresh token.
 public enum OAuthTokenAccessibility: String, Sendable {
@@ -96,119 +93,99 @@ actor KeychainOAuthCredentialStore: OAuthCredentialStoring {
   }
 
   func credentials() async throws -> [StoredOAuthCredential] {
-    #if canImport(Security) && canImport(LocalAuthentication)
-      var query = baseQuery(service: credentialService)
-      query[kSecMatchLimit as String] = kSecMatchLimitAll
-      query[kSecReturnData as String] = true
-      var result: CFTypeRef?
-      let status = SecItemCopyMatching(query as CFDictionary, &result)
-      if status == errSecItemNotFound { return [] }
-      guard status == errSecSuccess else { throw storageError(status) }
-      guard let values = oauthKeychainDataValues(from: result) else {
+    var query = baseQuery(service: credentialService)
+    query[kSecMatchLimit as String] = kSecMatchLimitAll
+    query[kSecReturnData as String] = true
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    if status == errSecItemNotFound { return [] }
+    guard status == errSecSuccess else { throw storageError(status) }
+    guard let values = oauthKeychainDataValues(from: result) else {
+      throw storageError(errSecDecode)
+    }
+    let decoder = JSONDecoder()
+    let decoded = try values.map { data in
+      do {
+        return try decoder.decode(StoredOAuthCredential.self, from: data)
+      } catch {
         throw storageError(errSecDecode)
       }
-      let decoder = JSONDecoder()
-      let decoded = try values.map { data in
-        do {
-          return try decoder.decode(StoredOAuthCredential.self, from: data)
-        } catch {
-          throw storageError(errSecDecode)
-        }
-      }
-      return decoded.filter {
-        $0.issuer == configuration.issuer.absoluteString
-          && $0.clientID == configuration.clientID && $0.schemaVersion == 1
-      }.sorted { $0.session.accountUID < $1.session.accountUID }
-    #else
-      throw unsupportedStorageError()
-    #endif
+    }
+    return decoded.filter {
+      $0.issuer == configuration.issuer.absoluteString
+        && $0.clientID == configuration.clientID && $0.schemaVersion == 1
+    }.sorted { $0.session.accountUID < $1.session.accountUID }
   }
 
   func activeAccountUID() async throws -> String? {
-    #if canImport(Security) && canImport(LocalAuthentication)
-      var query = baseQuery(service: activeService)
-      query[kSecAttrAccount as String] = activeAccountKey
-      query[kSecMatchLimit as String] = kSecMatchLimitOne
-      query[kSecReturnData as String] = true
-      var result: CFTypeRef?
-      let status = SecItemCopyMatching(query as CFDictionary, &result)
-      if status == errSecItemNotFound { return nil }
-      guard status == errSecSuccess, let data = result as? Data else {
-        throw storageError(status == errSecSuccess ? errSecDecode : status)
-      }
-      guard let accountUID = String(data: data, encoding: .utf8),
-        UUID(uuidString: accountUID) != nil
-      else {
-        throw storageError(errSecDecode)
-      }
-      return accountUID.lowercased()
-    #else
-      throw unsupportedStorageError()
-    #endif
+    var query = baseQuery(service: activeService)
+    query[kSecAttrAccount as String] = activeAccountKey
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    query[kSecReturnData as String] = true
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    if status == errSecItemNotFound { return nil }
+    guard status == errSecSuccess, let data = result as? Data else {
+      throw storageError(status == errSecSuccess ? errSecDecode : status)
+    }
+    guard let accountUID = String(data: data, encoding: .utf8),
+      UUID(uuidString: accountUID) != nil
+    else {
+      throw storageError(errSecDecode)
+    }
+    return accountUID.lowercased()
   }
 
   func save(_ credential: StoredOAuthCredential) async throws {
-    #if canImport(Security) && canImport(LocalAuthentication)
-      guard credential.issuer == configuration.issuer.absoluteString,
-        credential.clientID == configuration.clientID,
-        credential.schemaVersion == 1
-      else { throw storageError(errSecParam) }
-      let encoder = JSONEncoder()
-      encoder.outputFormatting = [.sortedKeys]
-      let data: Data
-      do {
-        data = try encoder.encode(credential)
-      } catch {
-        throw storageError(errSecParam)
-      }
-      try upsert(
-        service: credentialService,
-        account: credentialAccountKey(credential.session.accountUID),
-        data: data
-      )
-    #else
-      throw unsupportedStorageError()
-    #endif
+    guard credential.issuer == configuration.issuer.absoluteString,
+      credential.clientID == configuration.clientID,
+      credential.schemaVersion == 1
+    else { throw storageError(errSecParam) }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data: Data
+    do {
+      data = try encoder.encode(credential)
+    } catch {
+      throw storageError(errSecParam)
+    }
+    try upsert(
+      service: credentialService,
+      account: credentialAccountKey(credential.session.accountUID),
+      data: data
+    )
   }
 
   func remove(accountUID: String) async throws {
-    #if canImport(Security) && canImport(LocalAuthentication)
-      var query = baseQuery(service: credentialService)
-      query[kSecAttrAccount as String] = credentialAccountKey(accountUID)
+    var query = baseQuery(service: credentialService)
+    query[kSecAttrAccount as String] = credentialAccountKey(accountUID)
+    let status = SecItemDelete(query as CFDictionary)
+    guard status == errSecSuccess || status == errSecItemNotFound else {
+      throw storageError(status)
+    }
+    if try await activeAccountUID() == accountUID.lowercased() {
+      try await setActiveAccountUID(nil)
+    }
+  }
+
+  func setActiveAccountUID(_ accountUID: String?) async throws {
+    guard accountUID.map({ UUID(uuidString: $0) != nil }) ?? true else {
+      throw storageError(errSecParam)
+    }
+    if let accountUID {
+      try upsert(
+        service: activeService,
+        account: activeAccountKey,
+        data: Data(accountUID.lowercased().utf8)
+      )
+    } else {
+      var query = baseQuery(service: activeService)
+      query[kSecAttrAccount as String] = activeAccountKey
       let status = SecItemDelete(query as CFDictionary)
       guard status == errSecSuccess || status == errSecItemNotFound else {
         throw storageError(status)
       }
-      if try await activeAccountUID() == accountUID.lowercased() {
-        try await setActiveAccountUID(nil)
-      }
-    #else
-      throw unsupportedStorageError()
-    #endif
-  }
-
-  func setActiveAccountUID(_ accountUID: String?) async throws {
-    #if canImport(Security) && canImport(LocalAuthentication)
-      guard accountUID.map({ UUID(uuidString: $0) != nil }) ?? true else {
-        throw storageError(errSecParam)
-      }
-      if let accountUID {
-        try upsert(
-          service: activeService,
-          account: activeAccountKey,
-          data: Data(accountUID.lowercased().utf8)
-        )
-      } else {
-        var query = baseQuery(service: activeService)
-        query[kSecAttrAccount as String] = activeAccountKey
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-          throw storageError(status)
-        }
-      }
-    #else
-      throw unsupportedStorageError()
-    #endif
+    }
   }
 
   private var activeAccountKey: String {
@@ -219,83 +196,72 @@ actor KeychainOAuthCredentialStore: OAuthCredentialStoring {
     "\(activeAccountKey)|\(accountUID.lowercased())"
   }
 
-  #if canImport(Security) && canImport(LocalAuthentication)
-    private func baseQuery(service: String) -> [String: Any] {
-      let context = LAContext()
-      context.interactionNotAllowed = true
-      return [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: service,
-        kSecAttrSynchronizable as String: false,
-        kSecUseDataProtectionKeychain as String: true,
-        kSecUseAuthenticationContext as String: context,
-      ]
-    }
+  private func baseQuery(service: String) -> [String: Any] {
+    let context = LAContext()
+    context.interactionNotAllowed = true
+    return [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrSynchronizable as String: false,
+      kSecUseDataProtectionKeychain as String: true,
+      kSecUseAuthenticationContext as String: context,
+    ]
+  }
 
-    private func upsert(service: String, account: String, data: Data) throws {
-      var attributes = baseQuery(service: service)
-      attributes[kSecAttrAccount as String] = account
-      attributes[kSecAttrAccessible as String] = keychainAccessibility
-      attributes[kSecValueData as String] = data
-      var status = SecItemAdd(attributes as CFDictionary, nil)
-      if status == errSecDuplicateItem {
-        var query = baseQuery(service: service)
-        query[kSecAttrAccount as String] = account
-        status = SecItemUpdate(
-          query as CFDictionary,
-          [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: keychainAccessibility,
-          ] as CFDictionary
-        )
-      }
-      guard status == errSecSuccess else { throw storageError(status) }
-    }
-
-    private var keychainAccessibility: CFString {
-      switch accessibility {
-      case .whenUnlockedThisDeviceOnly:
-        kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-      case .afterFirstUnlockThisDeviceOnly:
-        kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-      }
-    }
-
-    private func storageError(_ status: OSStatus) -> SDKError {
-      let statusDescription = SecCopyErrorMessageString(status, nil) as String? ?? "unknown error"
-      return SDKError(
-        code: .storageFailure,
-        message: status == errSecInteractionNotAllowed
-          ? "OAuth credential requires disallowed Keychain interaction (OSStatus \(status): \(statusDescription))"
-          : "OAuth credential storage failed (OSStatus \(status): \(statusDescription))"
+  private func upsert(service: String, account: String, data: Data) throws {
+    var attributes = baseQuery(service: service)
+    attributes[kSecAttrAccount as String] = account
+    attributes[kSecAttrAccessible as String] = keychainAccessibility
+    attributes[kSecValueData as String] = data
+    var status = SecItemAdd(attributes as CFDictionary, nil)
+    if status == errSecDuplicateItem {
+      var query = baseQuery(service: service)
+      query[kSecAttrAccount as String] = account
+      status = SecItemUpdate(
+        query as CFDictionary,
+        [
+          kSecValueData as String: data,
+          kSecAttrAccessible as String: keychainAccessibility,
+        ] as CFDictionary
       )
     }
-  #endif
+    guard status == errSecSuccess else { throw storageError(status) }
+  }
 
-  private func unsupportedStorageError() -> SDKError {
-    SDKError(
+  private var keychainAccessibility: CFString {
+    switch accessibility {
+    case .whenUnlockedThisDeviceOnly:
+      kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+    case .afterFirstUnlockThisDeviceOnly:
+      kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    }
+  }
+
+  private func storageError(_ status: OSStatus) -> SDKError {
+    let statusDescription = SecCopyErrorMessageString(status, nil) as String? ?? "unknown error"
+    return SDKError(
       code: .storageFailure,
-      message: "OAuth secure credential storage is unavailable on this platform"
+      message: status == errSecInteractionNotAllowed
+        ? "OAuth credential requires disallowed Keychain interaction (OSStatus \(status): \(statusDescription))"
+        : "OAuth credential storage failed (OSStatus \(status): \(statusDescription))"
     )
   }
 }
 
-#if canImport(Security) && canImport(LocalAuthentication)
-  func oauthKeychainDataValues(from result: Any?) -> [Data]? {
-    if let values = result as? [Data] { return values }
-    if let value = result as? Data { return [value] }
-    if let rows = result as? [[String: Any]] {
-      let values = rows.compactMap { $0[kSecValueData as String] as? Data }
-      return values.count == rows.count ? values : nil
-    }
-    if let row = result as? [String: Any],
-      let value = row[kSecValueData as String] as? Data
-    {
-      return [value]
-    }
-    return nil
+func oauthKeychainDataValues(from result: Any?) -> [Data]? {
+  if let values = result as? [Data] { return values }
+  if let value = result as? Data { return [value] }
+  if let rows = result as? [[String: Any]] {
+    let values = rows.compactMap { $0[kSecValueData as String] as? Data }
+    return values.count == rows.count ? values : nil
   }
-#endif
+  if let row = result as? [String: Any],
+    let value = row[kSecValueData as String] as? Data
+  {
+    return [value]
+  }
+  return nil
+}
 
 actor InMemoryOAuthCredentialStore: OAuthCredentialStoring {
   private var values: [String: StoredOAuthCredential] = [:]

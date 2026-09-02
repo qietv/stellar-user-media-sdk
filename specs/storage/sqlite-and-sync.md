@@ -2,7 +2,7 @@
 
 ## 结论
 
-Swift、Android 与 OpenHarmony 均采用 SQLite 作为本地事实库，使用相同的逻辑 schema 和迁移编号。三端可选择不同封装层，但落盘字段、唯一约束、外键和事务边界必须兼容。
+Apple Swift SDK 采用 SQLite 作为本地事实库。iOS/iPadOS、macOS 与 tvOS 使用相同的逻辑 schema、迁移编号、落盘字段、唯一约束、外键和事务边界。
 
 基础 v1 合同由 [`schema-manifest-v1.json`](schema-manifest-v1.json) 固定 checksum，并分别位于：
 
@@ -86,7 +86,7 @@ account 与 metadata cache 仍为 v1。
 ## 同步边界
 
 - 账号资料和远程媒体配置可以服务端同步。
-- 第三方媒体源凭据按 [`../security/credential-storage.md`](../security/credential-storage.md) 使用 `CredentialRecord` 跨平台同步；v1 服务端具备读取明文 payload 的能力。
+- 第三方媒体源凭据按 [`../security/credential-storage.md`](../security/credential-storage.md) 使用 `CredentialRecord` 在 Apple 设备间同步；v1 服务端具备读取明文 payload 的能力。
 - 观看状态、片单和手工匹配是否云同步由产品策略控制；启用后必须通过 `change_log` 幂等上传。
 - 文件清单和大体积技术信息默认只存在本地；除非用户启用且服务端协议明确需要。
 - `change_log` 是媒体库同步的 transactional outbox，同时可驱动应用层增量；不要把已上传记录无限保留。

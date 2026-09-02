@@ -1,6 +1,6 @@
 # 示例应用
 
-示例目录用于展示同一条端到端路径在三个平台上的调用方式：
+示例目录用于展示 Apple 应用的端到端调用路径：
 
 1. 初始化 SDK 并恢复登录状态。
 2. 通过 OAuth 登录或切换账号。
@@ -9,8 +9,4 @@
 5. 订阅扫描进度和媒体库增量。
 6. 分页获取海报墙，进入详情并取得可播放 locator。
 
-在三端构建清单和 API 骨架完成前，本目录只保留平台入口说明。
-
 - [Swift 示例](swift/README.md)
-- [Android 示例](android/README.md)
-- [OpenHarmony 示例](ohos/README.md)

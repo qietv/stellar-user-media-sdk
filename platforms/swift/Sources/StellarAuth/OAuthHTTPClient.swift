@@ -1,10 +1,6 @@
 import Foundation
 import StellarCore
 
-#if canImport(FoundationNetworking)
-  import FoundationNetworking
-#endif
-
 struct OAuthHTTPRequest: Sendable {
   enum Method: String, Sendable {
     case get = "GET"

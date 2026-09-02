@@ -2,7 +2,7 @@
 
 最后核对日期：2026-08-18
 
-状态：**后端首版实施合同**。本文把现有跨平台规范整理为后端可执行需求；字段语义仍以 `specs/` 下的公共合同为准。
+状态：**后端首版实施合同**。本文把现有 Apple SDK 规范整理为后端可执行需求；字段语义仍以 `specs/` 下的公共合同为准。
 
 ## 1. 目标
 
@@ -36,7 +36,7 @@ Gateway 需要注册并签发两个 scope：
 | `media_sources.read` | 拉取来源配置和第三方凭据 |
 | `media_sources.write` | 上传来源配置、凭据和删除墓碑 |
 
-iOS、desktop 以及后续 Android/OHOS Public Client Policy 需要允许申请相应 scope。客户端正常登录申请 `profile.read media_sources.read media_sources.write`。
+iOS/iPadOS、macOS 与 tvOS Public Client Policy 需要允许申请相应 scope。客户端正常登录申请 `profile.read media_sources.read media_sources.write`。
 
 ### 2.2 Resource Server 鉴权
 

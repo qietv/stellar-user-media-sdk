@@ -1,10 +1,6 @@
 import Foundation
 import StellarCore
 
-#if canImport(FoundationNetworking)
-  import FoundationNetworking
-#endif
-
 /// An application-level TMDB credential that never renders credential material.
 public struct TMDBCredential: Sendable, CustomStringConvertible, CustomDebugStringConvertible {
   fileprivate let authentication: TMDBAuthentication

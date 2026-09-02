@@ -6,7 +6,7 @@
 
 ## 背景
 
-StellarPlayer 需要在 Apple、Windows、Android 和 OpenHarmony 设备间同步 NAS、WebDAV、网盘及媒体服务器凭据。此前方案使用 E2EE Vault，要求设备密钥、已有设备批准或恢复材料、密钥轮换和跨平台密码学实现。
+StellarPlayer 需要在用户的 Apple 设备间同步 NAS、WebDAV、网盘及媒体服务器凭据。此前方案使用 E2EE Vault，要求设备密钥、已有设备批准或恢复材料、密钥轮换和完整密码学生命周期。
 
 产品当前优先级是：用户在新设备完成 Stellar OAuth 后即可恢复来源并连接，不增加旧设备批准、恢复口令、独立 Vault 解锁或生物识别步骤。实现和维护完整 E2EE 生命周期不属于 v1 的投入范围。
 

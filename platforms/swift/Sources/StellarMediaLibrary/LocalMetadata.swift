@@ -2,10 +2,6 @@ import Foundation
 import StellarCore
 import StellarRemoteMedia
 
-#if canImport(FoundationXML)
-  import FoundationXML
-#endif
-
 /// A sidecar category aligned with the `library.sqlite` v1 contract.
 public enum MediaSidecarKind: String, Sendable {
   case nfo

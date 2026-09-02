@@ -22,8 +22,8 @@ Swift SDK 原先自行固定、编译、符号前缀化并分发 libsmb2，同�
 
 ## 结果与限制
 
-- 自编译 libsmb2 的源码 module、C wrapper、静态 archive/XCFramework、lock、CI 构建检查和 Linux relink kit 被移除；ADR-0003 仅保留为历史记录。
-- 当前生产 SMB backend 是 Apple-only；Linux 仍保留来源无关 seam 和 fake contract tests，但不再提供旧的自编译 libsmb2 transport/CLI。
+- 自编译 libsmb2 的源码 module、C wrapper、静态 archive/XCFramework、lock、CI 构建检查和旧 relink kit 被移除；ADR-0003 仅保留为历史记录。
+- 当前生产 SMB backend 和来源无关 seam 均属于 Apple SDK；非 Apple transport、CLI fallback 与构建门禁已经移除。
 - 首版远端截图会产生与媒体文件同量级的临时磁盘和网络 I/O。后续可在不改变公共 API 的前提下增加 custom AVIO/range-read cache。
 - 首版截图不应用容器 display matrix、非方形像素校正或 HDR tone mapping；这些需要以方向、SAR 和色彩测试样本继续完善。
 - FFmpegKit 当前固定构建的 `CONFIG_GPL=0`、`CONFIG_NONFREE=0`、`CONFIG_VERSION3=1`，但其仓库 README 与所带第三方二进制的许可证组合仍需在发布前逐项审查。AMSMB2 内含 LGPL libsmb2 源码。本文不构成法律意见。

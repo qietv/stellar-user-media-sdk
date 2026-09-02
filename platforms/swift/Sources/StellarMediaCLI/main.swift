@@ -1,11 +1,7 @@
+import Darwin
 import Foundation
+import StellarSMB2Apple
 import StellarUserMediaSDK
-
-#if canImport(Darwin)
-  import Darwin
-#elseif canImport(Glibc)
-  import Glibc
-#endif
 
 private enum StellarMediaCLI {
   private static let redactor = SensitiveDataRedactor()
@@ -42,12 +38,7 @@ private enum StellarMediaCLI {
       return await LibraryCLICommand.run(arguments: Array(arguments.dropFirst()))
 
     case "smb":
-      #if canImport(StellarSMB2Apple)
-        return await SMBCLICommand.run(arguments: Array(arguments.dropFirst()))
-      #else
-        writeError("SMB commands require the AMSMB2 Apple backend")
-        return 2
-      #endif
+      return await SMBCLICommand.run(arguments: Array(arguments.dropFirst()))
 
     default:
       writeError("unknown command: \(redactor.redact(commandLineArgument: command))")
@@ -76,15 +67,6 @@ private enum StellarMediaCLI {
   }
 
   private static func printUsage(toStandardError: Bool = false) {
-    #if canImport(StellarSMB2Apple)
-      let smbUsage = """
-          stellar-media smb check <options>
-          stellar-media smb list <options> [--path <relative-path>]
-          stellar-media smb scan <options>
-        """
-    #else
-      let smbUsage = ""
-    #endif
     let usage = """
       stellar-media \(StellarUserMediaSDK.version)
 
@@ -98,7 +80,9 @@ private enum StellarMediaCLI {
         stellar-media library list <database-path> [--section <section>] [--limit <count>]
         stellar-media library search <database-path> <query> [--limit <count>]
         stellar-media library show <database-path> <media-uid> [--profile <profile-uid>]
-      \(smbUsage)
+        stellar-media smb check <options>
+        stellar-media smb list <options> [--path <relative-path>]
+        stellar-media smb scan <options>
         stellar-media version
         stellar-media help
       """

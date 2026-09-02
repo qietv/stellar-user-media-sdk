@@ -58,7 +58,7 @@ flowchart LR
 ```
 
 - `credential_uid` 可随配置上传，用于关联独立同步的凭据记录；它不是 bearer secret。
-- `synced` 是需要跨平台复用连接凭据时的默认模式。新设备完成 Stellar OAuth 并拉取配置与凭据后可以直接连接，不存在独立 Vault 授权状态。
+- `synced` 是需要在用户的 Apple 设备间复用连接凭据时的默认模式。新设备完成 Stellar OAuth 并拉取配置与凭据后可以直接连接，不存在独立 Vault 授权状态。
 - `device_local` 仅用于用户明确选择不上传某项凭据的来源；每台设备分别输入。
 - `server_managed` 表示恒星服务端持有上游授权，客户端只获取短期、最小权限的连接凭证。
 - `none` 只用于无需认证的来源。
@@ -133,7 +133,7 @@ high-water；分页期间的新 change 留到下一轮，保证一次同步可�
 
 ## 验收条件
 
-- 公共 [`source-config-sync-v1.json`](../fixtures/remote-media/source-config-sync-v1.json) 必须在三端产生相同的规范路径、能力顺序、upsert/delete outbox 和墓碑可见性；
+- 公共 [`source-config-sync-v1.json`](../fixtures/remote-media/source-config-sync-v1.json) 必须在 Apple SDK 与服务端产生相同的规范路径、能力顺序、upsert/delete outbox 和墓碑可见性；
 - 同一配置重复上传不会生成重复媒体源。
 - 新设备完成 Stellar OAuth 后可以使用同步的第三方凭据，无需旧设备批准、恢复口令或重新输入。
 - 云端和本地 SQLite 中存在应用层明文凭据；访问控制、备份、诊断和删除流程按敏感凭据处理，产品不得声称 E2EE。

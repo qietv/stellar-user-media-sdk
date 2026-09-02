@@ -29,7 +29,7 @@ adapter 固定使用官方 HTTPS origin，并覆盖以下只读路径：
 - IMDb、TVDB 或 Wikidata 精确 ID：`/3/find/{external_id}`；
 - movie、series、episode details 以及 `/3/configuration` 图片配置。
 
-搜索只取第一页，并以 `maximum_search_results`（默认 5，最大 20）限制候选与 episode 验证请求。详情和图片响应先归一化为 SDK 自有模型；未知 TMDB 字段不会进入跨平台 wire contract。401、403、404、429 和 5xx 分别映射为 `unauthorized`、`forbidden`、`metadata_not_found`、`rate_limited` 和 `remote_unavailable`；响应体上限为 8 MiB。
+搜索只取第一页，并以 `maximum_search_results`（默认 5，最大 20）限制候选与 episode 验证请求。详情和图片响应先归一化为 SDK 自有模型；未知 TMDB 字段不会进入稳定 wire contract。401、403、404、429 和 5xx 分别映射为 `unauthorized`、`forbidden`、`metadata_not_found`、`rate_limited` 和 `remote_unavailable`；响应体上限为 8 MiB。
 
 录制响应必须先执行：
 

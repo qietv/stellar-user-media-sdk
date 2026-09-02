@@ -2,13 +2,6 @@ import Foundation
 import StellarCore
 import StellarRemoteMedia
 
-#if canImport(FoundationNetworking)
-  import FoundationNetworking
-#endif
-#if canImport(FoundationXML)
-  import FoundationXML
-#endif
-
 /// An ephemeral WebDAV username and password that always renders as redacted.
 public struct WebDAVCredential: Sendable, CustomStringConvertible, CustomDebugStringConvertible {
   fileprivate let authorizationValue: String

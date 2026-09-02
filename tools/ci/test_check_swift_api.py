@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for the portable Swift public API guard."""
+"""Regression tests for the Swift public API guard."""
 
 from __future__ import annotations
 
@@ -26,10 +26,10 @@ def payload(identifier: str, declaration: str) -> dict:
     }
 
 
-class SwiftAPIPortabilityTests(unittest.TestCase):
-    def test_ignores_platform_only_precise_identifier_difference(self) -> None:
+class SwiftAPICompatibilityTests(unittest.TestCase):
+    def test_ignores_foundation_overlay_identifier_difference(self) -> None:
         expected = payload("s:darwin-foundation-overlay", "func read() -> Data")
-        actual = payload("s:linux-foundation-essentials", "func read() -> Data")
+        actual = payload("s:new-foundation-essentials", "func read() -> Data")
 
         self.assertEqual(compare(expected, actual), [])
 

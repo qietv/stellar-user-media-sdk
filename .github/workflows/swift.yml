@@ -25,16 +25,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  portable-swift:
-    name: Swift 6.3 / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  apple-swift:
+    name: Swift 6.3 / Apple
+    runs-on: macos-26
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - macos-26
-          - ubuntu-24.04
 
     defaults:
       run:
@@ -59,7 +53,6 @@ jobs:
         run: python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
 
       - name: Check screenshot API compatibility baseline
-        if: runner.os == 'macOS'
         run: >-
           python3 ../../tools/ci/check_swift_api.py
           --package-root .
@@ -72,8 +65,24 @@ jobs:
       - name: Build release SDK and CLI
         run: swift build -c release
 
+      - name: Build main SDK for iOS device and simulator
+        run: |
+          xcodebuild -quiet \
+            -scheme StellarUserMediaSDK \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/stellar-sdk-iphoneos" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          xcodebuild -quiet \
+            -scheme StellarUserMediaSDK \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/stellar-sdk-iphonesimulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
       - name: Build Apple SMB product for iOS device and simulator
-        if: runner.os == 'macOS'
         run: |
           xcodebuild -quiet \
             -scheme StellarSMB2 \
@@ -91,7 +100,6 @@ jobs:
             build
 
       - name: Build screenshot product for iOS device and simulator
-        if: runner.os == 'macOS'
         run: |
           xcodebuild -quiet \
             -scheme StellarMediaImaging \
@@ -115,9 +123,7 @@ jobs:
           swift run -c release stellar-media manifest replay \
             ../../specs/fixtures/media-library/scanner-state-v1.json | \
             grep "stellar.scan-manifest-replay.v1"
-          if [[ "${RUNNER_OS}" == "macOS" ]]; then
-            swift run -c release stellar-media help | grep "stellar-media smb check"
-          fi
+          swift run -c release stellar-media help | grep "stellar-media smb check"
           swift run -c release stellar-media help | grep "stellar-media db migrate"
           swift run -c release stellar-media help | grep "stellar-media library list"
           swift run -c release stellar-media help | grep "stellar-media library search"
@@ -125,7 +131,7 @@ jobs:
 
   repository-guards:
     name: Repository guards
-    runs-on: ubuntu-24.04
+    runs-on: macos-26
     timeout-minutes: 5
     steps:
       - name: Check out repository
@@ -134,10 +140,7 @@ jobs:
       - name: Scan tracked content for high-confidence secrets
         run: python3 tools/ci/secret_scan.py --root .
 
-      - name: Reject Apple frameworks in portable Swift targets
-        run: python3 tools/ci/check_portable_swift_imports.py --root .
-
-      - name: Execute cross-platform SQLite schemas
+      - name: Execute SQLite schemas
         run: python3 tools/ci/check_sqlite_schemas.py --root .
 
       - name: Verify generated Swift SQLite schemas

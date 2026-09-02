@@ -20,7 +20,7 @@ Swift 的 `Codable` 实现必须通过共享 fixture 验证 wire format。公共
 Sources/StellarCore/
 Sources/StellarAuth/                 # OAuth 2.1、session actor 与 Apple Keychain 边界
 Sources/StellarRemoteMedia/
-Sources/StellarLocalMedia/          # macOS/Linux read-only local directory connector
+Sources/StellarLocalMedia/          # Apple read-only local directory connector
 Sources/StellarWebDAV/              # read-only PROPFIND/stat/Range connector
 Sources/StellarStorage/             # GRDB migrations, verification, repositories
 Sources/StellarMediaLibrary/
@@ -99,7 +99,7 @@ your-secret-provider read stellar/smb/alice | \
 
 `your-secret-provider` 代表不会把秘密放进 argv 的进程外凭据工具；不要把真实密码写入脚本、环境变量、shell history 或仓库。
 
-GitHub Actions 在 `macos-26` 和 `ubuntu-24.04` 上执行相同的 Swift 6.3 format lint、依赖锁定检查、公共 API compatibility 检查、debug/fixture tests、release build 和 CLI smoke tests；仓库守卫同时执行高置信度 secret scan 与 portable target Apple-import 检查。
+GitHub Actions 在 `macos-26` 上执行 Swift 6.3 format lint、依赖锁定检查、公共 API compatibility 检查、debug/fixture tests、release build、CLI smoke tests，以及 iOS device/simulator 的主 SDK、SMB 和截图产品构建。仓库守卫同时执行高置信度 secret scan、SQLite schema 与生成文件检查。
 
 当前 Package 精确固定 GRDB.swift 7.11.1、AMSMB2 4.0.3，并把 FFmpegKit 固定到不可变 commit `233c6bb6657a244ef57178e5d54979d1fd3cd45d`。新增依赖时必须使用 exact version 或 immutable revision 并更新解析记录；branch 与 version range 会被 CI 拒绝。第三方二进制及其传递依赖在发布前仍需完成许可证、隐私清单和商店合规审查。公共 API 有意变更后，使用以下命令重新生成基线并审阅 diff：
 
@@ -121,7 +121,7 @@ python3 ../../tools/ci/check_swift_api.py \
 - 会话、数据库写入和扫描协调器分别由 actor 串行化。
 - OAuth 使用 `ASWebAuthenticationSession`。access token 优先只驻留内存，refresh token 使用 Data Protection Keychain 的 `ThisDeviceOnly` 可访问级别；所有操作显式启用 `kSecUseDataProtectionKeychain`，默认私有 access group 且不同步 iCloud。不得写入 `kSecAttrAccessControl` 或调用 LocalAuthentication evaluate；读取使用禁止交互的 context，因此 Keychain 不弹 Face ID/Touch ID/设备密码，也不要求 Keychain Sharing 或运行时权限。
 - 第三方连接凭据以应用层明文 `CredentialRecord` 进入 `account.sqlite` 并参与账户同步；系统 data protection 属于透明外围保护，不等于 E2EE。当前只写入 `plaintext`，同时保留未来受保护模式的版本化字段。写入前必须通过 `CredentialPayload` v1 的字段 allowlist、大小、auth type 与 record kind 一致性校验。
-- SQLite 使用精确固定的 GRDB 7.11.1，支持 WAL、外键、迁移事务和取消；跨平台 DDL 所有权仍位于 `specs/storage/sql/`。
+- SQLite 使用精确固定的 GRDB 7.11.1，支持 WAL、外键、迁移事务和取消；DDL 所有权仍位于 `specs/storage/sql/`。
 - 远程媒体读取抽象为可取消、支持 range 的字节流，不让播放器依赖具体连接器。
 - 图片缓存与系统缓存目录集成；不把可再下载图片放入备份。
 

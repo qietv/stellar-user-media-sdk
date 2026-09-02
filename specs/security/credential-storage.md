@@ -30,7 +30,7 @@ flowchart LR
 - 已有设备批准；
 - Vault key 或设备 key wrapping；
 - 恢复码、恢复口令或独立的凭据解锁步骤；
-- Face ID、Touch ID、Android 生物识别或 OHOS 生物识别提示。
+- Face ID、Touch ID 或设备密码提示。
 
 如果账户策略、服务端权限或来源本身拒绝访问，客户端仍必须显示错误；“无额外操作”不允许绕过 Stellar OAuth 或来源认证。
 
@@ -118,7 +118,7 @@ cookie 项固定为 `name`、`value`、`domain`，以及可选 `path`、`secure`
 ## 8. 验收条件
 
 - 新设备完成 Stellar OAuth 后无需额外批准或恢复步骤即可使用已同步凭据；
-- Swift、Kotlin、ArkTS 和 Windows 客户端对同一 `CredentialRecord` 产生相同 wire 数据与错误分类；
+- iOS/iPadOS、macOS 与 tvOS 客户端对同一 `CredentialRecord` 产生相同 wire 数据与错误分类；
 - 本地 SQLite、同步请求和受限服务端测试存储可以读取测试 payload，证明实现没有虚假声称 E2EE；
 - 日志、崩溃报告、分析事件、CLI 参数和诊断导出找不到测试用户名、密码或 token；
 - 跨账户读取、写入和冲突注入被拒绝；

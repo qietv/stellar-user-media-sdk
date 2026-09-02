@@ -54,7 +54,7 @@ stateDiagram-v2
 
 - MUST 使用授权码模式、PKCE `S256` 和每次随机生成的 `state`。
 - access token MUST 只位于进程内存或平台安全存储；refresh token MUST 写入平台安全存储。两者都不得进入 SQLite、日志、崩溃报告或普通偏好设置。
-- 平台安全存储默认 MUST 使用无需每次读取时验证用户在场的设备绑定策略；不得默认要求 Face ID、Touch ID、Android/OHOS 生物识别或 Windows Hello。生物识别只能作为用户显式开启的高安全模式，并必须明确说明它会阻止锁屏后台刷新。
+- Keychain 默认 MUST 使用无需每次读取时验证用户在场的设备绑定策略；不得默认要求 Face ID、Touch ID 或设备密码。生物识别只能作为用户显式开启的高安全模式，并必须明确说明它会阻止锁屏后台刷新。
 - Apple 默认 Keychain 路径 MUST 完全非交互：不得创建或写入 `kSecAttrAccessControl`，不得使用 `.userPresence`、`.biometryAny`、`.biometryCurrentSet`、`.devicePasscode` 或 `.applicationPassword`，不得调用 `LAContext.evaluatePolicy` / `evaluateAccessControl`。因此 SDK 不要求 `NSFaceIDUsageDescription`，也不得把 LocalAuthentication 权限或生物识别注册状态作为登录前提。
 - Apple 每次 `SecItemAdd`、`SecItemCopyMatching`、`SecItemUpdate` 和 `SecItemDelete` MUST 设置 `kSecUseDataProtectionKeychain=true`，尤其禁止 macOS 回退到 legacy file-based Keychain。Stellar token MUST 设置 `kSecAttrSynchronizable=false`；需要锁屏后台刷新时使用 `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`，否则使用 `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`。
 - Apple 默认不指定 `kSecAttrAccessGroup`，使用应用自身的默认私有组；SDK 不要求 Keychain Sharing、App Groups 或其他额外 capability/entitlement。只有宿主明确需要多个同开发者 target 共享会话时，才允许由宿主在构建时配置共享 access group，这仍不得产生运行时权限请求。
@@ -67,13 +67,13 @@ stateDiagram-v2
 
 ## 平台适配
 
-| 平台 | 授权入口 | 安全存储 | 建议并发模型 |
+| Apple 平台 | 授权入口 | 安全存储 | 建议并发模型 |
 | --- | --- | --- | --- |
-| Swift | `ASWebAuthenticationSession` | Keychain | `async/await` + actor |
-| Android | Custom Tabs / AppAuth | Android Keystore 加密后的存储 | Kotlin coroutines + `Flow` |
-| OpenHarmony | 系统浏览器或授权 UI 扩展 | HUKS 支持的加密存储 | Promise/TaskPool + 可观察状态 |
+| iOS/iPadOS | `ASWebAuthenticationSession` | Data Protection Keychain | `async/await` + actor |
+| macOS | `ASWebAuthenticationSession` 或注入的 loopback presenter | Data Protection Keychain | `async/await` + actor |
+| tvOS | 宿主提供的受支持授权 presenter | Data Protection Keychain | `async/await` + actor |
 
-Windows 实现使用 Credential Manager 或当前用户绑定的 DPAPI；Android Keystore/HUKS/DPAPI 的默认配置同样不得要求额外生物识别交互。各平台可以利用系统磁盘加密、应用沙箱和设备解锁状态，但不得因此把 Stellar OAuth token 跨设备复制。
+各 Apple 平台可以利用系统磁盘加密、应用沙箱和设备解锁状态，但不得因此把 Stellar OAuth token 跨设备复制。
 
 平台代码不得把 WebView cookie 当作唯一登录状态；回调处理需防止重复消费。
 
@@ -115,4 +115,4 @@ Gateway 当前不是 OpenID Connect Provider，不返回 ID Token。客户端不
 - 20 个并发取令牌请求最多触发一次刷新。
 - 用户取消授权不污染之前的有效账号。
 - 登出后该账号的新扫描和同步任务无法取得令牌。
-- 三端对相同错误响应产生相同的错误类别与状态转换。
+- iOS/iPadOS、macOS 与 tvOS 对相同错误响应产生相同的错误类别与状态转换。
