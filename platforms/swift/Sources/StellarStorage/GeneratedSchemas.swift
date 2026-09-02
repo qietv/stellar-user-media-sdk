@@ -681,6 +681,8 @@ extension StorageDatabaseKind {
     case (.library, 3): "b0707478dc02df733d69adb1a1d7fab0d359cc7f3cad010b34040b628e80cd69"
     case (.library, 4): "9220c87520ea0baf790151e5c91869012b39faeb339b07bbd6c22d6d45c9be13"
     case (.library, 5): "6b3cd6c8c46bba16eab0335a2ed745bcd375537332df568066a18d434848f44b"
+    case (.library, 6): "4ca1fec9442db3e1ddb03b1e56094b903e2e1179abf8147a9c8fc65b76ac42c7"
+    case (.library, 7): "c4cf15ae1df490991498be3540abe99d7c3c215eb92f84d3b9dd09868651e62c"
     default: nil
     }
   }
@@ -814,6 +816,31 @@ extension StorageDatabaseKind {
           WHERE state IN ('queued', 'running', 'retry', 'failed');
 
       PRAGMA user_version = 5;
+      """#
+    case (.library, 5):
+      #"""
+      -- One transaction-scoped counter lets read APIs validate opaque cursors without
+      -- rescanning and hashing every user-visible library row.
+      CREATE TABLE library_revision (
+          id                  INTEGER PRIMARY KEY CHECK (id = 1),
+          revision            INTEGER NOT NULL CHECK (revision >= 0)
+      ) WITHOUT ROWID;
+
+      INSERT INTO library_revision(id, revision) VALUES (1, 0);
+
+      PRAGMA user_version = 6;
+      """#
+    case (.library, 6):
+      #"""
+      -- Terminal failures must leave the hot claim-order index so a large set of
+      -- permanent provider misses cannot slow every later small-batch claim.
+      DROP INDEX idx_scan_queue_claim_order;
+
+      CREATE INDEX idx_scan_queue_claim_order
+          ON scan_queue(stage, priority DESC, id)
+          WHERE state IN ('queued', 'running', 'retry');
+
+      PRAGMA user_version = 7;
       """#
     default: nil
     }

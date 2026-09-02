@@ -49,7 +49,7 @@ struct StorageMigrationTests {
     #expect(try await database.verify().isValid)
   }
 
-  @Test("An existing library v1 database migrates in place to v5")
+  @Test("An existing library v1 database migrates in place to v7")
   func existingLibraryV1MigratesInPlace() async throws {
     let directory = temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -78,14 +78,22 @@ struct StorageMigrationTests {
 
     let migrated = try await StorageDatabase.open(kind: .library, at: url)
     let report = try await migrated.verify()
-    #expect(report.userVersion == 5)
-    #expect(report.businessTableCount == 30)
+    #expect(report.userVersion == 7)
+    #expect(report.businessTableCount == 31)
     #expect(report.isValid)
     let preserved = try await migrated.read { database in
       try String.fetchOne(
         database, sql: "SELECT display_name FROM library_source WHERE uid = 'preserved'")
     }
     #expect(preserved == "Preserved")
+    let claimIndexSQL = try await migrated.read { database in
+      try String.fetchOne(
+        database,
+        sql: "SELECT sql FROM sqlite_schema WHERE type = 'index' AND name = ?",
+        arguments: ["idx_scan_queue_claim_order"]
+      )
+    }
+    #expect(claimIndexSQL?.contains("'failed'") == false)
   }
 
   @Test("An existing library v2 database preserves data and normalizes overlapping active runs")
@@ -149,8 +157,8 @@ struct StorageMigrationTests {
 
     let migrated = try await StorageDatabase.open(kind: .library, at: url)
     let report = try await migrated.verify()
-    #expect(report.userVersion == 5)
-    #expect(report.businessTableCount == 30)
+    #expect(report.userVersion == 7)
+    #expect(report.businessTableCount == 31)
     #expect(report.isValid)
     let states = try await migrated.read { database in
       try Row.fetchAll(
@@ -308,7 +316,7 @@ struct StorageMigrationTests {
       )
     }
     #expect(checksum == "corrupt")
-    #expect(tableCount == 30)
+    #expect(tableCount == 31)
     #expect(try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == sizeBefore)
   }
 
@@ -338,7 +346,7 @@ struct StorageMigrationTests {
   private func expectedTableCount(_ kind: StorageDatabaseKind) -> Int {
     switch kind {
     case .account: 6
-    case .library: 30
+    case .library: 31
     case .metadataCache: 3
     }
   }

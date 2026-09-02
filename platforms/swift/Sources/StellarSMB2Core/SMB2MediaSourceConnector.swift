@@ -12,7 +12,7 @@ public struct SMB2MediaSourceConfiguration: Sendable, CustomStringConvertible,
   public let pathSemantics: RemotePathSemantics
   /// Number of independent SMB sessions available for directory enumeration.
   ///
-  /// A libsmb2 context serializes operations, so directory concurrency requires distinct
+  /// AMSMB2 serializes work within one manager, so directory concurrency requires distinct
   /// sessions. The default remains one to avoid increasing load on low-end servers.
   public let directoryConnectionCount: Int
 
@@ -83,17 +83,43 @@ public struct SMB2MediaSourceConnector: MediaSourceConnector {
   }
 
   public func connect() async throws -> any MediaSourceSession {
-    var sessions: [any SMB2Session] = []
-    sessions.reserveCapacity(configuration.directoryConnectionCount)
-    do {
-      for _ in 0..<configuration.directoryConnectionCount {
-        sessions.append(try await transport.connect(configuration.connectionRequest))
+    var sessionsByIndex: [Int: any SMB2Session] = [:]
+    var connectionError: (any Error)?
+    await withTaskGroup(of: SMB2ConnectionAttempt.self) { group in
+      for index in 0..<configuration.directoryConnectionCount {
+        group.addTask {
+          do {
+            return .connected(
+              index: index,
+              session: try await transport.connect(configuration.connectionRequest)
+            )
+          } catch {
+            return .failed(error)
+          }
+        }
       }
-    } catch {
-      for session in sessions {
+
+      for await attempt in group {
+        switch attempt {
+        case .connected(let index, let session):
+          sessionsByIndex[index] = session
+        case .failed(let error):
+          if connectionError == nil { connectionError = error }
+        }
+      }
+    }
+    if let connectionError {
+      for session in sessionsByIndex.values {
         await session.disconnect()
       }
-      throw error
+      throw connectionError
+    }
+    let sessions = (0..<configuration.directoryConnectionCount).compactMap {
+      sessionsByIndex[$0]
+    }
+    guard sessions.count == configuration.directoryConnectionCount else {
+      for session in sessions { await session.disconnect() }
+      throw SDKError(code: .remoteUnavailable, message: "SMB connection pool is incomplete")
     }
     let capabilities = try MediaSourceCapabilities(
       stableIDScope: configuration.stableIDScope,
@@ -109,6 +135,11 @@ public struct SMB2MediaSourceConnector: MediaSourceConnector {
       sessions: sessions
     )
   }
+}
+
+private enum SMB2ConnectionAttempt: Sendable {
+  case connected(index: Int, session: any SMB2Session)
+  case failed(any Error)
 }
 
 /// A connected SMB session expressed through source-independent locator and entry values.

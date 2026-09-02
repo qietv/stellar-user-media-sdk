@@ -1937,6 +1937,32 @@
     "StellarMediaLibrary": {
       "symbols": [
         {
+          "declaration": "struct TraverseAllMediaScanDirectories",
+          "identifier": "s:19StellarMediaLibrary011TraverseAllB15ScanDirectoriesV",
+          "kind": "swift.struct",
+          "path": [
+            "TraverseAllMediaScanDirectories"
+          ]
+        },
+        {
+          "declaration": "func shouldTraverseDirectory(_: RemoteEntry) -> Bool",
+          "identifier": "s:19StellarMediaLibrary011TraverseAllB15ScanDirectoriesV06shouldD9DirectoryySb0a6RemoteB00J5EntryVF",
+          "kind": "swift.method",
+          "path": [
+            "TraverseAllMediaScanDirectories",
+            "shouldTraverseDirectory(_:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaLibrary011TraverseAllB15ScanDirectoriesVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "TraverseAllMediaScanDirectories",
+            "init()"
+          ]
+        },
+        {
           "declaration": "struct NoopMediaScanObserver",
           "identifier": "s:19StellarMediaLibrary04NoopB12ScanObserverV",
           "kind": "swift.struct",
@@ -4590,6 +4616,23 @@
           ]
         },
         {
+          "declaration": "protocol MediaScanTraversalPolicy : Sendable",
+          "identifier": "s:19StellarMediaLibrary0B19ScanTraversalPolicyP",
+          "kind": "swift.protocol",
+          "path": [
+            "MediaScanTraversalPolicy"
+          ]
+        },
+        {
+          "declaration": "func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool",
+          "identifier": "s:19StellarMediaLibrary0B19ScanTraversalPolicyP23shouldTraverseDirectoryySb0a6RemoteB00J5EntryVF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanTraversalPolicy",
+            "shouldTraverseDirectory(_:)"
+          ]
+        },
+        {
           "declaration": "enum MediaTechnicalStreamKind",
           "identifier": "s:19StellarMediaLibrary0B19TechnicalStreamKindO",
           "kind": "swift.enum",
@@ -5091,6 +5134,15 @@
           "path": [
             "MediaScanner",
             "init(configuration:)"
+          ]
+        },
+        {
+          "declaration": "func scan(_ request: MediaScanRequest, using connector: any MediaSourceConnector, sink: any MediaScanSink, resumeFrom suppliedCheckpoint: MediaScanCheckpoint? = nil, observer: any MediaScanObserver = NoopMediaScanObserver(), traversalPolicy: any MediaScanTraversalPolicy) async throws -> MediaScanResult",
+          "identifier": "s:19StellarMediaLibrary0B7ScannerV4scan_5using4sink10resumeFrom8observer15traversalPolicyAA0B10ScanResultVAA0bM7RequestV_0a6RemoteB00B15SourceConnector_pAA0bM4Sink_pAA0bM10CheckpointVSgAA0bM8Observer_pAA0bm9TraversalL0_ptYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanner",
+            "scan(_:using:sink:resumeFrom:observer:traversalPolicy:)"
           ]
         },
         {
@@ -11819,6 +11871,15 @@
           ]
         },
         {
+          "declaration": "func failScanWork(_ lease: LibraryScanWorkLease, errorCode: SDKErrorCode) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV12failScanWork_9errorCodeyAA0cfG5LeaseV_0A4Core08SDKErrorI0OtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "failScanWork(_:errorCode:)"
+          ]
+        },
+        {
           "declaration": "func retryScanWork(sourceUID: String, relativePath: String, stage: LibraryScanQueueStage, errorCode: SDKErrorCode) async throws",
           "identifier": "s:14StellarStorage12LibraryStoreV13retryScanWork9sourceUID12relativePath5stage9errorCodeySS_SSAA0cF10QueueStageO0A4Core08SDKErrorN0OtYaKF",
           "kind": "swift.method",
@@ -11906,6 +11967,33 @@
           "path": [
             "LibraryStore",
             "sourceMediaSummary(sourceUID:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func commitRemoteArtwork(_ artwork: LibraryRemoteArtwork, completing lease: LibraryScanWorkLease) async throws -> String",
+          "identifier": "s:14StellarStorage12LibraryStoreV19commitRemoteArtwork_10completingSSAA0cfG0V_AA0C13ScanWorkLeaseVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "commitRemoteArtwork(_:completing:)"
+          ]
+        },
+        {
+          "declaration": "func remoteArtworkTarget(for lease: LibraryScanWorkLease, provider: String) async throws -> LibraryRemoteArtworkTarget",
+          "identifier": "s:14StellarStorage12LibraryStoreV19remoteArtworkTarget3for8providerAA0c6RemotefG0VAA0C13ScanWorkLeaseV_SStYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "remoteArtworkTarget(for:provider:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func commitRemoteMetadata(_ metadata: LibraryRemoteMetadata, completing lease: LibraryScanWorkLease, enqueueArtwork: Bool) async throws -> String",
+          "identifier": "s:14StellarStorage12LibraryStoreV20commitRemoteMetadata_10completing14enqueueArtworkSSAA0cfG0V_AA0C13ScanWorkLeaseVSbtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "commitRemoteMetadata(_:completing:enqueueArtwork:)"
           ]
         },
         {
@@ -12413,6 +12501,68 @@
           "path": [
             "LibraryScanWorkItem",
             "attempts"
+          ]
+        },
+        {
+          "declaration": "struct LibraryRemoteArtwork",
+          "identifier": "s:14StellarStorage20LibraryRemoteArtworkV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryRemoteArtwork"
+          ]
+        },
+        {
+          "declaration": "let width: Int?",
+          "identifier": "s:14StellarStorage20LibraryRemoteArtworkV5widthSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryRemoteArtwork",
+            "width"
+          ]
+        },
+        {
+          "declaration": "let height: Int?",
+          "identifier": "s:14StellarStorage20LibraryRemoteArtworkV6heightSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryRemoteArtwork",
+            "height"
+          ]
+        },
+        {
+          "declaration": "let locale: String",
+          "identifier": "s:14StellarStorage20LibraryRemoteArtworkV6localeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryRemoteArtwork",
+            "locale"
+          ]
+        },
+        {
+          "declaration": "init(target: LibraryRemoteArtworkTarget, locale: String = \"und\", remoteURL: String, width: Int? = nil, height: Int? = nil) throws",
+          "identifier": "s:14StellarStorage20LibraryRemoteArtworkV6target6locale9remoteURL5width6heightAcA0cdE6TargetV_S2SSiSgAKtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryRemoteArtwork",
+            "init(target:locale:remoteURL:width:height:)"
+          ]
+        },
+        {
+          "declaration": "let target: LibraryRemoteArtworkTarget",
+          "identifier": "s:14StellarStorage20LibraryRemoteArtworkV6targetAA0cdE6TargetVvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryRemoteArtwork",
+            "target"
+          ]
+        },
+        {
+          "declaration": "let remoteURL: String",
+          "identifier": "s:14StellarStorage20LibraryRemoteArtworkV9remoteURLSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryRemoteArtwork",
+            "remoteURL"
           ]
         },
         {
@@ -12982,6 +13132,50 @@
           ]
         },
         {
+          "declaration": "struct LibraryRemoteArtworkTarget",
+          "identifier": "s:14StellarStorage26LibraryRemoteArtworkTargetV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryRemoteArtworkTarget"
+          ]
+        },
+        {
+          "declaration": "let providerID: String",
+          "identifier": "s:14StellarStorage26LibraryRemoteArtworkTargetV10providerIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryRemoteArtworkTarget",
+            "providerID"
+          ]
+        },
+        {
+          "declaration": "let kind: LibraryRemoteMetadataKind",
+          "identifier": "s:14StellarStorage26LibraryRemoteArtworkTargetV4kindAA0cD12MetadataKindOvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryRemoteArtworkTarget",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "init(provider: String, providerID: String, kind: LibraryRemoteMetadataKind) throws",
+          "identifier": "s:14StellarStorage26LibraryRemoteArtworkTargetV8provider0G2ID4kindACSS_SSAA0cD12MetadataKindOtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryRemoteArtworkTarget",
+            "init(provider:providerID:kind:)"
+          ]
+        },
+        {
+          "declaration": "let provider: String",
+          "identifier": "s:14StellarStorage26LibraryRemoteArtworkTargetV8providerSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryRemoteArtworkTarget",
+            "provider"
+          ]
+        },
+        {
           "declaration": "struct LibraryScanEnumerationState",
           "identifier": "s:14StellarStorage27LibraryScanEnumerationStateV",
           "kind": "swift.struct",
@@ -13357,6 +13551,14 @@
           "kind": "swift.typealias",
           "path": [
             "PosterWallMediaKind"
+          ]
+        },
+        {
+          "declaration": "typealias TraverseAllMediaScanDirectories = TraverseAllMediaScanDirectories",
+          "identifier": "s:19StellarUserMediaSDK011TraverseAllC15ScanDirectoriesa",
+          "kind": "swift.typealias",
+          "path": [
+            "TraverseAllMediaScanDirectories"
           ]
         },
         {
@@ -13773,6 +13975,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaMetadataIntakeBatch"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScanTraversalPolicy = MediaScanTraversalPolicy",
+          "identifier": "s:19StellarUserMediaSDK0C19ScanTraversalPolicya",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanTraversalPolicy"
           ]
         },
         {
@@ -14416,6 +14626,14 @@
           ]
         },
         {
+          "declaration": "typealias LibraryRemoteArtwork = LibraryRemoteArtwork",
+          "identifier": "s:19StellarUserMediaSDK20LibraryRemoteArtworka",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryRemoteArtwork"
+          ]
+        },
+        {
           "declaration": "typealias LibraryScanWorkLease = LibraryScanWorkLease",
           "identifier": "s:19StellarUserMediaSDK20LibraryScanWorkLeasea",
           "kind": "swift.typealias",
@@ -14669,6 +14887,14 @@
           "kind": "swift.typealias",
           "path": [
             "URLSessionWebDAVTransport"
+          ]
+        },
+        {
+          "declaration": "typealias LibraryRemoteArtworkTarget = LibraryRemoteArtworkTarget",
+          "identifier": "s:19StellarUserMediaSDK26LibraryRemoteArtworkTargeta",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryRemoteArtworkTarget"
           ]
         },
         {

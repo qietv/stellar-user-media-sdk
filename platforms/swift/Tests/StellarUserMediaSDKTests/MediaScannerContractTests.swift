@@ -476,6 +476,53 @@ struct MediaScannerContractTests {
     #expect(await serialTracker.active == 0)
   }
 
+  @Test("Traversal policy prunes a directory before its remote request")
+  func traversalPolicyPrunesDirectory() async throws {
+    let fixture = try loadFixture()
+    let root = try RemoteLocator(sourceUID: fixture.sourceUID, path: RemotePath())
+    let excluded = try RemoteEntry(
+      locator: RemoteLocator(
+        sourceUID: fixture.sourceUID,
+        path: RemotePath("System Cache")
+      ),
+      kind: .directory,
+      stableID: "directory-system-cache"
+    )
+    let connector = FixtureScanConnector(
+      sourceUID: fixture.sourceUID,
+      capabilities: fixture.capabilities,
+      pages: [
+        FixtureScanPage(
+          request: try RemoteDirectoryPageRequest(directory: root, limit: 10),
+          response: try CursorPage(items: [excluded], nextCursor: nil)
+        )
+      ],
+      failureRequest: nil
+    )
+    let request = try MediaScanRequest(
+      runUID: "scan-pruned-directory",
+      sourceUID: fixture.sourceUID,
+      mode: .full,
+      roots: [root]
+    )
+    let scanner = MediaScanner(
+      configuration: try MediaScannerConfiguration(
+        pageSize: 10,
+        maxConcurrentDirectoryRequests: 2
+      )
+    )
+
+    let result = try await scanner.scan(
+      request,
+      using: connector,
+      sink: RecordingScanSink(),
+      traversalPolicy: RejectSystemCacheTraversalPolicy()
+    )
+
+    #expect(result.checkpoint.discoveredEntryCount == 1)
+    #expect(result.checkpoint.processedPageCount == 1)
+  }
+
   @Test("Coverage overlap and changed root identity fail before enumeration")
   func preflightSafety() async throws {
     let fixture = try loadFixture()
@@ -624,6 +671,12 @@ struct MediaScannerContractTests {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .appendingPathComponent("specs/fixtures/media-library/scanner-state-v1.json")
+  }
+}
+
+private struct RejectSystemCacheTraversalPolicy: MediaScanTraversalPolicy {
+  func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool {
+    entry.locator.path.name != "System Cache"
   }
 }
 

@@ -146,7 +146,15 @@ public actor StorageDatabase {
   package func write<Value: Sendable>(
     _ body: @Sendable (Database) throws -> Value
   ) async throws -> Value {
-    try await pool.write(body)
+    try await pool.write { [kind] database in
+      let value = try body(database)
+      if kind == .library {
+        try database.execute(
+          sql: "UPDATE library_revision SET revision = revision + 1 WHERE id = 1"
+        )
+      }
+      return value
+    }
   }
 
   private func migrateIfNeeded() async throws {

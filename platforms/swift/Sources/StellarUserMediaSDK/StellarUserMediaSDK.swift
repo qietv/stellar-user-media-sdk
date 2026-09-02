@@ -183,6 +183,11 @@ public typealias MediaScanEvent = StellarMediaLibrary.MediaScanEvent
 public typealias MediaScanObserver = StellarMediaLibrary.MediaScanObserver
 /// Compatibility alias for a no-op scanner observer.
 public typealias NoopMediaScanObserver = StellarMediaLibrary.NoopMediaScanObserver
+/// Compatibility alias for deciding which discovered directories should be traversed.
+public typealias MediaScanTraversalPolicy = StellarMediaLibrary.MediaScanTraversalPolicy
+/// Compatibility alias for traversing every discovered directory.
+public typealias TraverseAllMediaScanDirectories =
+  StellarMediaLibrary.TraverseAllMediaScanDirectories
 /// Compatibility alias for bounded scanner configuration.
 public typealias MediaScannerConfiguration = StellarMediaLibrary.MediaScannerConfiguration
 /// Compatibility alias for a completed scanner result.
@@ -384,6 +389,10 @@ public typealias LibrarySourceMediaSummary = StellarStorage.LibrarySourceMediaSu
 public typealias LibraryRemoteMetadataKind = StellarStorage.LibraryRemoteMetadataKind
 /// Compatibility alias for provider metadata materialized into the library.
 public typealias LibraryRemoteMetadata = StellarStorage.LibraryRemoteMetadata
+/// Compatibility alias for a bound provider entity used by remote artwork work.
+public typealias LibraryRemoteArtworkTarget = StellarStorage.LibraryRemoteArtworkTarget
+/// Compatibility alias for one selected remote poster.
+public typealias LibraryRemoteArtwork = StellarStorage.LibraryRemoteArtwork
 
 /// The public namespace for SDK-wide information.
 public enum StellarUserMediaSDK: Sendable {

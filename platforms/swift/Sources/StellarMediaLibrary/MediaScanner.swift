@@ -508,6 +508,19 @@ public struct NoopMediaScanObserver: MediaScanObserver {
   public func emit(_: MediaScanEvent) async {}
 }
 
+/// Synchronous directory admission hook evaluated before a discovered child is enqueued.
+public protocol MediaScanTraversalPolicy: Sendable {
+  /// Returns whether the scanner should recursively enumerate this directory.
+  func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool
+}
+
+/// Default traversal policy that recursively enumerates every discovered directory.
+public struct TraverseAllMediaScanDirectories: MediaScanTraversalPolicy {
+  public init() {}
+
+  public func shouldTraverseDirectory(_: RemoteEntry) -> Bool { true }
+}
+
 /// Bounded enumeration and pagination limits for one scanner instance.
 public struct MediaScannerConfiguration: Equatable, Sendable {
   public let pageSize: Int
@@ -554,6 +567,25 @@ public struct MediaScanner: Sendable {
     sink: any MediaScanSink,
     resumeFrom suppliedCheckpoint: MediaScanCheckpoint? = nil,
     observer: any MediaScanObserver = NoopMediaScanObserver()
+  ) async throws -> MediaScanResult {
+    try await scan(
+      request,
+      using: connector,
+      sink: sink,
+      resumeFrom: suppliedCheckpoint,
+      observer: observer,
+      traversalPolicy: TraverseAllMediaScanDirectories()
+    )
+  }
+
+  /// Scans while allowing callers to prune known non-library directories before remote I/O.
+  public func scan(
+    _ request: MediaScanRequest,
+    using connector: any MediaSourceConnector,
+    sink: any MediaScanSink,
+    resumeFrom suppliedCheckpoint: MediaScanCheckpoint? = nil,
+    observer: any MediaScanObserver = NoopMediaScanObserver(),
+    traversalPolicy: any MediaScanTraversalPolicy
   ) async throws -> MediaScanResult {
     var checkpoint: MediaScanCheckpoint
     var enumerationState: MediaScanEnumerationState?
@@ -660,7 +692,8 @@ public struct MediaScanner: Sendable {
           checkpoint: checkpoint,
           state: try requireEnumerationState(enumerationState),
           sink: sink,
-          observer: observer
+          observer: observer,
+          traversalPolicy: traversalPolicy
         )
       } catch let interruption as EnumerationInterruption {
         checkpoint = interruption.checkpoint
@@ -681,7 +714,8 @@ public struct MediaScanner: Sendable {
     checkpoint initialCheckpoint: MediaScanCheckpoint,
     state initialState: MediaScanEnumerationState,
     sink: any MediaScanSink,
-    observer: any MediaScanObserver
+    observer: any MediaScanObserver,
+    traversalPolicy: any MediaScanTraversalPolicy
   ) async throws -> MediaScanCheckpoint {
     var checkpoint = initialCheckpoint
     guard let capabilities = checkpoint.capabilities else {
@@ -752,7 +786,8 @@ public struct MediaScanner: Sendable {
             response,
             checkpoint: checkpoint,
             capabilities: capabilities,
-            workingState: &workingState
+            workingState: &workingState,
+            traversalPolicy: traversalPolicy
           )
           checkpoint = processed.checkpoint
           bufferedEntries.append(contentsOf: response.page.items)
@@ -796,7 +831,8 @@ public struct MediaScanner: Sendable {
     _ response: PageResponse,
     checkpoint: MediaScanCheckpoint,
     capabilities: MediaSourceCapabilities,
-    workingState: inout EnumerationWorkingState
+    workingState: inout EnumerationWorkingState,
+    traversalPolicy: any MediaScanTraversalPolicy
   ) throws -> ProcessedPage {
     guard workingState.containsPending(response.cursor) else {
       throw SDKError(code: .conflict, message: "scanner received an untracked page")
@@ -846,6 +882,7 @@ public struct MediaScanner: Sendable {
       guard entry.kind == .directory else { continue }
       if workingState.seenDirectoryKeys.insert(identityKey).inserted {
         newlySeenDirectoryKeys.append(identityKey)
+        guard traversalPolicy.shouldTraverseDirectory(entry) else { continue }
         let child = try MediaScanPageCursor(directory: entry.locator)
         guard !workingState.completedPageCursors.contains(child),
           !workingState.containsPending(child)

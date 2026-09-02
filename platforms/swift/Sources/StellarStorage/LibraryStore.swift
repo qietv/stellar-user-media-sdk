@@ -508,6 +508,58 @@ public struct LibraryRemoteMetadata: Equatable, Sendable {
   }
 }
 
+/// The bound provider entity needed by an optional remote-artwork worker.
+public struct LibraryRemoteArtworkTarget: Equatable, Sendable {
+  public let provider: String
+  public let providerID: String
+  public let kind: LibraryRemoteMetadataKind
+
+  public init(
+    provider: String,
+    providerID: String,
+    kind: LibraryRemoteMetadataKind
+  ) throws {
+    guard !provider.isEmpty, !providerID.isEmpty,
+      !provider.contains("\0"), !providerID.contains("\0")
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "remote artwork target is invalid")
+    }
+    self.provider = provider
+    self.providerID = providerID
+    self.kind = kind
+  }
+}
+
+/// One selected remote poster ready for an optional artwork-stage commit.
+public struct LibraryRemoteArtwork: Equatable, Sendable {
+  public let target: LibraryRemoteArtworkTarget
+  public let locale: String
+  public let remoteURL: String
+  public let width: Int?
+  public let height: Int?
+
+  public init(
+    target: LibraryRemoteArtworkTarget,
+    locale: String = "und",
+    remoteURL: String,
+    width: Int? = nil,
+    height: Int? = nil
+  ) throws {
+    let components = URLComponents(string: remoteURL)
+    guard !locale.isEmpty, !locale.contains("\0"), !remoteURL.contains("\0"),
+      components?.scheme?.lowercased() == "https", components?.host?.isEmpty == false,
+      width.map({ $0 > 0 }) ?? true, height.map({ $0 > 0 }) ?? true
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "remote artwork is invalid")
+    }
+    self.target = target
+    self.locale = locale
+    self.remoteURL = remoteURL
+    self.width = width
+    self.height = height
+  }
+}
+
 /// A normalized filename parse result ready for the library database.
 package struct LibraryFilenameParseRecord: Equatable, Sendable {
   public let mediaKind: String
@@ -1153,7 +1205,7 @@ public struct LibraryStore: Sendable {
     }
   }
 
-  /// Returns new, changed, or previously failed files awaiting one processing stage.
+  /// Returns new, changed, or retryable files awaiting one processing stage.
   public func pendingScanWork(
     sourceUID: String,
     stage: LibraryScanQueueStage
@@ -1176,7 +1228,7 @@ public struct LibraryStore: Sendable {
               AND f.deleted_at_ms IS NULL
               AND f.availability = 'present'
               AND q.stage = ?
-              AND q.state IN ('queued', 'retry', 'failed')
+              AND q.state IN ('queued', 'retry')
               AND q.input_revision = f.material_revision
               AND (q.next_attempt_at_ms IS NULL OR q.next_attempt_at_ms <= ?)
             GROUP BY f.id, f.relative_path, f.path_compare_key
@@ -1225,7 +1277,7 @@ public struct LibraryStore: Sendable {
                 AND f.deleted_at_ms IS NULL
                 AND f.availability = 'present'
                 AND q.stage = ?
-                AND q.state IN ('queued', 'running', 'retry', 'failed')
+                AND q.state IN ('queued', 'running', 'retry')
                 AND q.input_revision = f.material_revision
             )
             """,
@@ -1284,10 +1336,10 @@ public struct LibraryStore: Sendable {
               AND f.deleted_at_ms IS NULL
               AND f.availability = 'present'
               AND q.stage = ?
-              AND q.state IN ('queued', 'running', 'retry', 'failed')
+              AND q.state IN ('queued', 'running', 'retry')
               AND q.input_revision = f.material_revision
               AND (
-                (q.state IN ('queued', 'retry', 'failed')
+                (q.state IN ('queued', 'retry')
                   AND (q.next_attempt_at_ms IS NULL OR q.next_attempt_at_ms <= ?))
                 OR (q.state = 'running' AND q.lease_until_ms IS NOT NULL
                   AND q.lease_until_ms <= ?)
@@ -1312,7 +1364,7 @@ public struct LibraryStore: Sendable {
                   error_code = NULL, error_message = NULL, updated_at_ms = ?
               WHERE id = ? AND input_revision = ?
                 AND (
-                  (state IN ('queued', 'retry', 'failed')
+                  (state IN ('queued', 'retry')
                     AND (next_attempt_at_ms IS NULL OR next_attempt_at_ms <= ?))
                   OR (state = 'running' AND lease_until_ms IS NOT NULL
                     AND lease_until_ms <= ?)
@@ -1452,7 +1504,7 @@ public struct LibraryStore: Sendable {
               SELECT q.media_file_id, MAX(q.attempts) AS attempts
               FROM scan_queue q
               JOIN media_file current_file ON current_file.id = q.media_file_id
-              WHERE q.stage = ? AND q.state IN ('queued', 'retry', 'failed')
+              WHERE q.stage = ? AND q.state IN ('queued', 'retry')
                 AND q.input_revision = current_file.material_revision
                 AND (q.next_attempt_at_ms IS NULL OR q.next_attempt_at_ms <= ?)
               GROUP BY q.media_file_id
@@ -1677,7 +1729,25 @@ public struct LibraryStore: Sendable {
       sourceUID: lease.file.sourceUID,
       relativePath: lease.file.relativePath,
       completing: lease.stage,
-      lease: lease
+      lease: lease,
+      enqueueArtwork: false
+    )
+  }
+
+  /// Materializes primary metadata and optionally enqueues artwork in the same transaction.
+  @discardableResult
+  public func commitRemoteMetadata(
+    _ metadata: LibraryRemoteMetadata,
+    completing lease: LibraryScanWorkLease,
+    enqueueArtwork: Bool
+  ) async throws -> String {
+    try await commitRemoteMetadata(
+      metadata,
+      sourceUID: lease.file.sourceUID,
+      relativePath: lease.file.relativePath,
+      completing: lease.stage,
+      lease: lease,
+      enqueueArtwork: enqueueArtwork
     )
   }
 
@@ -1695,7 +1765,8 @@ public struct LibraryStore: Sendable {
       sourceUID: sourceUID,
       relativePath: relativePath,
       completing: stage,
-      lease: nil
+      lease: nil,
+      enqueueArtwork: false
     )
   }
 
@@ -1704,14 +1775,17 @@ public struct LibraryStore: Sendable {
     sourceUID: String,
     relativePath: String,
     completing stage: LibraryScanQueueStage,
-    lease: LibraryScanWorkLease?
+    lease: LibraryScanWorkLease?,
+    enqueueArtwork: Bool
   ) async throws -> String {
     let path = try RemotePath(relativePath)
     guard !sourceUID.isEmpty, !sourceUID.contains("\0"), !path.isRoot else {
       throw SDKError(code: .invalidConfiguration, message: "remote metadata target is invalid")
     }
     let now = clock.nowMilliseconds()
-    let artworkUID = uuidGenerator.makeUUID().uuidString.lowercased()
+    let artworkUID = metadata.posterURL.map { _ in
+      uuidGenerator.makeUUID().uuidString.lowercased()
+    }
     do {
       return try await database.write { database in
         guard
@@ -1733,7 +1807,8 @@ public struct LibraryStore: Sendable {
         if let lease {
           guard lease.file.sourceUID == sourceUID,
             lease.file.relativePath == path.relativePath,
-            lease.stage == stage
+            lease.stage == stage,
+            !enqueueArtwork || lease.stage == .parse
           else {
             throw SDKError(code: .conflict, message: "scan work lease target changed")
           }
@@ -1836,7 +1911,7 @@ public struct LibraryStore: Sendable {
             ]
           )
 
-          if let posterURL = metadata.posterURL {
+          if let posterURL = metadata.posterURL, let artworkUID {
             try database.execute(
               sql: """
                 UPDATE artwork SET is_selected = 0, updated_at_ms = ?
@@ -1876,6 +1951,25 @@ public struct LibraryStore: Sendable {
         )
 
         if let lease {
+          if enqueueArtwork {
+            try database.execute(
+              sql: """
+                INSERT INTO scan_queue(
+                  run_id, media_file_id, stage, state, priority, attempts,
+                  input_revision, updated_at_ms
+                )
+                SELECT run_id, media_file_id, 'artwork', 'queued', priority, 0,
+                       input_revision, ?
+                FROM scan_queue
+                WHERE id = ? AND stage = 'parse' AND state = 'running'
+                  AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+                ON CONFLICT(run_id, media_file_id, stage) DO NOTHING
+                """,
+              arguments: [
+                now, lease.queueID, lease.workerID, lease.claimToken, lease.inputRevision,
+              ]
+            )
+          }
           try database.execute(
             sql: """
               UPDATE scan_queue
@@ -1912,6 +2006,195 @@ public struct LibraryStore: Sendable {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "remote metadata commit failed")
+    }
+  }
+
+  /// Resolves the provider entity already bound to a claimed artwork-stage file.
+  public func remoteArtworkTarget(
+    for lease: LibraryScanWorkLease,
+    provider: String
+  ) async throws -> LibraryRemoteArtworkTarget {
+    guard lease.stage == .artwork, !provider.isEmpty, !provider.contains("\0") else {
+      throw SDKError(code: .invalidConfiguration, message: "remote artwork lookup is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    do {
+      return try await database.read { database in
+        try Self.requireActiveScanWorkLease(lease, now: now, database: database)
+        guard
+          let row = try Row.fetchOne(
+            database,
+            sql: """
+              WITH RECURSIVE ancestors(id, kind, parent_id) AS (
+                SELECT entity.id, entity.kind, entity.parent_id
+                FROM scan_queue queue
+                JOIN file_binding binding ON binding.media_file_id = queue.media_file_id
+                JOIN media_entity entity ON entity.id = binding.entity_id
+                WHERE queue.id = ? AND binding.binding_role IN ('primary', 'version')
+                UNION ALL
+                SELECT parent.id, parent.kind, parent.parent_id
+                FROM media_entity parent
+                JOIN ancestors child ON child.parent_id = parent.id
+              )
+              SELECT external.external_value AS provider_id, ancestors.kind
+              FROM ancestors
+              JOIN external_id external ON external.entity_id = ancestors.id
+              WHERE ancestors.parent_id IS NULL
+                AND ancestors.kind IN ('movie', 'series')
+                AND external.provider = ? AND external.namespace = ancestors.kind
+              LIMIT 1
+              """,
+            arguments: [lease.queueID, provider]
+          ),
+          let kind = LibraryRemoteMetadataKind(rawValue: row["kind"])
+        else {
+          throw SDKError(
+            code: .metadataNotFound,
+            message: "the artwork work item has no matching provider entity"
+          )
+        }
+        return try LibraryRemoteArtworkTarget(
+          provider: provider,
+          providerID: row["provider_id"],
+          kind: kind
+        )
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "remote artwork target read failed")
+    }
+  }
+
+  /// Materializes one optional remote poster and completes its artwork lease atomically.
+  @discardableResult
+  public func commitRemoteArtwork(
+    _ artwork: LibraryRemoteArtwork,
+    completing lease: LibraryScanWorkLease
+  ) async throws -> String {
+    guard lease.stage == .artwork else {
+      throw SDKError(code: .invalidConfiguration, message: "remote artwork lease is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    let artworkUID = uuidGenerator.makeUUID().uuidString.lowercased()
+    do {
+      return try await database.write { database in
+        try Self.requireActiveScanWorkLease(lease, now: now, database: database)
+        guard
+          let entity = try Row.fetchOne(
+            database,
+            sql: """
+              WITH RECURSIVE ancestors(id, uid, kind, parent_id) AS (
+                SELECT entity.id, entity.uid, entity.kind, entity.parent_id
+                FROM scan_queue queue
+                JOIN file_binding binding ON binding.media_file_id = queue.media_file_id
+                JOIN media_entity entity ON entity.id = binding.entity_id
+                WHERE queue.id = ? AND binding.binding_role IN ('primary', 'version')
+                UNION ALL
+                SELECT parent.id, parent.uid, parent.kind, parent.parent_id
+                FROM media_entity parent
+                JOIN ancestors child ON child.parent_id = parent.id
+              )
+              SELECT ancestors.id, ancestors.uid, root.metadata_state, root.locked_fields_json
+              FROM ancestors
+              JOIN media_entity root ON root.id = ancestors.id
+              JOIN external_id external
+                ON external.entity_id = ancestors.id
+               AND external.provider = ?
+               AND external.namespace = ?
+               AND external.external_value = ?
+              WHERE ancestors.kind = ? AND ancestors.parent_id IS NULL
+              LIMIT 1
+              """,
+            arguments: [
+              lease.queueID, artwork.target.provider, artwork.target.kind.rawValue,
+              artwork.target.providerID, artwork.target.kind.rawValue,
+            ]
+          )
+        else {
+          throw SDKError(
+            code: .conflict,
+            message: "remote artwork does not match the file's bound root entity"
+          )
+        }
+        let entityID: Int64 = entity["id"]
+        let entityUID: String = entity["uid"]
+        let metadataState: String = entity["metadata_state"]
+        let lockedFieldsJSON: String? = entity["locked_fields_json"]
+        let hasLockedBinding =
+          (try Int.fetchOne(
+            database,
+            sql: """
+              WITH RECURSIVE descendants(id) AS (
+                SELECT ?
+                UNION ALL
+                SELECT child.id
+                FROM media_entity child
+                JOIN descendants parent ON child.parent_id = parent.id
+              )
+              SELECT COUNT(*)
+              FROM file_binding
+              WHERE entity_id IN descendants AND locked = 1
+              """,
+            arguments: [entityID]
+          ) ?? 0) > 0
+        let preservesUserMetadata =
+          metadataState == "manual" || lockedFieldsJSON != nil || hasLockedBinding
+
+        if !preservesUserMetadata {
+          try database.execute(
+            sql: """
+              UPDATE artwork SET is_selected = 0, updated_at_ms = ?
+              WHERE entity_id = ? AND kind = 'poster' AND locale = ? AND is_selected = 1
+              """,
+            arguments: [now, entityID, artwork.locale]
+          )
+          try database.execute(
+            sql: """
+              INSERT INTO artwork(
+                uid, entity_id, kind, locale, provider, remote_url, width, height,
+                score, is_selected, fetched_at_ms, updated_at_ms
+              ) VALUES (?, ?, 'poster', ?, ?, ?, ?, ?, 1, 1, ?, ?)
+              ON CONFLICT(entity_id, kind, provider, remote_url)
+                WHERE remote_url IS NOT NULL
+              DO UPDATE SET
+                locale = excluded.locale,
+                width = excluded.width,
+                height = excluded.height,
+                score = excluded.score,
+                is_selected = 1,
+                fetched_at_ms = excluded.fetched_at_ms,
+                updated_at_ms = excluded.updated_at_ms
+              """,
+            arguments: [
+              artworkUID, entityID, artwork.locale, artwork.target.provider, artwork.remoteURL,
+              artwork.width, artwork.height, now, now,
+            ]
+          )
+        }
+
+        try database.execute(
+          sql: """
+            UPDATE scan_queue
+            SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                error_code = NULL, error_message = NULL, updated_at_ms = ?
+            WHERE id = ? AND stage = 'artwork' AND state = 'running'
+              AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+            """,
+          arguments: [
+            now, lease.queueID, lease.workerID, lease.claimToken, lease.inputRevision,
+          ]
+        )
+        guard database.changesCount == 1 else {
+          throw SDKError(code: .conflict, message: "remote artwork commit lost its lease")
+        }
+        return entityUID
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "remote artwork commit failed")
     }
   }
 
@@ -1952,6 +2235,41 @@ public struct LibraryStore: Sendable {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "scan work retry update failed")
+    }
+  }
+
+  /// Ends automatic retries for claimed work while retaining its failure for repair.
+  public func failScanWork(
+    _ lease: LibraryScanWorkLease,
+    errorCode: SDKErrorCode
+  ) async throws {
+    let now = clock.nowMilliseconds()
+    do {
+      try await database.write { database in
+        try Self.requireActiveScanWorkLease(lease, now: now, database: database)
+        try database.execute(
+          sql: """
+            UPDATE scan_queue
+            SET state = 'failed', attempts = attempts + 1,
+                next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                error_code = ?, error_message = NULL, updated_at_ms = ?
+            WHERE id = ? AND stage = ? AND state = 'running'
+              AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+            """,
+          arguments: [
+            errorCode.rawValue, now, lease.queueID, lease.stage.rawValue,
+            lease.workerID, lease.claimToken, lease.inputRevision,
+          ]
+        )
+        guard database.changesCount == 1 else {
+          throw SDKError(code: .conflict, message: "scan work failure lost its lease")
+        }
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "scan work failure update failed")
     }
   }
 

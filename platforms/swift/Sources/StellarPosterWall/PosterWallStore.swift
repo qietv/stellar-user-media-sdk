@@ -6,6 +6,7 @@ import StellarStorage
 /// GRDB-backed PosterWall list, search, pagination, and detail queries.
 public struct PosterWallStore: Sendable {
   public let database: StorageDatabase
+  private let pageCache: PosterWallPageCache
 
   public init(database: StorageDatabase) throws {
     guard database.kind == .library else {
@@ -13,25 +14,42 @@ public struct PosterWallStore: Sendable {
         code: .invalidConfiguration, message: "PosterWallStore requires library.sqlite")
     }
     self.database = database
+    pageCache = PosterWallPageCache()
   }
 
   /// Returns one deterministic page and rejects cursors from a different library revision or query.
   public func page(_ query: PosterWallQuery) async throws -> PosterWallPage {
     do {
-      return try await database.read { database in
-        let revision = try Self.libraryRevision(database)
-        guard query.libraryRevision == nil || query.libraryRevision == revision else {
-          throw SDKError(code: .conflict, message: "PosterWall library revision changed")
-        }
-        let identity = try Self.queryIdentity(query)
-        let cursor = try query.cursor.map(Self.decodeCursor)
-        guard
-          cursor == nil
-            || (cursor?.libraryRevision == revision && cursor?.queryIdentity == identity)
-        else {
-          throw SDKError(code: .conflict, message: "PosterWall cursor is stale or incompatible")
-        }
+      let identity = try Self.queryIdentity(query)
+      let cursor = try query.cursor.map(Self.decodeCursor)
+      let observedRevision = try await database.read(Self.libraryRevision)
+      try Self.validate(
+        query: query,
+        cursor: cursor,
+        identity: identity,
+        revision: observedRevision
+      )
+      if let slice = try await pageCache.slice(
+        revision: observedRevision,
+        queryIdentity: identity,
+        cursorMediaUID: cursor?.lastMediaUID,
+        pageSize: query.pageSize
+      ) {
+        return try Self.makePage(
+          slice: slice,
+          revision: observedRevision,
+          queryIdentity: identity
+        )
+      }
 
+      let loaded = try await database.read { database in
+        let revision = try Self.libraryRevision(database)
+        try Self.validate(
+          query: query,
+          cursor: cursor,
+          identity: identity,
+          revision: revision
+        )
         var roots = try Self.loadRoots(
           locale: query.locale,
           profileUID: query.profileUID,
@@ -39,38 +57,20 @@ public struct PosterWallStore: Sendable {
         )
         roots = Self.filter(roots, query: query)
         roots.sort { Self.isOrderedBefore($0, $1, query: query) }
-
-        let startIndex: Int
-        if let cursor {
-          guard let index = roots.firstIndex(where: { $0.item.mediaUID == cursor.lastMediaUID })
-          else {
-            throw SDKError(code: .conflict, message: "PosterWall cursor anchor is unavailable")
-          }
-          startIndex = roots.index(after: index)
-        } else {
-          startIndex = roots.startIndex
-        }
-        let endIndex = min(roots.count, startIndex + query.pageSize)
-        let selected = startIndex < roots.count ? Array(roots[startIndex..<endIndex]) : []
-        let nextCursor: String?
-        if endIndex < roots.count, let last = selected.last {
-          nextCursor = try Self.encodeCursor(
-            PosterWallCursor(
-              libraryRevision: revision,
-              queryIdentity: identity,
-              lastMediaUID: last.item.mediaUID
-            )
-          )
-        } else {
-          nextCursor = nil
-        }
-        return PosterWallPage(
-          schemaVersion: 1,
-          libraryRevision: revision,
-          items: selected.map(\.item),
-          nextCursor: nextCursor
-        )
+        return LoadedPosterWallProjection(revision: revision, roots: roots)
       }
+      let slice = try await pageCache.replaceAndSlice(
+        revision: loaded.revision,
+        queryIdentity: identity,
+        roots: loaded.roots,
+        cursorMediaUID: cursor?.lastMediaUID,
+        pageSize: query.pageSize
+      )
+      return try Self.makePage(
+        slice: slice,
+        revision: loaded.revision,
+        queryIdentity: identity
+      )
     } catch let error as SDKError {
       throw error
     } catch {
@@ -164,18 +164,57 @@ public struct PosterWallStore: Sendable {
   }
 
   private static func libraryRevision(_ database: Database) throws -> String {
-    var hash = UInt64(14_695_981_039_346_656_037)
-    for sql in revisionQueries {
-      for value in try String.fetchAll(database, sql: sql) {
-        for byte in value.utf8 {
-          hash ^= UInt64(byte)
-          hash &*= 1_099_511_628_211
-        }
-        hash ^= 0xff
-        hash &*= 1_099_511_628_211
-      }
+    guard
+      let revision = try Int64.fetchOne(
+        database,
+        sql: "SELECT revision FROM library_revision WHERE id = 1"
+      )
+    else {
+      throw SDKError(code: .storageFailure, message: "PosterWall revision is unavailable")
     }
-    return "v1-" + String(hash, radix: 16, uppercase: false).leftPadding(toLength: 16, with: "0")
+    return "v2-" + String(revision, radix: 16, uppercase: false)
+  }
+
+  private static func validate(
+    query: PosterWallQuery,
+    cursor: PosterWallCursor?,
+    identity: String,
+    revision: String
+  ) throws {
+    guard query.libraryRevision == nil || query.libraryRevision == revision else {
+      throw SDKError(code: .conflict, message: "PosterWall library revision changed")
+    }
+    guard
+      cursor == nil
+        || (cursor?.libraryRevision == revision && cursor?.queryIdentity == identity)
+    else {
+      throw SDKError(code: .conflict, message: "PosterWall cursor is stale or incompatible")
+    }
+  }
+
+  private static func makePage(
+    slice: PosterWallProjectionSlice,
+    revision: String,
+    queryIdentity: String
+  ) throws -> PosterWallPage {
+    let nextCursor: String?
+    if slice.hasMore, let last = slice.items.last {
+      nextCursor = try encodeCursor(
+        PosterWallCursor(
+          libraryRevision: revision,
+          queryIdentity: queryIdentity,
+          lastMediaUID: last.mediaUID
+        )
+      )
+    } else {
+      nextCursor = nil
+    }
+    return PosterWallPage(
+      schemaVersion: 1,
+      libraryRevision: revision,
+      items: slice.items,
+      nextCursor: nextCursor
+    )
   }
 
   private static func loadRoots(
@@ -866,106 +905,6 @@ public struct PosterWallStore: Sendable {
     ORDER BY root_id, state.last_played_at_ms DESC, bound.uid
     """
 
-  private static let revisionQueries = [
-    """
-    SELECT 'source|' || id || '|' || quote(uid) || '|' || quote(kind) || '|'
-      || quote(display_name) || '|' || enabled || '|' || updated_at_ms || '|'
-      || COALESCE(deleted_at_ms, -1)
-    FROM library_source ORDER BY id
-    """,
-    """
-    SELECT 'entity|' || id || '|' || quote(uid) || '|' || quote(kind) || '|'
-      || COALESCE(parent_id, -1) || '|' || quote(canonical_title) || '|'
-      || COALESCE(quote(original_title), 'NULL') || '|' || COALESCE(year, -1) || '|'
-      || COALESCE(season_number, -1) || '|' || COALESCE(episode_number, -1) || '|'
-      || COALESCE(quote(release_date), 'NULL') || '|' || quote(status) || '|'
-      || updated_at_ms || '|' || COALESCE(deleted_at_ms, -1)
-    FROM media_entity ORDER BY id
-    """,
-    """
-    SELECT 'file|' || id || '|' || quote(uid) || '|' || source_id || '|'
-      || quote(availability) || '|' || COALESCE(size_bytes, -1) || '|'
-      || updated_at_ms || '|' || COALESCE(deleted_at_ms, -1)
-    FROM media_file ORDER BY id
-    """,
-    """
-    SELECT 'binding|' || media_file_id || '|' || entity_id || '|' || quote(binding_role)
-      || '|' || quote(match_method) || '|' || quote(confidence) || '|' || locked
-      || '|' || decided_at_ms
-    FROM file_binding ORDER BY media_file_id, entity_id
-    """,
-    """
-    SELECT 'localized|' || entity_id || '|' || quote(locale) || '|' || quote(title) || '|'
-      || COALESCE(quote(overview), 'NULL') || '|' || COALESCE(quote(tagline), 'NULL') || '|'
-      || COALESCE(quote(content_rating), 'NULL') || '|' || quote(provider) || '|'
-      || materialized_at_ms
-    FROM localized_metadata ORDER BY entity_id, locale
-    """,
-    """
-    SELECT 'genre|' || id || '|' || quote(uid) || '|' || quote(provider) || '|'
-      || quote(provider_key)
-    FROM genre ORDER BY id
-    """,
-    """
-    SELECT 'genre_name|' || genre_id || '|' || quote(locale) || '|' || quote(name)
-    FROM genre_name ORDER BY genre_id, locale
-    """,
-    """
-    SELECT 'entity_genre|' || entity_id || '|' || genre_id || '|' || position
-    FROM entity_genre ORDER BY entity_id, genre_id
-    """,
-    """
-    SELECT 'artwork|' || id || '|' || quote(uid) || '|' || entity_id || '|'
-      || quote(kind) || '|' || quote(locale) || '|' || quote(provider) || '|'
-      || COALESCE(width, -1) || '|' || COALESCE(height, -1) || '|'
-      || COALESCE(quote(score), 'NULL') || '|' || is_selected || '|' || updated_at_ms
-    FROM artwork ORDER BY id
-    """,
-    """
-    SELECT 'profile|' || id || '|' || quote(uid) || '|' || is_default || '|' || updated_at_ms
-    FROM playback_profile ORDER BY id
-    """,
-    """
-    SELECT 'playback|' || profile_id || '|' || entity_id || '|'
-      || COALESCE(media_file_id, -1) || '|' || position_ms || '|'
-      || COALESCE(duration_ms, -1) || '|' || completed || '|' || play_count || '|'
-      || COALESCE(last_played_at_ms, -1) || '|' || updated_at_ms || '|' || revision
-    FROM playback_state ORDER BY profile_id, entity_id
-    """,
-    """
-    SELECT 'collection|' || id || '|' || quote(uid) || '|' || quote(kind) || '|'
-      || quote(title) || '|' || updated_at_ms || '|' || COALESCE(deleted_at_ms, -1)
-    FROM media_collection ORDER BY id
-    """,
-    """
-    SELECT 'collection_item|' || collection_id || '|' || entity_id || '|'
-      || position || '|' || added_at_ms
-    FROM collection_item ORDER BY collection_id, entity_id
-    """,
-    """
-    SELECT 'search|' || entity_id || '|' || quote(title) || '|' || quote(aliases) || '|'
-      || quote(people) || '|' || quote(genres) || '|' || quote(romanized) || '|'
-      || updated_at_ms
-    FROM search_document ORDER BY entity_id
-    """,
-    """
-    SELECT 'external|' || entity_id || '|' || quote(provider) || '|' || quote(namespace)
-      || '|' || quote(external_value) || '|' || is_primary || '|' || updated_at_ms
-    FROM external_id ORDER BY entity_id, provider, namespace
-    """,
-    """
-    SELECT 'technical|' || media_file_id || '|' || COALESCE(duration_ms, -1) || '|'
-      || COALESCE(quote(video_codec), 'NULL') || '|' || COALESCE(width, -1) || '|'
-      || COALESCE(height, -1) || '|' || probe_version || '|' || probed_at_ms
-    FROM technical_summary ORDER BY media_file_id
-    """,
-    """
-    SELECT 'stream|' || media_file_id || '|' || stream_index || '|' || quote(kind) || '|'
-      || COALESCE(quote(codec), 'NULL') || '|' || quote(language) || '|'
-      || COALESCE(quote(title), 'NULL') || '|' || is_default || '|' || is_forced
-    FROM media_stream ORDER BY media_file_id, stream_index
-    """,
-  ]
 }
 
 private struct RootProjection: Sendable {
@@ -982,6 +921,72 @@ private struct RootProjection: Sendable {
   var hasPlaybackState: Bool
   var isCompleted: Bool
   var totalEpisodeCount: Int
+}
+
+private struct LoadedPosterWallProjection: Sendable {
+  let revision: String
+  let roots: [RootProjection]
+}
+
+private struct PosterWallProjectionSlice: Sendable {
+  let items: [PosterWallItem]
+  let hasMore: Bool
+}
+
+/// Retains one sorted projection for the lifetime of a store so cursor pages do not repeatedly
+/// load and sort the entire library. The database revision is checked before every cache hit.
+private actor PosterWallPageCache {
+  private var revision: String?
+  private var queryIdentity: String?
+  private var roots: [RootProjection] = []
+  private var indicesByMediaUID: [String: Int] = [:]
+
+  func slice(
+    revision: String,
+    queryIdentity: String,
+    cursorMediaUID: String?,
+    pageSize: Int
+  ) throws -> PosterWallProjectionSlice? {
+    guard self.revision == revision, self.queryIdentity == queryIdentity else { return nil }
+    return try makeSlice(cursorMediaUID: cursorMediaUID, pageSize: pageSize)
+  }
+
+  func replaceAndSlice(
+    revision: String,
+    queryIdentity: String,
+    roots: [RootProjection],
+    cursorMediaUID: String?,
+    pageSize: Int
+  ) throws -> PosterWallProjectionSlice {
+    self.revision = revision
+    self.queryIdentity = queryIdentity
+    self.roots = roots
+    indicesByMediaUID.removeAll(keepingCapacity: true)
+    indicesByMediaUID.reserveCapacity(roots.count)
+    for (index, root) in roots.enumerated() {
+      indicesByMediaUID[root.item.mediaUID] = index
+    }
+    return try makeSlice(cursorMediaUID: cursorMediaUID, pageSize: pageSize)
+  }
+
+  private func makeSlice(
+    cursorMediaUID: String?,
+    pageSize: Int
+  ) throws -> PosterWallProjectionSlice {
+    let startIndex: Int
+    if let cursorMediaUID {
+      guard let anchorIndex = indicesByMediaUID[cursorMediaUID] else {
+        throw SDKError(code: .conflict, message: "PosterWall cursor anchor is unavailable")
+      }
+      startIndex = anchorIndex + 1
+    } else {
+      startIndex = 0
+    }
+    let endIndex = min(roots.count, startIndex + pageSize)
+    let items =
+      startIndex < roots.count ? roots[startIndex..<endIndex].map(\.item) : []
+    return PosterWallProjectionSlice(items: items, hasMore: endIndex < roots.count)
+  }
 }
 
 private struct PlaybackProjection: Sendable {
@@ -1044,12 +1049,5 @@ private struct PosterWallQueryIdentity: Codable, Sendable {
     case collectionUID = "collection_uid"
     case locale
     case randomSeed = "random_seed"
-  }
-}
-
-extension String {
-  fileprivate func leftPadding(toLength: Int, with character: Character) -> String {
-    guard count < toLength else { return self }
-    return String(repeating: String(character), count: toLength - count) + self
   }
 }

@@ -421,7 +421,7 @@ struct SQLiteMediaScanSinkTests {
     #expect(stagedPath == nil)
   }
 
-  @Test("Unchanged files stay done while changed and failed files remain actionable")
+  @Test("Unchanged files stay done while retries remain actionable and failures terminate")
   func durableScanWorkQueue() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
       "stellar-sqlite-work-queue-\(UUID().uuidString)",
@@ -530,9 +530,16 @@ struct SQLiteMediaScanSinkTests {
         workerID: "queue-worker"
       ).first
     )
-    try await store.completeScanWork(finalLease)
+    try await store.failScanWork(finalLease, errorCode: .remoteUnavailable)
     #expect(!(try await store.hasOutstandingScanWork(sourceUID: sourceUID, stage: .parse)))
     #expect(try await store.pendingScanWork(sourceUID: sourceUID, stage: .parse).isEmpty)
+    #expect(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .parse,
+        workerID: "queue-worker"
+      ).isEmpty
+    )
   }
 
   @Test("Scan work leases are exclusive and become reclaimable only after expiry")

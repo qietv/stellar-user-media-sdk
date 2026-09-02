@@ -45,7 +45,7 @@ struct ProviderCacheAndRemoteMetadataTests {
     #expect(collision == nil)
   }
 
-  @Test("Remote metadata, poster selection, and queue completion share one transaction")
+  @Test("Primary metadata commits before optional artwork and both keep lease transactions")
   func remoteMetadataCommit() async throws {
     let directory = temporaryDirectory(prefix: "stellar-remote-metadata")
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -154,10 +154,7 @@ struct ProviderCacheAndRemoteMetadataTests {
       title: "示例电影",
       originalTitle: "Example",
       overview: "Structured metadata stored with the queue acknowledgement.",
-      year: 2024,
-      posterURL: "https://images.example.test/poster.jpg",
-      posterWidth: 1_000,
-      posterHeight: 1_500
+      year: 2024
     )
 
     let changedEntry = try RemoteEntry(
@@ -198,19 +195,58 @@ struct ProviderCacheAndRemoteMetadataTests {
     #expect(currentLease.inputRevision == lease.inputRevision + 1)
     let rootUID = try await store.commitRemoteMetadata(
       metadata,
-      completing: currentLease
+      completing: currentLease,
+      enqueueArtwork: true
     )
     let pending = try await store.pendingScanWork(sourceUID: sourceUID, stage: .parse)
     #expect(pending.isEmpty)
 
     let wall = try PosterWallStore(database: libraryDatabase)
-    let page = try await wall.page(
+    let primaryPage = try await wall.page(
       PosterWallQuery(section: .all, locale: "zh-CN", pageSize: 20)
     )
-    let item = try #require(page.items.first)
-    #expect(item.mediaUID == rootUID)
-    #expect(item.title == "示例电影")
-    #expect(item.poster?.remoteReference == "https://images.example.test/poster.jpg")
+    let primaryItem = try #require(primaryPage.items.first)
+    #expect(primaryItem.mediaUID == rootUID)
+    #expect(primaryItem.title == "示例电影")
+    #expect(primaryItem.poster == nil)
+
+    let artworkLease = try #require(
+      try await store.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .artwork,
+        workerID: "artwork-worker"
+      ).first
+    )
+    let artworkTarget = try await store.remoteArtworkTarget(
+      for: artworkLease,
+      provider: "test-provider"
+    )
+    #expect(
+      artworkTarget
+        == (try LibraryRemoteArtworkTarget(
+          provider: "test-provider",
+          providerID: "movie-42",
+          kind: .movie
+        ))
+    )
+    _ = try await store.commitRemoteArtwork(
+      LibraryRemoteArtwork(
+        target: artworkTarget,
+        locale: "zh-CN",
+        remoteURL: "https://images.example.test/poster.jpg",
+        width: 1_000,
+        height: 1_500
+      ),
+      completing: artworkLease
+    )
+    #expect(!(try await store.hasOutstandingScanWork(sourceUID: sourceUID, stage: .artwork)))
+    let artworkPage = try await wall.page(
+      PosterWallQuery(section: .all, locale: "zh-CN", pageSize: 20)
+    )
+    #expect(
+      artworkPage.items.first?.poster?.remoteReference
+        == "https://images.example.test/poster.jpg"
+    )
     let searchPage = try await wall.page(
       PosterWallQuery(
         section: .all,

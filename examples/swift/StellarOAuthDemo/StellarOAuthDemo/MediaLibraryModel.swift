@@ -26,6 +26,19 @@ private enum DemoScanFilePolicy {
   }
 }
 
+private struct DemoScanTraversalPolicy: MediaScanTraversalPolicy {
+  private static let excludedNames: Set<String> = [
+    "#recycle", "$recycle.bin", "@eadir", "@recycle", "lost+found",
+    "system volume information",
+  ]
+
+  func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool {
+    let name = entry.locator.path.name
+    guard name.utf8.first != 46 else { return false }
+    return !Self.excludedNames.contains(name.lowercased())
+  }
+}
+
 enum DemoScanState: Equatable {
   case idle
   case preparing
@@ -358,7 +371,8 @@ final class MediaLibraryModel: ObservableObject {
         using: connection.connector,
         sink: sink,
         resumeFrom: checkpoint,
-        observer: DemoScanObserver(relay: relay)
+        observer: DemoScanObserver(relay: relay),
+        traversalPolicy: DemoScanTraversalPolicy()
       )
 
       flushScanProgress()
@@ -499,6 +513,69 @@ final class MediaLibraryModel: ObservableObject {
     let finalSummary = try await libraryStore.sourceMediaSummary(sourceUID: sourceUID)
     mediaFileCount = finalSummary.presentFileCount
     matchedFileCount = finalSummary.matchedFileCount
+    await refreshPosterWall()
+    try Task.checkCancellation()
+    show("Fetching optional posters…")
+    try await enrichArtwork(
+      sourceUID: sourceUID,
+      libraryStore: libraryStore,
+      mediaInfoClient: mediaInfoClient
+    )
+  }
+
+  private func enrichArtwork(
+    sourceUID: String,
+    libraryStore: LibraryStore,
+    mediaInfoClient: TestMediaInfoClient
+  ) async throws {
+    let workerID = "stellar-oauth-demo-artwork-\(UUID().uuidString.lowercased())"
+    let workerConcurrency = 2
+    try await withThrowingTaskGroup(of: String.self) { group in
+      var activeWorkerCount = 0
+      let initialLeases = try await libraryStore.claimScanFileWork(
+        sourceUID: sourceUID,
+        stage: .artwork,
+        workerID: workerID,
+        limit: workerConcurrency,
+        leaseDurationMilliseconds: 120_000
+      )
+      for lease in initialLeases {
+        activeWorkerCount += 1
+        group.addTask {
+          try await Self.processArtworkWork(
+            DemoMetadataWorkItem(lease: lease),
+            libraryStore: libraryStore,
+            mediaInfoClient: mediaInfoClient
+          )
+        }
+      }
+
+      var completedCount = 0
+      while activeWorkerCount > 0, let path = try await group.next() {
+        activeWorkerCount -= 1
+        completedCount += 1
+        updateCurrentFile(path)
+        show("Fetched or classified \(completedCount) posters…")
+
+        try Task.checkCancellation()
+        if let replacementLease = try await libraryStore.claimScanFileWork(
+          sourceUID: sourceUID,
+          stage: .artwork,
+          workerID: workerID,
+          limit: 1,
+          leaseDurationMilliseconds: 120_000
+        ).first {
+          activeWorkerCount += 1
+          group.addTask {
+            try await Self.processArtworkWork(
+              DemoMetadataWorkItem(lease: replacementLease),
+              libraryStore: libraryStore,
+              mediaInfoClient: mediaInfoClient
+            )
+          }
+        }
+      }
+    }
   }
 
   private nonisolated static func processMetadataWork(
@@ -526,7 +603,7 @@ final class MediaLibraryModel: ObservableObject {
     defer { heartbeat.cancel() }
     do {
       let resolution = try await mediaInfoClient.resolve(path: path)
-      guard let resolved = try await mediaInfoClient.posterMetadata(from: resolution) else {
+      guard let resolved = try await mediaInfoClient.primaryMetadata(from: resolution) else {
         throw SDKError(
           code: .metadataNotFound,
           message: "the media service returned no usable metadata"
@@ -551,12 +628,6 @@ final class MediaLibraryModel: ObservableObject {
         )
       }
 
-      let artwork: ResolvedArtworkVariant?
-      if let artworkID = resolved.artworkID {
-        artwork = try await mediaInfoClient.bestArtwork(artworkID: artworkID)
-      } else {
-        artwork = nil
-      }
       let metadata = try LibraryRemoteMetadata(
         provider: ResolvedPosterMetadata.provider,
         providerID: resolved.rootObjectID,
@@ -565,14 +636,12 @@ final class MediaLibraryModel: ObservableObject {
         title: resolved.title,
         originalTitle: resolved.originalTitle,
         overview: resolved.overview,
-        year: resolved.year,
-        posterURL: artwork?.url.absoluteString,
-        posterWidth: artwork?.width,
-        posterHeight: artwork?.height
+        year: resolved.year
       )
       _ = try await libraryStore.commitRemoteMetadata(
         metadata,
-        completing: workItem.lease
+        completing: workItem.lease,
+        enqueueArtwork: true
       )
       return .matched(path: path, wasAlreadyMatched: workItem.hasMatchingBinding)
     } catch {
@@ -594,12 +663,86 @@ final class MediaLibraryModel: ObservableObject {
         providerDelay ?? 0,
         min(300_000, 5_000 * Int64(1 << min(workItem.lease.attempts, 5)))
       )
+      if workItem.lease.attempts + 1 >= 3 {
+        try await libraryStore.failScanWork(workItem.lease, errorCode: code)
+      } else {
+        try await libraryStore.retryScanWork(
+          workItem.lease,
+          errorCode: code,
+          retryAfterMilliseconds: retryDelay
+        )
+      }
+      return .retry(path: path)
+    }
+  }
+
+  private nonisolated static func processArtworkWork(
+    _ workItem: DemoMetadataWorkItem,
+    libraryStore: LibraryStore,
+    mediaInfoClient: TestMediaInfoClient
+  ) async throws -> String {
+    let path = workItem.file.relativePath
+    let heartbeat = Task<Void, Never> {
+      while !Task.isCancelled {
+        do {
+          try await Task.sleep(for: .seconds(30))
+          guard !Task.isCancelled else { return }
+          _ = try await libraryStore.renewScanWorkLease(
+            workItem.lease,
+            leaseDurationMilliseconds: 120_000
+          )
+        } catch {
+          return
+        }
+      }
+    }
+    defer { heartbeat.cancel() }
+    do {
+      let target = try await libraryStore.remoteArtworkTarget(
+        for: workItem.lease,
+        provider: ResolvedPosterMetadata.provider
+      )
+      guard let variant = try await mediaInfoClient.bestArtwork(for: target, path: path) else {
+        try await libraryStore.failScanWork(workItem.lease, errorCode: .metadataNotFound)
+        return path
+      }
+      let artwork = try LibraryRemoteArtwork(
+        target: target,
+        locale: "zh-CN",
+        remoteURL: variant.url.absoluteString,
+        width: variant.width,
+        height: variant.height
+      )
+      _ = try await libraryStore.commitRemoteArtwork(
+        artwork,
+        completing: workItem.lease
+      )
+      return path
+    } catch {
+      if Self.isCancellation(error) {
+        try? await libraryStore.retryScanWork(
+          workItem.lease,
+          errorCode: .cancelled,
+          retryAfterMilliseconds: 0
+        )
+        throw error
+      }
+      let code = (error as? SDKError)?.code ?? .unknown
+      if code == .metadataNotFound || workItem.lease.attempts + 1 >= 3 {
+        try await libraryStore.failScanWork(workItem.lease, errorCode: code)
+        return path
+      }
+      let providerDelay = (error as? SDKError)?.retryAfterMilliseconds
+      let retryDelay = max(
+        providerDelay ?? 0,
+        min(300_000, 5_000 * Int64(1 << min(workItem.lease.attempts, 5)))
+      )
       try await libraryStore.retryScanWork(
         workItem.lease,
         errorCode: code,
         retryAfterMilliseconds: retryDelay
       )
-      return .retry(path: path)
+      return path
     }
   }
 
@@ -676,10 +819,16 @@ final class MediaLibraryModel: ObservableObject {
       restoreProgress(from: checkpoint)
       scanState = .paused
       show("Recovered an interrupted scan. Enter the SMB password to continue safely.")
-    } else if try await libraryStore.hasOutstandingScanWork(
-      sourceUID: sourceUID,
-      stage: .parse
-    ) {
+    } else {
+      let hasPrimaryWork = try await libraryStore.hasOutstandingScanWork(
+        sourceUID: sourceUID,
+        stage: .parse
+      )
+      let hasArtworkWork = try await libraryStore.hasOutstandingScanWork(
+        sourceUID: sourceUID,
+        stage: .artwork
+      )
+      guard hasPrimaryWork || hasArtworkWork else { return }
       metadataRecoverySourceUID = sourceUID
       scanState = .paused
       show("Recovered pending metadata work. It can continue without rescanning the SMB source.")
@@ -729,7 +878,7 @@ final class MediaLibraryModel: ObservableObject {
       sourceUID: sourceUID,
       connectionRequest: request,
       stableIDScope: .persistent,
-      directoryConnectionCount: 2
+      directoryConnectionCount: 4
     )
     let connector = SMB2MediaSourceConnector(
       transport: AppleSMB2Transport(),
@@ -932,11 +1081,7 @@ private actor TestMediaInfoClient {
   }
 
   func resolve(path: String) async throws -> MediaInfoResolution {
-    var request = URLRequest(url: Self.baseURL.appendingPathComponent("resolve"))
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = try JSONEncoder().encode(
-      MediaInfoResolveRequest(path: path, locale: "zh-CN"))
+    let request = try Self.resolveRequest(path: path)
     return try await send(
       request,
       endpoint: "resolve",
@@ -945,7 +1090,7 @@ private actor TestMediaInfoClient {
     )
   }
 
-  func posterMetadata(from resolution: MediaInfoResolution) async throws -> ResolvedPosterMetadata?
+  func primaryMetadata(from resolution: MediaInfoResolution) async throws -> ResolvedPosterMetadata?
   {
     guard let selected = resolution.selected else { return nil }
     if selected.objectKind == "episode" {
@@ -956,34 +1101,21 @@ private actor TestMediaInfoClient {
         title: resolution.primaryCandidate?.title ?? selected.title,
         originalTitle: nil,
         overview: nil,
-        year: resolution.primaryCandidate?.year,
-        artworkID: nil
+        year: resolution.primaryCandidate?.year
       )
       do {
-        async let entity: MediaInfoEntity = get(
+        let resolvedEntity: MediaInfoEntity = try await get(
           pathComponents: ["entities", seriesID],
           queryItems: [URLQueryItem(name: "locale", value: "zh-CN")],
           locale: "zh-CN"
         )
-        async let artworkPage: MediaInfoArtworkPage = get(
-          pathComponents: ["entities", seriesID, "artworks"],
-          queryItems: [
-            URLQueryItem(name: "locale", value: "zh-CN"),
-            URLQueryItem(name: "limit", value: "100"),
-          ],
-          locale: "zh-CN"
-        )
-        let (resolvedEntity, resolvedArtworkPage) = try await (entity, artworkPage)
         return ResolvedPosterMetadata(
           rootObjectID: seriesID,
           kind: .series,
           title: resolvedEntity.title ?? fallback.title,
           originalTitle: resolvedEntity.originalTitle,
           overview: resolvedEntity.overview,
-          year: Self.year(from: resolvedEntity.firstAirDate) ?? fallback.year,
-          artworkID: resolvedArtworkPage.items.first(where: {
-            $0.artworkKind == "poster"
-          })?.artworkID
+          year: Self.year(from: resolvedEntity.firstAirDate) ?? fallback.year
         )
       } catch {
         if Self.isCancellation(error) { throw error }
@@ -997,12 +1129,66 @@ private actor TestMediaInfoClient {
       title: selected.title,
       originalTitle: selected.originalTitle,
       overview: selected.overview,
-      year: selected.year,
-      artworkID: selected.artworkID
+      year: selected.year
     )
   }
 
-  func bestArtwork(artworkID: String) async throws -> ResolvedArtworkVariant? {
+  func bestArtwork(for target: LibraryRemoteArtworkTarget, path: String) async throws
+    -> ResolvedArtworkVariant?
+  {
+    guard target.provider == Self.provider else {
+      throw SDKError(code: .invalidConfiguration, message: "artwork provider is unsupported")
+    }
+    if let artworkID = await cachedArtworkID(path: path, target: target) {
+      return try await bestArtwork(artworkID: artworkID)
+    }
+    let artworkPage: MediaInfoArtworkPage = try await get(
+      pathComponents: ["entities", target.providerID, "artworks"],
+      queryItems: [
+        URLQueryItem(name: "locale", value: "zh-CN"),
+        URLQueryItem(name: "limit", value: "100"),
+      ],
+      locale: "zh-CN"
+    )
+    guard
+      let artworkID = artworkPage.items.first(where: {
+        $0.artworkKind == "poster"
+      })?.artworkID
+    else { return nil }
+    return try await bestArtwork(artworkID: artworkID)
+  }
+
+  private func cachedArtworkID(
+    path: String,
+    target: LibraryRemoteArtworkTarget
+  ) async -> String? {
+    guard let request = try? Self.resolveRequest(path: path) else { return nil }
+    let fingerprint = Self.requestFingerprint(request)
+    let requestKey = "\(Self.provider)-\(Self.fnv1a(fingerprint))"
+    guard
+      let cached = try? await cacheStore.providerResponse(
+        requestKey: requestKey,
+        requestFingerprint: fingerprint
+      ),
+      let responseJSON = cached.responseJSON,
+      let resolution: MediaInfoResolution = try? Self.decode(Data(responseJSON.utf8)),
+      let selected = resolution.selected,
+      selected.artworkID != nil
+    else { return nil }
+    switch target.kind {
+    case .movie:
+      guard selected.objectKind == "movie", selected.objectID == target.providerID else {
+        return nil
+      }
+    case .series:
+      guard selected.objectKind == "series", selected.objectID == target.providerID else {
+        return nil
+      }
+    }
+    return selected.artworkID
+  }
+
+  private func bestArtwork(artworkID: String) async throws -> ResolvedArtworkVariant? {
     let page: MediaInfoArtworkVariantPage = try await get(
       pathComponents: ["artworks", artworkID, "variants"],
       queryItems: [URLQueryItem(name: "limit", value: "50")],
@@ -1278,6 +1464,16 @@ private actor TestMediaInfoClient {
     return "\(method)\n\(url)\n\(body)"
   }
 
+  private static func resolveRequest(path: String) throws -> URLRequest {
+    var request = URLRequest(url: baseURL.appendingPathComponent("resolve"))
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try JSONEncoder().encode(
+      MediaInfoResolveRequest(path: path, locale: "zh-CN")
+    )
+    return request
+  }
+
   private static func fnv1a(_ value: String) -> String {
     var hash: UInt64 = 14_695_981_039_346_656_037
     for byte in value.utf8 {
@@ -1452,7 +1648,6 @@ private struct ResolvedPosterMetadata: Sendable {
   let originalTitle: String?
   let overview: String?
   let year: Int?
-  let artworkID: String?
 
   func makeCandidate(for query: MediaMatchQuery) throws -> MediaMetadataCandidate {
     let parsedKind: ParsedMediaKind = kind == .movie ? .movie : .series

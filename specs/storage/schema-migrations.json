@@ -32,6 +32,22 @@
       "file": "sql/library-v5.sql",
       "business_table_count": 30,
       "sha256": "6b3cd6c8c46bba16eab0335a2ed745bcd375537332df568066a18d434848f44b"
+    },
+    {
+      "name": "library",
+      "from_version": 5,
+      "to_version": 6,
+      "file": "sql/library-v6.sql",
+      "business_table_count": 31,
+      "sha256": "4ca1fec9442db3e1ddb03b1e56094b903e2e1179abf8147a9c8fc65b76ac42c7"
+    },
+    {
+      "name": "library",
+      "from_version": 6,
+      "to_version": 7,
+      "file": "sql/library-v7.sql",
+      "business_table_count": 31,
+      "sha256": "c4cf15ae1df490991498be3540abe99d7c3c215eb92f84d3b9dd09868651e62c"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Infuse 刮削/扫描方案分析与 StellarOAuthDemo 改进计划
 
-> 状态：调研完成，实施中（Demo 元数据流水线、目录单次枚举、持久 frontier/compact checkpoint、per-run discovery staging、集合化发布、revision-safe worker lease 和启动恢复已落地）
+> 状态：调研完成，实施中（Demo 主元数据/artwork 隔离、目录单次枚举、持久 frontier/compact checkpoint、per-run discovery staging、集合化发布、revision-safe worker lease、启动恢复和 PosterWall 分页复用已落地）
 >
 > 日期：2026-09-02
 >
@@ -23,15 +23,18 @@
   同一事务提交；Demo 已停止逐项重写 `poster_metadata.json`；
 - 对应根实体的 `search_document` 现在随 remote metadata 在同一事务增量 upsert，
   Demo 扫描完成后不再执行全表 `DELETE + INSERT` rebuild；完整 rebuild 仅保留给 repair/migration；
-- PosterWall 列表直接读取结构化 SQLite，详情 metadata 改为用户打开时按需读取；
+- PosterWall 列表直接读取结构化 SQLite，详情 metadata 改为用户打开时按需读取；同一个
+  `PosterWallStore` 的后续 cursor 页会复用已排序投影，并在每页用事务级 revision 做 O(1) 校验，
+  不再重复读取、过滤、排序整库或逐行计算整库 hash；
 - 已增加 provider cache 指纹隔离和 remote metadata 原子提交回归测试。
 - SDK 新增共享目录快照分页器；Local、SMB、WebDAV 在一个连接内每个目录只做一次
   完整枚举，后续 cursor 仅切片缓存快照，断连恢复时重读一次并校验指纹；
 - source capability 新增目录请求建议并发，Scanner 取调用方配置与来源上限的较小值；
-  单 libsmb2 context 当前明确报告 1，而不是制造无效的 4 路排队；
+  单 AMSMB2 manager 当前明确报告 1，而不是制造无效的 4 路排队；
 - SMB connector 新增显式、默认仍为 1 的独立目录连接数；分页中的同一目录固定到同一 session，
   新目录按当前负载分配，连接失败和断开会清理全部 session。测试 NAS 的双会话短时吞吐验证支持
-  并行目录请求后，Demo 选择 2 路目录连接，而文件读取和 metadata worker 并发保持不变；
+  并行目录请求；AMSMB2 切换后连接池改为并行建连，测试服务器也可稳定承受 4 个并发只读枚举，
+  因而 Demo 使用与 Scanner 上限一致的 4 路目录连接，而文件读取和 metadata worker 并发保持独立；
 - 共享目录快照分页器会为每个条目只计算一次 path comparison key，再用预计算键排序和生成兼容
   指纹；不再在 `O(N log N)` 次排序比较中反复拆分、Unicode/大小写归一化完整路径；
 - Local source 使用目录枚举已经预取的 file resource identifier 生成 scan-scoped stable ID，常见路径
@@ -61,7 +64,7 @@
   `scan_frontier` / `scan_seen` 通过 library schema v2 持久化，每页条目、frontier transition、
   seen 去重和 checkpoint 在同一 SQLite 事务提交；Scanner 使用增量 FIFO frontier，不再每页全量
   排序/复制前沿。中断恢复测试确认只重放未完成页，完成后 per-run frontier/seen 自动清理；
-- `library.sqlite` 已支持经过 checksum 验证的 v1 → v2 → v3 → v4 → v5 原地迁移，保留已有业务数据；旧版 v1
+- `library.sqlite` 已支持经过 checksum 验证的 v1 → v2 → v3 → v4 → v5 → v6 → v7 原地迁移，保留已有业务数据；旧版 v1
   checkpoint payload 若被显式加载会返回 conflict 并要求新建 run，避免静默错误恢复。
 - `library.sqlite` schema v3 已加入 per-run `scan_discovery`：枚举页只写 staging，不再提前修改
   正式 `media_file`；完整成功时，added/changed/moved/unchanged、metadata enqueue、scoped missing、
@@ -78,6 +81,10 @@
   上重复 200 次小批选择由 3.80 秒降至
   约 0.01 秒，SQLite 不再为 Demo 的每个 4-item claim 建立全队列临时排序树；完成任务会从索引
   直接移除，3,000 个连续 4-item claim 的隔离基准相较非 partial 顺序索引由 1.96 秒降至 0.18 秒。
+- schema v6 增加每个 SDK 写事务只推进一次的 `library_revision`。PosterWall cursor 校验由遍历并
+  拼接几乎所有业务表改为单行读取；这也为同一 store 安全复用分页投影提供了失效边界。
+- schema v7 将终态 `failed` 从 metadata worker 的 partial claim 顺序索引移除；永久失败和超过
+  三次自动尝试的任务不再被 claim 热循环重复领取，也不会随失败项积累拖慢后续小批领取。
 - SDK 新增按 source 读取最新可恢复 checkpoint 的类型安全 API：先选择最新 run 再判断状态，
   不会在较新成功 run 之后误复活旧失败 run；同时可查询包含 deferred retry 和未过期 lease
   在内的 outstanding metadata work。Demo 启动时会恢复 discovery 进度或直接继续 durable metadata
@@ -93,18 +100,22 @@
 - Scanner 与 SQLite sink 现在会把最多 32 个小目录页合并到一个原子 frontier/staging 事务，
   同时把缓冲条目限制在约一个配置 page size；大型目录页仍立即提交，非 SQLite/custom sink 默认
   保持逐页 durable。批次内失败只重放尚未提交的页面，不会出现 checkpoint 前进但 staging 未落库。
-- 生产 libsmb2 session 已新增 package 内目录分页快路：C wrapper 保留 `smb2dir`，Swift 每次只复制
-  请求页的记录，不再同时构造增长型 C entry array、全量 `[SMB2Entry]`、全量 `[RemoteEntry]`
-  和排序快照；cursor 绑定完整目录 fingerprint/条目数，断连恢复会重新打开并校验，末页、错误和
-  disconnect 会释放 handle，旧 `smb-v1` snapshot cursor 仍可通过兼容路径完成。需要明确的是，
-  当前固定版本 libsmb2 的高层 `smb2_opendir` 内部仍会先取完协议目录并保存在 C linked list；
-  因此本轮降低的是 SDK/wrapper 的重复内存与排序开销，不宣称已经实现协议级 QUERY_DIRECTORY 真流式。
+- SMB 第三方实现已由项目私有 libsmb2 wrapper 替换为 AMSMB2 4.0.3。AMSMB2 的公开
+  `contentsOfDirectory` 返回完整属性字典数组，因此当前 SDK 仍以共享 snapshot paginator 保证每个
+  目录只请求一次，再对逻辑 cursor 切片；旧 wrapper 的 `smb2dir` package 快路不再是现行实现。
+  这消除了重复协议请求。AMSMB2 与 SDK 会物化完整目录，但这与 WebDAV 的单次 `Depth: 1`
+  响应、网盘原生服务端 cursor 一样属于来源自己的分页实现，不再要求统一下沉为 SMB 句柄流式 API。
+- Scanner 新增同步目录遍历策略钩子，默认行为不变；Demo 在子目录入队前跳过隐藏目录和常见 NAS
+  回收站/服务目录，避免对明确不属于媒体库的子树产生 SMB 请求和 checkpoint/SQLite 工作。
+- Demo 的主元数据已在 artwork 网络请求前提交；SDK 在同一事务完成 `.parse` lease 并入队
+  `.artwork`，2 路 optional artwork worker 只读取已持久化的 provider binding，不重新执行文件
+  解析或在线匹配。图片失败不会撤销标题/简介，自动重试达到三次后进入可由 repair 重置的终态。
 
-这一阶段没有宣称完成下文全部计划。协议级真实目录流式读取、后台 scheduler
-和本地 metadata intake 仍按后续 Phase 推进。当前目录缓存是
-非 libsmb2 来源与兼容 transport 的 P0 止血方案；生产 libsmb2 已有 handle/batch 消费，但上游
-高层 `opendir` 仍会预取完整响应，不等同于低层 QUERY_DIRECTORY 真流式；事务内临时批次表
-已用于成功发布 diff，枚举期持久 staging 则由 `scan_discovery` 承担。
+这一阶段没有宣称完成下文全部计划。后台 scheduler 和本地 metadata intake 仍按后续 Phase
+推进。Local、WebDAV 与 AMSMB2 的单次目录快照是 Phase 1 的正式兼容实现；网盘来源可直接映射
+服务端 cursor。协议级 QUERY_DIRECTORY 真流式仅在真实单目录 RSS 超出预算时作为来源专项优化，
+不再阻塞 Phase 1 完成。事务内临时批次表已用于成功发布 diff，枚举期持久 staging 则由
+`scan_discovery` 承担。
 
 ## 1. 结论摘要
 
@@ -112,10 +123,10 @@
 
 与 Infuse 的实现思路相比，最初确认的四个主要瓶颈及当前状态如下：
 
-1. **重复读取和 SDK 层全量复制已修复，协议级真流式仍缺失。** Local、SMB、WebDAV 现在每个连接内每目录只获取一次；生产 libsmb2 已用保留 handle 分批复制到 Swift，不再建立 SDK 层完整排序快照。上游高层 `smb2_opendir` 仍会把协议目录预取到 C linked list，极大目录尚有这一层内存峰值。
+1. **重复读取已修复，Phase 1 已完成。** Local、SMB、WebDAV 现在每个连接内每目录只获取一次；Scanner 只依赖来源无关的逻辑 cursor，SMB/WebDAV 使用单次快照，后续网盘可映射服务端 cursor。AMSMB2 协议级流式不再作为统一架构或完成条件。
 2. **检查点膨胀已修复。** compact checkpoint 配合持久 `scan_frontier` / `scan_seen`，不再每页编码、排序和重写全部 seen/completed 集合；当前剩余重点是更大规模故障注入和累计写入指标。
 3. **发现结果的非原子发布差距已修复。** 原实现会在扫描成功前暴露新路径和移动；当前已改为 per-run staging，只有成功完成才通过集合 SQL 发布 added/changed/moved/unchanged 与 scoped missing。
-4. **元数据主要热路径已修复，阶段语义仍待拆分。** SQL JOIN/lease worker、provider cache、限流、single-flight、SQLite 原子提交和增量搜索已落地；required/optional、terminal/dead-letter 及 artwork/probe 独立阶段仍待推进。
+4. **元数据主要热路径已修复，只保留最小必要的阶段隔离。** SQL JOIN/lease worker、provider cache、限流、single-flight、SQLite 原子提交和增量搜索已落地；主元数据现已先提交，provider artwork 由独立 optional worker 处理并具有有界终态。后续只把视频截图/缩略图和实际启用的 probe 保持在可选重资源路径。
 
 本机合成基准已经清晰暴露复杂度问题：扁平文件从 1,000 增至 8,000 时，耗时从 0.48 秒增至 26.93 秒；文件数每翻倍，耗时约增长 4 倍。4,000 个完全未变化文件的重扫仍需 6.69 秒，几乎等于首次扫描的 6.66 秒。1,000 个单文件目录产生了 1,002 个页面，耗时 11.70 秒，最终检查点达到 157,858 字节。
 
@@ -154,7 +165,7 @@
 
 - Demo：当前目录 `StellarOAuthDemo`
 - 扫描核心：`StellarMediaLibrary`
-- SMB 连接器：`StellarSMB2Core` / `StellarSMB2Libsmb2`
+- SMB 连接器：`StellarSMB2Core` / `StellarSMB2Apple`（AMSMB2 4.0.3）
 - 持久化：`StellarStorage`
 - 数据库 schema：`specs/storage/sql/library-v1.sql`
 
@@ -484,6 +495,8 @@ ceil(D / P) × O(D log D + network_list(D))
 | flat 50,000 CLI 首扫 follow-up（包含最终 snapshot） | 1.79 s / 23.43B instructions | 1.80 s / 23.46B instructions | 同批改动未以 unchanged 快路换取首扫退化；墙钟与指令数均在采样噪声内持平 |
 | 5,000 目录 × 1 文件 SDK 首扫 follow-up | 1.58 s / 19.76B instructions | 0.85 s / 10.48B instructions | SQLite sink 合并最多 32 个小页面事务；墙钟下降约 46%，指令数下降约 47%，峰值 RSS 基本持平 |
 | 测试 NAS 30 秒 SMB 枚举吞吐 | 单 session 82,892 项 | 双 session 合计 215,926 项 | 两个独立只读进程各 107,963 项；用于确认服务器能承受 2 路目录会话，不等同于 Demo 端到端倍率 |
+| 测试 SMB 全共享顺序基线 | — | 817,784 项 / 167,146 目录 / 853.19 s | AMSMB2 4.0.3；说明该共享的主成本是大量目录往返，而不是根目录大数组；Demo 因此让 4 路目录连接与 Scanner 并发上限对齐 |
+| PosterWall 10,000 项、200/页、拉完 50 页 | 3.38 s / 42.36B instructions | 1.19–1.23 s / 约 1.03B instructions | 对照已包含 O(1) revision，单独衡量投影复用；墙钟下降约 64%，指令数下降约 97.6%，临时 CLI 基准入口已移除 |
 
 8k 当前已满足 2.5 秒初始预算。compact checkpoint、持久 frontier 与 per-run discovery staging
 已消除主要非线性写放大并补齐失败 run 的发布边界；下一优先级是 scheduler、本地 metadata
@@ -495,18 +508,18 @@ intake 和真实目录游标。
 
 | 主题 | Infuse 观察 | 我方当前实现 | 影响 | 优先级 |
 |---|---|---|---|---|
-| 目录分页 | 批量 enumerator/crawler，保存 section/depth/offset | libsmb2 handle/batch 已落地，兼容来源使用单次 snapshot；协议层仍预取 | 重复 I/O 和 SDK 全量复制已消除；极大目录仍有 libsmb2 内部峰值 | P1（SDK 层完成） |
-| SMB 并发 | 有界队列，按来源能力调度 | 单 libsmb2 context capability 已限制为 1 | 无效并发已消除；多 session 仅待真实 NAS 数据 | P1（核心完成） |
+| 目录分页 | 批量 enumerator/crawler，保存 section/depth/offset | AMSMB2、Local、WebDAV 使用单次 snapshot；网盘可映射服务端 cursor | 来源无关的逻辑分页已完成；单目录 RSS 仅保留观测 | P0（完成） |
+| SMB 并发 | 有界队列，按来源能力调度 | 单 AMSMB2 manager 限制为 1；连接池并行建连，Demo 使用 4 session | 无效并发与串行建连已消除；其他调用方仍按 NAS 能力显式选择 | P1（核心完成） |
 | 扫描状态 | 持久爬取状态和 crash 状态 | compact checkpoint + 持久 frontier/seen | 核心写放大已消除；待更大故障注入 | P0（核心完成） |
 | 正式索引 | temp FileIndex，成功后集合合并 | 已使用 per-run `scan_discovery`，成功后发布 | 核心发布边界已对齐；待补大规模故障注入 | P0（核心完成） |
 | 差异合并 | SQL EXCEPT/批量更新 | added/changed/moved/unchanged 与 missing 已集合化 | 待补 100k diff/RSS 基准 | P0（核心完成） |
-| 元数据阶段 | 主元数据、缩略图、次级索引分离 | `.parse` 混合在线匹配/artwork | 慢服务阻塞整体完成 | P0/P1 |
-| 提供商控制 | QPS queue、429 处理、回退 | 无统一 QPS、Retry-After 和退避 | 易触发限流，失败风暴 | P0/P1 |
-| 共享实体复用 | 以媒体实体/剧集层组织 | 同剧集逐 episode 重取 series/artwork | N+1 网络请求 | P0/P1 |
-| 元数据持久化 | 结构化数据库和缓存 | 每成功一项重写整个 JSON | O(N²) 文件 I/O，崩溃一致性差 | P0 |
-| 搜索索引 | 二级阶段、按变更维护 | 每次全量 DELETE + INSERT | 未变化重扫仍昂贵 | P1 |
-| 自动/增量触发 | 打开、空闲、服务器周期同步 | Demo 总是 full，缺少持久 scheduler | 重扫成本高，重启后选择丢失 | P1 |
-| 范围过滤 | Favorite/exclusion/`.nomedia` | 主要在 sink 过滤，仍遍历所有内容 | 浪费网络、checkpoint、CPU | P1 |
+| 元数据阶段 | crawler、主元数据、缩略图、辅助元数据四个粗粒度阶段 | `.parse` 已先提交并原子入队 2 路 `.artwork`；视频截图尚未接入任务流 | provider 海报已不阻塞文字元数据；截图仍须避开扫描关键路径 | P1（provider artwork 完成） |
+| 提供商控制 | QPS queue、429 处理、回退 | 已有 10 QPS、Retry-After、退避/jitter 与鉴权暂停 | 核心限流完成，仍待 SDK 化和阶段策略 | P1 |
+| 共享实体复用 | 以媒体实体/剧集层组织 | entity/artwork 请求已有 single-flight 与持久 cache | 网络 N+1 已止血，仍可增加 batch resolve | P1 |
+| 元数据持久化 | 结构化数据库和缓存 | localized metadata/artwork/queue 已同事务写 SQLite | O(N²) JSON 重写已消除 | P0（完成） |
+| 搜索索引 | 二级阶段、按变更维护 | remote metadata 提交时增量 upsert | 全表 rebuild 已仅保留 repair/migration | P1（核心完成） |
+| 自动/增量触发 | 打开、空闲、服务器周期同步 | 已恢复 discovery/metadata，仍缺后台 scheduler/trigger merge | 重启恢复已完成；周期重扫策略仍缺 | P1 |
+| 范围过滤 | Favorite/exclusion/`.nomedia` | Demo 已在 enqueue 前跳过隐藏/系统目录，媒体扩展名仍在 sink 过滤 | 常见服务子树不再遍历；通用 include/exclude 和 `.nomedia` 仍缺 | P1 |
 | 本地元数据 | embedded/local/NFO/override 优先 | 已有部分库能力，但 Demo 未接入 | 不必要在线请求，匹配质量下降 | P1 |
 | 格式覆盖 | 广泛视频/光盘/流媒体格式 | Demo 仅 14 个扩展名 | 漏扫常见库内容 | P1 |
 | 服务器来源 | Plex/Emby/Jellyfin 专用 API，Direct/Library | 只有文件来源主路径 | 无法高效利用服务器现有索引 | P2 |
@@ -516,7 +529,7 @@ intake 和真实目录游标。
 
 ## 7. 关键问题详解
 
-## 7.1 P0：SMB 伪分页（SDK 层 handle/batch 已完成，协议级真流式待落地）
+## 7.1 P0：SMB 伪分页（已完成）
 
 原 `SMB2MediaSourceSession.listDirectory` 对每个 cursor page 都调用底层 `session.listDirectory(at:)`，然后对整个目录：
 
@@ -532,60 +545,44 @@ intake 和真实目录游标。
 - 本地来源在每个逻辑页重建目录快照；
 - WebDAV 的 `Depth: 1 PROPFIND` 通常不提供标准服务器分页，逻辑分页会重复整个 PROPFIND 响应。
 
-Local、WebDAV 与兼容 SMB transport 采用下述短期快照方案，每个目录只读取一次；快照排序也已
-预计算 comparison key。生产 libsmb2 transport 进一步保留 wrapper directory handle，每个逻辑页
-只复制本页 C records 到 Swift，避免全量 Swift 转换和排序快照。cursor 携带完整目录 fingerprint、
-条目数和 offset，进程恢复时重开一次并校验；旧版 snapshot cursor 仍可完成。
+Local、WebDAV 与 AMSMB2 transport 采用下述单次快照方案，每个目录只读取一次；快照排序也已
+预计算 comparison key。cursor 携带完整目录 fingerprint、条目数和 offset，进程恢复时重读一次
+并校验；旧版 snapshot cursor 仍可完成。
 
-固定版本 libsmb2 的 `smb2_opendir` 会在返回前循环 QUERY_DIRECTORY，并将全部 dirent 保存在内部
-linked list。所以上述改动降低了 wrapper/Swift 的额外内存峰值和排序 CPU，但没有降低 libsmb2
-内部目录缓存。若真实 NAS 的极大目录 RSS 仍超预算，下一步需基于低层 QUERY_DIRECTORY API 做
-协议 batch；这会扩大私有 ABI 和恢复语义，须由实测数据驱动，而不是仅再包装一次高层 `opendir`。
+现行 AMSMB2 4.0.3 的公开 `contentsOfDirectory` 一次返回完整 `[[URLResourceKey: Any]]`，当前 SDK
+随后转换为 SMB/Remote entry 并建立排序 snapshot。这里的目标是消除逻辑分页造成的重复网络
+读取，不是强制所有来源采用同一种底层流式机制：WebDAV 通常一次返回 `Depth: 1` 响应，后续
+网盘来源则应直接使用服务端 cursor。因此单次 snapshot 是 Phase 1 的完成方案。
 
-### 修复方向
-
-长期方案是让传输层暴露真正的目录句柄：
-
-```swift
-protocol DirectoryCursorSession {
-    func openDirectory(at path: String) async throws -> DirectoryHandle
-    func readDirectoryBatch(
-        _ handle: DirectoryHandle,
-        limit: Int
-    ) async throws -> DirectoryBatch
-    func closeDirectory(_ handle: DirectoryHandle) async
-}
-```
-
-对 libsmb2，应在 wrapper 中保留 `smb2dir`，分批调用 readdir，而不是在 connector 层反复打开目录。
-
-短期兼容方案：
+### 已实现方案
 
 - 一个逻辑目录扫描期间只获取一次完整快照；
 - cursor 仅在内存快照上切片；
 - 最后一页、取消、断连和 source close 时释放；
 - crash resume 时允许重新读取一次，并验证 root/directory fingerprint；
-- WebDAV 若无法服务器分页，就将一次 `PROPFIND` 视为单页，或缓存本次响应，绝不重复请求同一目录。
+- WebDAV 将一次 `PROPFIND` 作为目录快照，网盘 adapter 可将逻辑 cursor 映射到服务端分页 token。
 
-短期缓存会增加峰值内存，但相对当前重复网络调用是明确的正收益；随后再切换真正流式句柄。
+只有真实极大单目录的 RSS 超出产品预算时，才考虑向 AMSMB2 上游推动公开的批量枚举接口；这属于
+SMB adapter 的专项优化，不新增 SDK 通用目录句柄抽象，也不重新引入私有 libsmb2 wrapper。
 
 ## 7.2 P0：生产 SMB 并发实际上被串行化
 
-`Libsmb2SMB2SessionState.withClient` 明确限制每个 libsmb2 context 同时只有一个 active operation。Scanner 默认允许 4 个目录任务，但如果它们共用一个 session/context，最后仍在同一锁/队列后串行执行。
+当前 `AMSMB2Session` 是 actor，单个 `SMB2Manager` 的目录操作会串行执行。Scanner 默认允许 4 个目录任务，但如果它们共用一个 manager，最后仍只有一路真实 I/O。
 
 当前 SDK 已允许调用方显式配置 1–4 个独立目录 session，默认保持 1。connector 会让同一目录的
-分页 cursor 固定到原 session，并把新目录分配给当前负载最低的 session；Demo 根据测试 NAS 的
-实测选择 2。2026-09-02 的同机 30 秒只读样本中，单 session 枚举 82,892 项，两个独立 session
+分页 cursor 固定到原 session，并把新目录分配给当前负载最低的 session；多个 AMSMB2 session
+现在并行建连，不再把启动延迟按连接数累加。2026-09-02 的同机 30 秒只读样本中，单 session 枚举 82,892 项，两个独立 session
 合计 215,926 项。由于双路读取同一共享会受 NAS 缓存影响，这组数据只证明 2 路没有造成服务端
-退化并有明确吞吐收益，不把 2.60 倍当作 Demo 的稳定承诺。
+退化并有明确吞吐收益；本轮四个并发只读子树枚举也稳定完成，因此测试 Demo 使用 4 路，
+但不把这些倍率当作其他 NAS 的默认承诺。
 
 现有 fake source 的 bounded concurrency 测试只能证明 Scanner 不超过上限，不能证明真实 SMB 能并发 4 路。
 
 ### 修复方向
 
 - 让 source/session 暴露 `preferredConcurrency` 或 capability；
-- 单 libsmb2 context 默认设为 1，避免制造无效任务和排队内存；
-- 已提供显式只读目录连接池；默认不放大，Demo 仅在真实 NAS 基准确认后选择 2；
+- 单 AMSMB2 manager 默认设为 1，避免制造无效任务和排队内存；
+- 已提供显式只读目录连接池；默认不放大，测试 Demo 在目标 NAS 上选择 4；
 - 其他调用方仍需用自己的服务器数据决定连接数，因为多连接可能恶化低端 NAS、鉴权和限流；
 - 文件读取、目录读取和元数据探测可以使用不同的 workload budget，避免大文件 I/O 饿死目录发现。
 
@@ -658,79 +655,62 @@ missing 已经受到完成边界保护，但 path/new-file/move 还没有同等�
 
 ## 7.5 P0：元数据流水线的 N+1 和 O(N²) I/O
 
-Demo 的 `enrichLibrary` 当前有以下性能问题：
+最初发现的完整 snapshot、逐文件 binding 查询、串行 worker、剧集重复请求、无持久 cache、逐项
+重写 poster JSON、全量重建搜索索引，以及 `.parse` 等待 artwork variant 的问题均已修复。
+provider 图片失败不再让在线匹配、标题和简介随整个任务一起重试；当前剩余的是视频截图/缩略图
+和实际启用的 probe 这两类可选重资源路径。
 
-- 先加载完整 library snapshot，再在内存过滤；
-- 每个文件单独查询 binding；
-- 所有文件串行处理；
-- 单文件可能执行：resolve POST、episode 的 series entity GET、series artwork page GET、artwork variants GET；
-- 同一剧集的每集会重复获取 series 和 artwork；
-- 使用 ephemeral URLSession，并设置 `.reloadIgnoringLocalCacheData`；
-- 没有实体级 single-flight、持久 provider cache 或 negative cache；
-- 每成功一个文件，将所有 poster metadata values 排序、编码并原子重写完整 `poster_metadata.json`；
-- JSON 与 SQLite queue completion 分开提交，崩溃时可能一边成功、一边失败；
-- `.parse` 阶段实际混合了本地解析、在线 resolve、match 和 artwork；
-- `completeScanWork` / `retryScanWork` 基本按文件独立事务；
-- 没有统一 QPS、`Retry-After`、指数退避、抖动和最大尝试次数；
-- 永久 no-match 也可能被重复尝试；
-- 每次扫描全量 `DELETE + INSERT` 重建 `search_doc`。
-
-### 修复方向
-
-将工作拆分为独立阶段：
+重新核对 Infuse 逆向证据后，只能确认以下粗粒度队列：
 
 ```text
-discover
-  → filename_parse
-  → local_metadata
-  → online_match
-  → entity_materialize
-  → artwork
-  → media_probe
-  → search_index
+crawler → primary metadata → thumbnails → secondary metadata
 ```
 
-建议完成语义：
+Infuse 还允许分别关闭详情和图片预缓存，说明“文件进入 Library”“主元数据可用”和“图片/技术
+详情完成”是不同状态；但没有证据支持把我方已有的七种 `LibraryScanQueueStage` 全部变成独立
+worker。为避免队列写放大和多余中间状态，采用三个执行边界即可：
 
-- `filename_parse`、本地元数据读取是快速 required stage；
-- `online_match` 失败可以生成 unmatched placeholder，不阻塞资料库可浏览；
-- artwork 和深度 probe 默认 optional，可稍后补齐；
+- `primary metadata` 组合 filename/local/match/materialize，并在同一事务增量更新 search；
+- visual assets 是独立 optional 工作：包含 provider artwork 与视频截图/缩略图；
+- probe 仅在实际接入时作为独立 optional/按需重资源工作；
 - 网络提供商 outage 不得让一次成功的文件发现退回失败。
 
-实体和缓存策略：
+已完成的实体和缓存策略：
 
 - single-flight key：`provider + entityType + providerID + locale`；
 - 同一剧集的 episodes 先分组，series details/artwork 只取一次；
 - 将 provider response/cache key、ETag、TTL、negative result 写入 `metadata_cache`；
-- 如果后端支持，增加 `resolveBatch(paths:)`；否则使用有界 task group；
+- 使用有界 task group 持续补充 worker；
 - 对每个 host 设置并发和 QPS，解析 `Retry-After`，使用指数退避 + jitter；
 - 401/403 等鉴权错误应暂停该 provider 队列，不能对所有文件持续重试；
-- permanent no-match 进入 terminal 状态，只有输入 revision 或匹配规则版本变化时再试。
-
-持久化策略：
-
-- 移除每项重写的 `poster_metadata.json`；
-- 使用现有 localized metadata/artwork/entity 表，必要时扩展 schema；
-- 每 100–500 项或按时间窗口批量事务；
 - queue 结果和 metadata/artwork 事实同事务提交；
-- 查询待处理工作时直接 JOIN file/binding/metadata 并分页，不加载完整 snapshot；
+- 查询待处理工作时直接 JOIN file/binding/metadata 并分页；
 - `search_doc` 只增量 upsert/delete 受影响 entity，完整重建仅用于 repair/migration。
 
-## 7.6 P1：调度、恢复和增量语义未落地到 Demo
+provider artwork 已从主元数据提交前移出，并增加有界自动重试：超过三次自动尝试后使用现有
+`failed` 状态，且退出 partial claim 热索引；输入 revision/规则版本变化或用户手工 repair 时再试。
+没有增加独立 dead-letter 表，也没有在服务端缺少原生接口时设计 `resolveBatch`。
 
-Demo 目前总是发起 `.full`；`activeRequest` 仅存于内存。即使 scan run/checkpoint 已持久化，应用重启后也无法可靠恢复“哪一个请求、哪一个 scope、哪一个运行应继续”。
+视频截图/缩略图使用现有 `StellarMediaImaging` 解码路径，作为 visual-assets 工作处理：默认浏览时
+按需生成，可配置为空闲时低优先级预缓存，并限制为 1～2 个并发。它不在目录枚举或主元数据事务中
+执行；结果写入 `artwork(kind='thumbnail')` 并独立缓存。远程来源在 seekable range AVIO/cache 尚未
+落地前，不得为自动预缓存而完整暂存媒体文件，避免一次扫描演变成全库下载。
 
-另外，schema/代码没有强制同一 source 只能有一个 active run。并行 run 可能竞争 `last_seen_run_id` 和 missing reconciliation。`retryScanWork` 通过“该 source 最新 run”附着任务，在并发 run 下可能关联错误。
+## 7.6 P1：后台调度和 trigger merge 尚未落地到 Demo
+
+Demo 已能从 SQLite 选择每个 source 最新的可恢复 run，并直接恢复 metadata 队列；数据库也已强制
+同一 source 只能有一个 active run。当前仍总是由用户发起 `.full`，缺少 trigger merge、周期策略、
+watcher hint 和 full/incremental/repair UI。
 
 ### 修复方向
 
 - scheduler 以 `(source_id, normalized_scope)` 为 key；
 - 合并重复触发，优先级建议：manual/repair > full > incremental > scheduled enrichment；
-- app launch 时恢复未完成 run；凭据只保存安全引用，不写进 checkpoint；
+- 保持现有 launch 恢复边界；凭据只保存安全引用，不写进 checkpoint；
 - UI 提供 full、incremental、repair 的明确入口和状态；
 - watcher 事件只作为 hint：例如 debounce 2 秒、max wait 10 秒；overflow 时升级 full；
 - SMB 等没有可靠 watcher 的来源使用合理周期扫描；
-- 手工 scan 可抢占 optional artwork/probe，但不破坏已提交的发现事实；
+- 手工 scan 可抢占 optional artwork/thumbnail/probe，但不破坏已提交的发现事实；
 - 数据库强制一来源只有一个 active run，例如：
 
 ```sql
@@ -807,14 +787,11 @@ SDK parser 已能识别常见 `SxxExx` 和 `x` 形式，但当前观察到的不
 ## 7.10 P1：队列并发、租约和陈旧结果保护（核心已修复）
 
 schema v4 和 SDK 公共 API 已形成 claim/heartbeat/lease-expiry 流程，并以 `material_revision` /
-`input_revision` compare-and-set 阻止陈旧 worker 写回。Demo 已实际使用该流程。仍缺少：
+`input_revision` compare-and-set 阻止陈旧 worker 写回。Demo 已实际使用该流程；retryable failure
+与 terminal failure 已区分，三次自动尝试后退出 hot claim index。剩余只需提供人工 repair UI。
 
-- 任务 required/optional 标记；
-- provider/request key；
-- terminal failure 与 retryable failure 区分；
-- 最大尝试次数和 dead-letter/人工修复入口。
-
-风险是：文件在刮削期间被替换或重新匹配，旧 worker 结果仍可能覆盖新状态。
+required/optional 不新增通用标记：`primary metadata` 是基础可浏览边界，`.artwork` / `.probe`
+按 stage 自身即为 optional。超过最大次数直接使用现有 `failed` 状态，不新增 dead-letter 系统。
 
 ## 7.11 P1/P2：缺失保护和垃圾回收
 
@@ -865,7 +842,7 @@ Metadata Work Pipeline
   ├── filename + local metadata
   ├── provider match with cache/QPS/backoff
   ├── entity-level single-flight
-  ├── artwork/probe optional work
+  ├── artwork/thumbnail/probe optional work
   └── incremental search index
           ↓
 Library Views / UI
@@ -926,31 +903,31 @@ Library Views / UI
 - checkpoint 最终值 < 64 KB，且不随全部 seen entries 线性增长；
 - 主线程不出现 >16 ms 的同步 metadata 文件写入。
 
-## Phase 1：修复目录伪分页（P0，预计 3–5 天）
+## Phase 1：修复目录伪分页（P0，已完成）
 
-> 进度：每目录一次协议枚举、source concurrency、显式多 session 目录连接池和生产 libsmb2
-> handle/batch 消费已完成；Demo 已基于测试 NAS 选择 2 路，而 SDK 默认仍为 1；
-> wrapper/Swift 不再建立多份完整目录数组或排序快照，cursor 恢复与释放语义已接入。由于上游
-> `smb2_opendir` 内部仍预取完整目录，低层 QUERY_DIRECTORY 真流式及真实 NAS RSS 对照仍待推进。
+> 完成状态：每目录一次协议枚举、稳定 snapshot cursor、source concurrency 和显式多 session
+> 目录连接池均已完成；AMSMB2 连接池并行建连，Demo 在目标 NAS 上选择 4 路，SDK 默认仍为 1。
+> Scanner 保持来源无关：SMB/Local/WebDAV 使用单次快照，网盘可映射服务端 cursor。AMSMB2
+> 协议级流式不属于统一完成条件，单目录 RSS 只作为后续观测指标。
 
-### 工作项
+### 已完成工作项
 
-- 为 SMB transport 增加 open/read-batch/close directory API；
-- libsmb2 wrapper 保持真实目录句柄并处理取消/断连清理；
-- connector cursor 绑定目录句柄和快照 revision；
-- 先实现完整目录单次缓存作为兼容路径，再落地流式 batch；
-- Local source 一次枚举后消费，或直接按单页返回；
+- connector cursor 绑定目录 snapshot revision；
+- 完整目录只读取一次，后续逻辑分页只切片缓存；
+- Local source 一次枚举后消费；
 - WebDAV 对一次 `Depth: 1` 响应只处理一次；
-- source 暴露 `preferredConcurrency`，单 SMB context 默认 1；
-- 增加目录在分页过程中改变时的 cursor conflict/restart 策略。
+- source 暴露 `preferredConcurrency`，单 AMSMB2 manager 默认 1；
+- 目录在分页或恢复过程中改变时返回 cursor conflict；
+- 完成、取消、断连和 source close 时释放 snapshot；
+- AMSMB2 多 session 连接池并行建连并保持目录 session affinity。
 
-### 验收
+### 验收结果
 
-- 8,000 项目录不论 page size 都只发生一次完整 list/open；
-- cursor page 无重复和跳项；
-- 取消会关闭句柄并释放 snapshot；
-- crash resume 最多重列一次当前目录，并能检测不一致；
-- 真实 NAS 上比较 1、2 独立 session 的吞吐和服务器负载后再决定是否启用池。
+- 8,000 项目录不论 page size 都只发生一次完整 list/open：通过；
+- cursor page 无重复和跳项：通过；
+- 完成、取消和断连释放 snapshot：通过；
+- crash resume 最多重列一次当前目录并检测不一致：通过；
+- 测试 NAS 上 1、2、4 个独立只读 session 均可稳定工作，Demo 采用 4 路：通过。
 
 ## Phase 2：压缩 checkpoint 与持久 frontier（P0，预计 4–7 天）
 
@@ -1004,37 +981,52 @@ Library Views / UI
 - 100k diff 的内存不随所有 candidate Swift 对象线性膨胀；
 - missing 发布与 scan success 在同一可证明事务边界内。
 
-## Phase 4：重构元数据/刮削流水线（P0/P1，预计 2–3 周）
+## Phase 4：缩短元数据关键路径（P0/P1，保留最小必要工作）
 
-> 进度：SQL JOIN 任务读取、claim/heartbeat/lease expiry、`input_revision` CAS、provider
-> cache/限流/single-flight、结构化 metadata 原子提交和增量搜索已完成；阶段拆分、required/optional
-> 与 terminal/dead-letter 语义仍待推进。
+> 重新核对 Infuse 8.5.1 逆向材料后，能确认的是 crawler、主元数据、缩略图、辅助元数据四个
+> 粗粒度阶段，以及详情和图片可分别关闭预缓存；没有证据要求把 filename、local、match、
+> materialize、artwork、probe、search 全部拆成七个持久队列阶段。当前 SQL JOIN 任务读取、
+> claim/heartbeat/lease expiry、`input_revision` CAS、provider cache/限流/single-flight、结构化
+> metadata 原子提交和增量搜索已经解决主要吞吐问题。
 
-### 工作项
+此前的实际关键路径问题是 Demo 的 `.parse` worker 在提交标题、绑定和简介前等待 artwork
+variant；当前已完成拆分。Phase 4 保留以下三个执行边界：
 
-- 将 `.parse` 拆成 filename/local/match/materialize/artwork/probe/search；
-- 定义 required/optional 和 terminal/retryable 状态；
-- 待处理工作改为 SQL JOIN 分页；
-- 引入 worker claim、lease、heartbeat、lease expiry；
-- 任务带 `input_revision`，写回采用 compare-and-set；
-- 实现 per-provider 并发、QPS、429/Retry-After、退避和 jitter；
-- provider cache 支持 ETag/TTL/negative result；
-- entity single-flight；
-- episode 按 series 分组复用详情和 artwork；
-- 后端若可改，提供 batch resolve；
-- poster/localized metadata/artwork 全部进入 SQLite，并与 queue 状态同事务；
+1. `primary metadata`：filename/local/match/materialize，并在同一短事务更新 search；这是可浏览所需工作；
+2. `visual assets`：独立的 optional 工作，包含 provider artwork 与视频截图/缩略图，失败不能撤销或阻塞已提交的文字元数据；
+3. `probe`：接入时作为 optional/按需重资源工作，不阻塞基础 Library。
+
+### 已完成工作项
+
+- 待处理工作使用 SQL JOIN 分页；
+- worker claim、lease、heartbeat、lease expiry 与 `input_revision` CAS；
+- per-provider 并发、QPS、429/Retry-After、退避和 jitter；
+- provider cache、negative cache 和 entity/artwork single-flight；
+- localized metadata、artwork 与 queue 状态原子写入 SQLite；
 - 移除逐文件全量重写 `poster_metadata.json`；
-- 搜索索引改为按 entity 增量维护。
+- search document 按 entity 在主元数据事务中增量维护。
+- 主元数据先提交并原子 enqueue `.artwork`，provider 图片使用独立 2 路 worker；
+- provider artwork 只读取持久 binding，不重做解析/匹配；永久失败和超过三次尝试进入终态。
+
+### 剩余必要工作
+
+- 视频截图/缩略图复用 `.artwork` visual-assets 队列与 `artwork(kind='thumbnail')`，默认按需生成，
+  空闲预缓存限制 1～2 个并发；远程 seekable range I/O 完成前禁止扫描期完整暂存媒体；
+- 实际接入技术探测时使用 `.probe` 独立低并发执行，不为尚未使用的阶段预建调度层。
+
+以下拆分不再实施：独立 filename/local/materialize/search worker、额外 dead-letter 队列，以及在后端
+没有原生接口和测量证据时引入 batch resolve。materialize 与 search 留在主元数据短事务，减少队列
+写放大和中间状态。
 
 ### 验收
 
-- 100 集同一剧集：最多约 100 次 resolve（或更少的 batch）+ 1 次 series details + 1 组 artwork 请求，不再每集重复 series/artwork；
 - 有效缓存下 unchanged rescan 不产生 provider 请求；
 - provider 429 严格遵守 `Retry-After`；
-- provider 故障时文件和本地标题仍可浏览，run 不因 optional artwork 卡死；
-- 第一张海报可在全部 artwork 完成前显示；
-- crash 后不会出现 metadata 已写但 queue 未完成，或反向不一致；
-- stale worker 不能覆盖新匹配或新文件 revision。
+- 标题、绑定和简介不等待 artwork variant 即可展示；
+- artwork、视频截图/缩略图和 probe 失败不阻塞基础 Library，也不重复在线匹配和主元数据写入；
+- 目录扫描和主元数据处理不会为生成截图完整读取远程媒体文件；
+- 永久失败不会无限自动重试，用户仍可发起 repair；
+- metadata 与对应 queue 状态保持原子提交，stale worker 不能覆盖新 revision。
 
 ## Phase 5：增量调度、恢复和后台策略（P1，预计 1–2 周）
 
@@ -1050,7 +1042,7 @@ Library Views / UI
 - 文件 watcher 只生成 hint，并做 debounce/max-wait；
 - watcher overflow 或 source revision 不可信时升级 full；
 - SMB/NAS 使用周期扫描并在前台/电源/网络条件下调度；
-- 手工扫描可优先于 scheduled artwork/probe；
+- 手工扫描可优先于 scheduled artwork/thumbnail/probe；
 - 保存 request scope 和安全 credential reference；
 - 增加任务中心：当前 phase、发现/匹配/artwork 进度、暂停原因、重试入口。
 
@@ -1093,12 +1085,12 @@ Library Views / UI
 |---|---|
 | [`MediaLibraryModel.swift`](StellarOAuthDemo/MediaLibraryModel.swift) | 移除全量 snapshot/N+1 和 poster JSON；接 scheduler/worker；显示分阶段进度；不再固定 full |
 | [`MediaScanner.swift`](../../../platforms/swift/Sources/StellarMediaLibrary/MediaScanner.swift) | 使用 source capability；持久 frontier；去除每页全量 set/sort；staging commit；恢复/冲突策略 |
-| `SMB2Transport.swift`（SMB2Core） | 增加目录 handle、read batch、close 和 preferred concurrency API |
-| [`SMB2MediaSourceConnector.swift`](../../../platforms/swift/Sources/StellarSMB2Core/SMB2MediaSourceConnector.swift) | 将 cursor 映射到真实句柄或一次性 snapshot；不再每页完整 list |
-| [`Libsmb2SMB2Transport.swift`](../../../platforms/swift/Sources/StellarSMB2Libsmb2/Libsmb2SMB2Transport.swift) | 保留 smb2dir；可靠关闭；暴露单 context 串行能力；可选多 session 实验 |
+| `SMB2Transport.swift`（SMB2Core） | 保留 source concurrency 能力与 session 抽象；只有 AMSMB2 上游提供稳定公开接口后才扩展批量目录 API |
+| [`SMB2MediaSourceConnector.swift`](../../../platforms/swift/Sources/StellarSMB2Core/SMB2MediaSourceConnector.swift) | cursor 固定到一次性 snapshot 和原 session；连接池并行建连并按负载分配新目录 |
+| [`AppleSMB2Transport.swift`](../../../platforms/swift/Sources/StellarSMB2Apple/AppleSMB2Transport.swift) | 通过 AMSMB2 枚举目录；单 manager 保持串行能力，协议级批量读取等待上游公开 API |
 | [`SQLiteMediaScanSink.swift`](../../../platforms/swift/Sources/StellarMediaLibrary/SQLiteMediaScanSink.swift) | 小 checkpoint；批量 staging；成功 publish；按 material revision enqueue |
 | [`LibraryStore.swift`](../../../platforms/swift/Sources/StellarStorage/LibraryStore.swift) | set-based merge/missing；active-run 约束；queue lease/revision；分页 JOIN work query |
-| [`library-v1.sql`](../../../specs/storage/sql/library-v1.sql) 或 v2 migration | staging/frontier/seen、active run unique index、provider cache、revision/required 字段、GC 状态 |
+| [`library-v1.sql`](../../../specs/storage/sql/library-v1.sql) 与后续 migration | staging/frontier/seen、active run unique index、provider cache、revision/required 字段、GC 状态 |
 | [`MediaFilenameParser.swift`](../../../platforms/swift/Sources/StellarMediaLibrary/MediaFilenameParser.swift) | 补齐命名模式、多候选、父目录上下文、noise 清理和显式 provider ID |
 | [`LibraryDerivedIndex.swift`](../../../platforms/swift/Sources/StellarStorage/LibraryDerivedIndex.swift) | search_doc 增量 upsert/delete；完整 rebuild 仅 repair/migration |
 | Scanner/Storage/SMB tests | 增加调用次数、故障注入、恢复、scoped missing、stale worker、真实性能回归 |
@@ -1270,10 +1262,10 @@ provider + endpoint/version + normalized request + locale + auth scope
 
 ### 完整目录缓存 vs 真流式句柄
 
-- 缓存是最快的 P0 修复，协议调用从 N 页 × 1 次降为每目录 1 次；
+- 单次目录快照是 Local、WebDAV 与 AMSMB2 的正式实现，协议调用从 N 页 × 1 次降为每目录 1 次；
 - 代价是单个超大目录的内存峰值；
-- 真流式句柄长期更优，但 wrapper、恢复和目录变更语义更复杂；
-- 建议先缓存止血，同时完成 handle API。
+- 网盘来源直接采用其服务端 cursor，不要求适配 SMB 句柄模型；
+- 只有真实单目录 RSS 超预算时才推动 AMSMB2 上游批量 API，不扩展 SDK 通用抽象。
 
 ### 多 SMB session
 
@@ -1351,7 +1343,7 @@ provider + endpoint/version + normalized request + locale + auth scope
 - diff/missing 使用集合化数据库操作；
 - 同一 source 最多一个 active run；
 - unchanged 重扫不重复生成全部 DB/metadata/search 工作；
-- 元数据具备分阶段、single-flight、缓存、QPS、429 和退避；
+- 主元数据与 optional artwork/thumbnail/probe 隔离，并具备 single-flight、缓存、QPS、429 和退避；
 - artwork/provider 故障不阻塞基础 Library；
 - poster metadata 不再逐项重写全量 JSON；
 - app 重启可以恢复 scan 和 metadata work；
