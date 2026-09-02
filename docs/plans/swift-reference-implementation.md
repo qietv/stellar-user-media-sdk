@@ -1,5 +1,7 @@
 # Swift Reference Implementation Plan
 
+> 2026-09-02 迁移说明：本文 S2/S7 中自行编译、符号前缀化和分发 libsmb2 的内容是已完成阶段的历史记录，当前实现已由 [ADR-0006](../decisions/0006-amsmb2-ffmpegkit-and-screenshot.md) 取代。Apple backend 使用 AMSMB2，旧 Linux backend、私有 archive/XCFramework 和 relink 工具已移除；新增截图由 FFmpegKit/libav 实现。
+
 最后核对日期：2026-08-18
 
 当前阶段：**S6 — OAuth、来源配置与凭据同步**

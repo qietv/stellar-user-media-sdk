@@ -25,11 +25,10 @@ Sources/StellarWebDAV/              # read-only PROPFIND/stat/Range connector
 Sources/StellarStorage/             # GRDB migrations, verification, repositories
 Sources/StellarMediaLibrary/
 Sources/StellarPosterWall/          # stable pagination, search, sections, and details
-Sources/StellarSMB2Core/            # libsmb2-independent seam and values
-Sources/CStellarSMB2Wrapper/        # 不暴露上游类型的 allowlisted C API
-Sources/StellarSMB2Libsmb2/         # Apple/Linux 共用的 libsmb2 transport
-Sources/StellarSMB2Linux/           # Linux 真正的只读 libsmb2 transport
-Sources/StellarSMB2Apple/           # iOS/macOS 的 libsmb2 transport 入口
+Sources/StellarSMB2Core/            # 与具体 SMB 库解耦的 seam 和值模型
+Sources/StellarSMB2Apple/           # AMSMB2 驱动的 iOS/macOS 只读 SMB transport
+Sources/CStellarFFmpegScreenshot/   # libav 解码单帧的最小 C bridge
+Sources/StellarMediaImaging/        # FFmpegKit 截图与 PNG/JPEG 编码
 Sources/StellarUserMediaSDK/       # umbrella facade
 Sources/StellarMediaCLI/
 Tests/StellarUserMediaSDKTests/
@@ -37,7 +36,22 @@ Tests/StellarUserMediaSDKTests/
 
 当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、版本化明文 `CredentialRecord`、严格受限的五种 `CredentialPayload`、版本化 `MediaSourceConfig` 与账户级原子 outbox、来源无关的 locator/entry/connector 合同、可恢复且有界并发的 scanner、SQLite library v1→v5 迁移/校验/扫描入库、扩展文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。`StellarAuth` 读取并严格校验 Gateway Metadata，生成 PKCE S256 与 `state`，通过 actor 串行化登录、恢复、20 路 single-flight refresh、多账户切换、资料刷新和本地优先登出；access token 只驻留内存，refresh token 使用非交互 Data Protection Keychain。Scanner 在每个成功目录页把 discovery staging、frontier transition、seen identity 和 compact checkpoint 作为同一批次提交；只有最终 completion 才会集合化发布正式文件快照、metadata work 与 scoped missing。应用可按 source 读取最新可恢复 checkpoint；较新的成功 run 会抑制旧失败 run。Metadata worker 通过可续租、过期可回收且绑定 file material revision 的 claim API 处理任务，陈旧 worker 无法覆盖新扫描输入；v5 claim 顺序索引避免每个小批次对全队列按媒体路径排序。outstanding-work 查询也会包含 deferred retry 与未过期 lease，供进程启动恢复使用。
 
-`StellarSMB2Core` 提供不泄漏 C pointer 的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。Linux 的 `CStellarLibsmb2Private` 解析项目私有静态 archive；Apple 使用本地生成的 `CStellarSMB2Wrapper.xcframework`。两者的全部 libsmb2 symbol 均添加项目唯一的 `stellar_user_media_sdk_libsmb2_` 前缀，Swift 只能调用项目自有的 allowlisted C wrapper。`StellarSMB2Libsmb2` 在有界 blocking executor 上实现连接、枚举、`stat` 和 range read，`StellarSMB2Linux` 与 `StellarSMB2Apple` 提供平台入口。
+`StellarSMB2Core` 提供不泄漏第三方类型的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。Apple backend 通过 TracyPlayer/AMSMB2 4.0.3 实现连接、枚举、`stat` 和 range read；仓库不再维护直接编译、前缀化和分发 libsmb2 的链路，底层 C target 由 AMSMB2 package 自身管理。AMSMB2 暂不公开 dialect 约束和 required-signing 开关，因此 adapter 会拒绝无法忠实表达的策略。
+
+`StellarMediaImaging` 使用 TracyPlayer/FFmpegKit 的 libavformat/libavcodec/libswscale 解码目标视频帧为 BGRA，再由 ImageIO 编码 PNG/JPEG。远端来源首版通过 `MediaSourceSession` 分块暂存到受控临时文件，不把 SMB/WebDAV 凭据交给 FFmpeg。公共入口是 `FFmpegMediaScreenshotGenerator`、`MediaScreenshotRequest` 与 `MediaScreenshotResult`。
+
+```swift
+let request = try MediaScreenshotRequest(
+  timestampMilliseconds: 30_000,
+  format: .jpeg,
+  maximumPixelDimension: 1_920
+)
+let screenshot = try await FFmpegMediaScreenshotGenerator().capture(
+  fileAt: movieURL,
+  request: request
+)
+try screenshot.data.write(to: outputURL)
+```
 
 `StellarCore` 当前公开：
 
@@ -66,27 +80,16 @@ swift run stellar-media library search /path/to/library.sqlite "space opera"
 swift run stellar-media library show /path/to/library.sqlite <media-uid> --profile <profile-uid>
 python3 ../../tools/ci/check_swift_dependencies.py --package-root .
 python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
+python3 ../../tools/ci/check_swift_api.py --package-root . \
+  --baseline API/StellarMediaImagingAPI.json --module StellarMediaImaging
 python3 ../../tools/metadata/sanitize_tmdb_fixture.py raw-tmdb.json sanitized-tmdb.json
 ```
 
 ### iOS/macOS SMB backend
 
-仓库提交经验证的固定 XCFramework 和对应源码/许可证材料，因此 Xcode/SwiftPM 克隆后即可使用。审计或 lock 变化时，可从仓库根目录向新的临时路径重建并验证：
-
-```bash
-tools/ci/build_libsmb2_xcframework_apple.sh \
-  --lock third_party/libsmb2.lock.json \
-  --output /tmp/CStellarSMB2Wrapper.xcframework
-python3 tools/ci/check_libsmb2_xcframework_apple.py \
-  --root . \
-  --xcframework /tmp/CStellarSMB2Wrapper.xcframework
-```
-
 SwiftPM 在 Apple 平台加入 `StellarSMB2` product、`StellarSMB2Apple` module 和 macOS CLI SMB 命令。应用 target 依赖 `StellarSMB2` product 后，使用 `import StellarSMB2Core` 与 `import StellarSMB2Apple`，并通过 `AppleSMB2Transport` 建立只读会话。连接局域网 NAS 的 iOS/macOS app 必须在自身 `Info.plist` 提供 `NSLocalNetworkUsageDescription`；本 SDK 不替宿主声明用途文案或触发授权 UI。
 
-`Artifacts/CStellarSMB2Wrapper.compliance` 包含固定源码、许可证、symbol map 和构建材料，但尚不是最终应用的完整 LGPL relink kit。对外发布 Apple app 前仍需完成 application object/relink、代码签名、重新安装及商店条款审查。
-
-Linux 构建完成后可用只读 SMB 命令。密码只能通过 stdin 提供，不支持密码参数或带 userinfo 的 SMB URL：
+macOS CLI 的密码只能通过 stdin 提供，不支持密码参数或带 userinfo 的 SMB URL：
 
 ```bash
 your-secret-provider read stellar/smb/alice | \
@@ -98,12 +101,17 @@ your-secret-provider read stellar/smb/alice | \
 
 GitHub Actions 在 `macos-26` 和 `ubuntu-24.04` 上执行相同的 Swift 6.3 format lint、依赖锁定检查、公共 API compatibility 检查、debug/fixture tests、release build 和 CLI smoke tests；仓库守卫同时执行高置信度 secret scan 与 portable target Apple-import 检查。
 
-当前 Package 精确固定 GRDB.swift 7.11.1 并提交 `Package.resolved`。新增依赖时必须使用 exact version 或 immutable revision 并更新解析记录；branch 与 version range 会被 CI 拒绝。公共 API 有意变更后，使用以下命令重新生成基线并审阅 diff：
+当前 Package 精确固定 GRDB.swift 7.11.1、AMSMB2 4.0.3，并把 FFmpegKit 固定到不可变 commit `233c6bb6657a244ef57178e5d54979d1fd3cd45d`。新增依赖时必须使用 exact version 或 immutable revision 并更新解析记录；branch 与 version range 会被 CI 拒绝。第三方二进制及其传递依赖在发布前仍需完成许可证、隐私清单和商店合规审查。公共 API 有意变更后，使用以下命令重新生成基线并审阅 diff：
 
 ```bash
 python3 ../../tools/ci/check_swift_api.py \
   --package-root . \
   --baseline API/PublicAPI.json \
+  --update
+python3 ../../tools/ci/check_swift_api.py \
+  --package-root . \
+  --baseline API/StellarMediaImagingAPI.json \
+  --module StellarMediaImaging \
   --update
 ```
 

@@ -11018,6 +11018,24 @@
           ]
         },
         {
+          "declaration": "let directoryConnectionCount: Int",
+          "identifier": "s:15StellarSMB2Core0B24MediaSourceConfigurationV24directoryConnectionCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "SMB2MediaSourceConfiguration",
+            "directoryConnectionCount"
+          ]
+        },
+        {
+          "declaration": "init(sourceUID: String, connectionRequest: SMB2ConnectionRequest, stableIDScope: RemoteStableIDScope = .none, pathSemantics: RemotePathSemantics = RemotePathSemantics(\n      caseSensitivity: .insensitive,\n      unicodeNormalization: .preserve\n    ), directoryConnectionCount: Int) throws",
+          "identifier": "s:15StellarSMB2Core0B24MediaSourceConfigurationV9sourceUID17connectionRequest13stableIDScope13pathSemantics24directoryConnectionCountACSS_AA0bpJ0V0a6RemoteD00r6StableL0OAK0r4PathN0VSitKcfc",
+          "kind": "swift.init",
+          "path": [
+            "SMB2MediaSourceConfiguration",
+            "init(sourceUID:connectionRequest:stableIDScope:pathSemantics:directoryConnectionCount:)"
+          ]
+        },
+        {
           "declaration": "init(sourceUID: String, connectionRequest: SMB2ConnectionRequest, stableIDScope: RemoteStableIDScope = .none, pathSemantics: RemotePathSemantics = RemotePathSemantics(\n      caseSensitivity: .insensitive,\n      unicodeNormalization: .preserve\n    )) throws",
           "identifier": "s:15StellarSMB2Core0B24MediaSourceConfigurationV9sourceUID17connectionRequest13stableIDScope13pathSemanticsACSS_AA0b10ConnectionJ0V0a6RemoteD00p6StableL0OAJ0p4PathN0VtKcfc",
           "kind": "swift.init",

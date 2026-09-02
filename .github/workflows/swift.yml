@@ -6,7 +6,6 @@ on:
       - ".github/workflows/swift.yml"
       - "platforms/swift/**"
       - "specs/**"
-      - "third_party/**"
       - "tools/ci/**"
       - "tools/release/**"
   pull_request:
@@ -14,7 +13,6 @@ on:
       - ".github/workflows/swift.yml"
       - "platforms/swift/**"
       - "specs/**"
-      - "third_party/**"
       - "tools/ci/**"
       - "tools/release/**"
   workflow_dispatch:
@@ -46,52 +44,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Configure libsmb2 paths
-        run: |
-          echo "STELLAR_LIBSMB2_PREFIX=$RUNNER_TEMP/stellar-libsmb2" >> "$GITHUB_ENV"
-          echo "PKG_CONFIG_PATH=$RUNNER_TEMP/stellar-libsmb2/lib/pkgconfig" >> "$GITHUB_ENV"
-
       - name: Verify Swift 6.3 toolchain
         run: |
           swift --version
           swift --version | grep -E "Swift version 6\.3\."
-
-      - name: Verify libsmb2 provenance
-        run: python3 ../../tools/ci/check_libsmb2_binding.py --root ../..
-
-      - name: Build isolated Apple libsmb2 XCFramework
-        if: runner.os == 'macOS'
-        run: >-
-          ../../tools/ci/build_libsmb2_xcframework_apple.sh
-          --lock ../../third_party/libsmb2.lock.json
-          --output "$RUNNER_TEMP/CStellarSMB2Wrapper.xcframework"
-
-      - name: Verify committed and rebuilt Apple libsmb2 XCFrameworks
-        if: runner.os == 'macOS'
-        run: |
-          python3 ../../tools/ci/check_libsmb2_xcframework_apple.py \
-            --root ../.. \
-            --xcframework Artifacts/CStellarSMB2Wrapper.xcframework
-          python3 ../../tools/ci/check_libsmb2_xcframework_apple.py \
-            --root ../.. \
-            --xcframework "$RUNNER_TEMP/CStellarSMB2Wrapper.xcframework"
-          diff -qr \
-            Artifacts/CStellarSMB2Wrapper.xcframework \
-            "$RUNNER_TEMP/CStellarSMB2Wrapper.xcframework"
-          diff -qr \
-            Artifacts/CStellarSMB2Wrapper.compliance \
-            "$RUNNER_TEMP/CStellarSMB2Wrapper.compliance"
-
-      - name: Build isolated static libsmb2
-        if: runner.os == 'Linux'
-        run: >-
-          ../../tools/ci/build_libsmb2_static_linux.sh
-          --lock ../../third_party/libsmb2.lock.json
-          --prefix "$STELLAR_LIBSMB2_PREFIX"
-
-      - name: Verify prefixed static libsmb2 C ABI
-        if: runner.os == 'Linux'
-        run: python3 ../../tools/ci/check_libsmb2_binding.py --root ../.. --require-installed
 
       - name: Lint Swift format
         run: swift format lint --recursive --strict Sources Tests Package.swift
@@ -101,6 +57,14 @@ jobs:
 
       - name: Check public API compatibility baseline
         run: python3 ../../tools/ci/check_swift_api.py --package-root . --baseline API/PublicAPI.json
+
+      - name: Check screenshot API compatibility baseline
+        if: runner.os == 'macOS'
+        run: >-
+          python3 ../../tools/ci/check_swift_api.py
+          --package-root .
+          --baseline API/StellarMediaImagingAPI.json
+          --module StellarMediaImaging
 
       - name: Run debug and shared fixture tests
         run: swift test -c debug
@@ -126,47 +90,23 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Verify release SMB static isolation
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          binary=.build/release/stellar-media
-          nm --defined-only "$binary" |
-            grep 'stellar_user_media_sdk_libsmb2_smb2_init_context'
-          if nm -D -g --defined-only "$binary" |
-            grep 'stellar_user_media_sdk_libsmb2_'; then
-            echo "private libsmb2 symbols leaked into the release dynamic export table" >&2
-            exit 1
-          fi
-          if ldd "$binary" | grep -i 'libsmb2'; then
-            echo "release binary unexpectedly depends on shared libsmb2" >&2
-            exit 1
-          fi
-
-      - name: Verify release Apple SMB static isolation
+      - name: Build screenshot product for iOS device and simulator
         if: runner.os == 'macOS'
         run: |
-          set -euo pipefail
-          binary=.build/release/stellar-media
-          nm "$binary" |
-            grep ' t _stellar_user_media_sdk_libsmb2_smb2_init_context'
-          if nm -gU "$binary" | grep 'stellar_user_media_sdk_libsmb2_'; then
-            echo "private Apple libsmb2 symbols leaked as external globals" >&2
-            exit 1
-          fi
-          if otool -L "$binary" | tail -n +2 | grep -i 'libsmb2'; then
-            echo "release binary unexpectedly depends on dynamic libsmb2" >&2
-            exit 1
-          fi
-
-      - name: Build and verify LGPL source/object relink kit
-        if: runner.os == 'Linux'
-        run: >-
-          ../../tools/release/create_linux_smb_lgpl_kit.sh
-          --root ../..
-          --package-root .
-          --libsmb2-prefix "$STELLAR_LIBSMB2_PREFIX"
-          --output "$RUNNER_TEMP/stellar-linux-smb-lgpl-kit"
+          xcodebuild -quiet \
+            -scheme StellarMediaImaging \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/stellar-imaging-iphoneos" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          xcodebuild -quiet \
+            -scheme StellarMediaImaging \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/stellar-imaging-iphonesimulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
 
       - name: Smoke-test release CLI
         run: |
@@ -175,7 +115,9 @@ jobs:
           swift run -c release stellar-media manifest replay \
             ../../specs/fixtures/media-library/scanner-state-v1.json | \
             grep "stellar.scan-manifest-replay.v1"
-          swift run -c release stellar-media help | grep "stellar-media smb check"
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            swift run -c release stellar-media help | grep "stellar-media smb check"
+          fi
           swift run -c release stellar-media help | grep "stellar-media db migrate"
           swift run -c release stellar-media help | grep "stellar-media library list"
           swift run -c release stellar-media help | grep "stellar-media library search"
@@ -194,9 +136,6 @@ jobs:
 
       - name: Reject Apple frameworks in portable Swift targets
         run: python3 tools/ci/check_portable_swift_imports.py --root .
-
-      - name: Verify libsmb2 lock and binding boundary
-        run: python3 tools/ci/check_libsmb2_binding.py --root .
 
       - name: Execute cross-platform SQLite schemas
         run: python3 tools/ci/check_sqlite_schemas.py --root .

@@ -22,6 +22,10 @@
    - 文件名解析、NFO/内嵌信息、TMDB 等 provider 匹配；
    - 可恢复扫描、变化检测、缺失保护和重建；
    - 电影/剧集/季/集、多版本、海报、背景、搜索和分页查询。
+4. **远程媒体访问与截图**
+   - Apple 平台通过 AMSMB2 提供只读 SMB2/3 目录、属性和 range read；
+   - 通过 FFmpegKit/libav 定位并解码目标视频帧，输出 PNG 或 JPEG；
+   - 远端媒体统一经过 `MediaSourceSession`，不会把来源凭据拼进 FFmpeg URL。
 
 ## 总体架构
 
@@ -32,6 +36,7 @@ flowchart LR
     SDK --> Config["RemoteMedia + Sync"]
     SDK --> Library["MediaLibrary"]
     SDK --> Wall["PosterWall"]
+    SDK --> Imaging["MediaImaging"]
     Auth --> Secure["平台安全存储"]
     Config --> Credential["本地 CredentialRecord"]
     Config --> API["Stellar account/config API"]
@@ -41,6 +46,7 @@ flowchart LR
     Library --> SQLite["设备本地 SQLite"]
     Wall --> SQLite
     Wall --> Artwork["图片缓存"]
+    Imaging --> Adapters
 ```
 
 三端分别使用平台原生语言和并发模型，但共享 `specs/` 中的数据语义、状态机、错误分类、SQLite 迁移和同步格式。每台设备维护自己的数据库，不在多设备之间直接共享活动 SQLite 文件。
@@ -55,7 +61,7 @@ platforms/android/     Android/Kotlin library 预留结构
 platforms/ohos/        OHOS ArkTS HAR 预留结构
 examples/              三个平台的示例应用规划
 tools/reference/       研究和验证脚本，不属于生产 SDK
-third_party/           第三方依赖版本、许可证与来源记录（不存放凭据）
+debug-infuse/          本地保留的 Infuse IPA 静态分析工作区（大文件默认忽略）
 ```
 
 ## 设计入口
@@ -71,7 +77,7 @@ third_party/           第三方依赖版本、许可证与来源记录（不存
 - [安全基线](docs/security.md)
 - [开发路线图](docs/roadmap.md)
 - [Swift Reference Implementation Plan](docs/plans/swift-reference-implementation.md)
-- [libsmb2 来源、ABI 与私有静态链接决策](docs/decisions/0003-libsmb2-distribution-and-abi.md)
+- [AMSMB2、FFmpegKit 与截图架构决策](docs/decisions/0006-amsmb2-ffmpegkit-and-screenshot.md)
 - [Infuse 研究资料索引](docs/research/infuse/README.md)
 
 ## 当前约束

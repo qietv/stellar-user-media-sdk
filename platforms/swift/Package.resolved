@@ -1,6 +1,23 @@
 {
-  "originHash" : "c293a027147d93cbe4fa96560f7c10466c103e5feca39716b8e52a605d68c706",
+  "originHash" : "0a1b290e62068e9a4e28eb193cd019f39713835ac7602ea283ae425b7b079c7f",
   "pins" : [
+    {
+      "identity" : "amsmb2",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/TracyPlayer/AMSMB2.git",
+      "state" : {
+        "revision" : "1726aaaf7adf63d7d1d2a0c5d1b0e635028215c0",
+        "version" : "4.0.3"
+      }
+    },
+    {
+      "identity" : "ffmpegkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/TracyPlayer/FFmpegKit.git",
+      "state" : {
+        "revision" : "233c6bb6657a244ef57178e5d54979d1fd3cd45d"
+      }
+    },
     {
       "identity" : "grdb.swift",
       "kind" : "remoteSourceControl",

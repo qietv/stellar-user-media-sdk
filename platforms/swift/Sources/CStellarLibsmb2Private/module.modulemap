@@ -1,4 +1,0 @@
-module CStellarLibsmb2Private [system] {
-  header "shim.h"
-  export *
-}

@@ -1,5 +1,7 @@
 # ADR-0003：固定 libsmb2 来源、C ABI 与私有静态链接边界
 
+> 状态：已由 [ADR-0006](0006-amsmb2-ffmpegkit-and-screenshot.md) 取代。本文仅保留历史决策背景；对应私有 archive、XCFramework、wrapper、lock 与构建/relink 工具已经从当前工程移除。
+
 状态：已接受
 
 日期：2026-08-16

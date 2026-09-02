@@ -5,7 +5,7 @@
 - [架构总览](architecture/overview.md)：模块、依赖方向、数据流和平台边界。
 - [原生三端 + 公共合同决策](decisions/0001-native-sdks-shared-contracts.md)：为何暂不使用共享运行时。
 - [第三方凭据同步决策](decisions/0005-synced-credential-storage.md)：v1 如何在无额外用户操作的前提下同步明文凭据，并预留未来保护模式升级。
-- [libsmb2 来源、ABI 与私有静态链接决策](decisions/0003-libsmb2-distribution-and-abi.md)：固定版本、全符号隔离、LGPL relink kit 与 Apple 分发约束。
+- [AMSMB2、FFmpegKit 与截图架构决策](decisions/0006-amsmb2-ffmpegkit-and-screenshot.md)：第三方依赖固定、SMB adapter、解码帧截图与初版远端暂存边界。
 - [安全基线](security.md)：OAuth、当前明文远程凭据、日志、网络和本地数据要求。
 - [路线图](roadmap.md)：从项目骨架到稳定 SDK 的阶段计划。
 - [Swift Reference Implementation Plan](plans/swift-reference-implementation.md)：Swift-first 实施顺序、Linux libsmb2 验收、测试门禁和 iOS 集成。

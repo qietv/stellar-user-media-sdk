@@ -12,7 +12,34 @@
       _ = AppleSMB2Transport()
     }
 
-    @Test("Swift task cancellation interrupts an in-flight Apple libsmb2 connect")
+    @Test("Policies that AMSMB2 cannot express fail before network access")
+    func unsupportedPolicies() async throws {
+      let endpoint = try SMB2Endpoint(server: "127.0.0.1", share: "policy-test")
+      let credential = try SMB2Credential(username: "guest", password: "")
+      let requests = [
+        try SMB2ConnectionRequest(
+          endpoint: endpoint,
+          credential: credential,
+          versionPolicy: .smb3Only
+        ),
+        try SMB2ConnectionRequest(
+          endpoint: endpoint,
+          credential: credential,
+          signingPolicy: .required
+        ),
+      ]
+
+      for request in requests {
+        do {
+          _ = try await AppleSMB2Transport().connect(request)
+          Issue.record("unsupported AMSMB2 policy unexpectedly reached the network")
+        } catch let error as SDKError {
+          #expect(error.code == .invalidConfiguration)
+        }
+      }
+    }
+
+    @Test("Swift task cancellation promptly resolves an in-flight AMSMB2 connect")
     func inFlightCancellation() async throws {
       let listener = socket(AF_INET, SOCK_STREAM, 0)
       try #require(listener >= 0)

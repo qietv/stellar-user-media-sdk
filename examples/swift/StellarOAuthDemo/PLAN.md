@@ -29,6 +29,9 @@
   完整枚举，后续 cursor 仅切片缓存快照，断连恢复时重读一次并校验指纹；
 - source capability 新增目录请求建议并发，Scanner 取调用方配置与来源上限的较小值；
   单 libsmb2 context 当前明确报告 1，而不是制造无效的 4 路排队；
+- SMB connector 新增显式、默认仍为 1 的独立目录连接数；分页中的同一目录固定到同一 session，
+  新目录按当前负载分配，连接失败和断开会清理全部 session。测试 NAS 的双会话短时吞吐验证支持
+  并行目录请求后，Demo 选择 2 路目录连接，而文件读取和 metadata worker 并发保持不变；
 - 共享目录快照分页器会为每个条目只计算一次 path comparison key，再用预计算键排序和生成兼容
   指纹；不再在 `O(N log N)` 次排序比较中反复拆分、Unicode/大小写归一化完整路径；
 - Local source 使用目录枚举已经预取的 file resource identifier 生成 scan-scoped stable ID，常见路径
@@ -480,6 +483,7 @@ ceil(D / P) × O(D log D + network_list(D))
 | flat 50,000 CLI unchanged follow-up（包含最终 snapshot） | 1.60 s / 21.07B instructions / 205 MB max RSS | 1.51 s / 19.87B instructions / 197 MB max RSS | 新文件 UID 延迟到集合发布、零变更 SQL 快路和 Local 类型属性合并；指令数下降约 5.7%，RSS 下降约 4% |
 | flat 50,000 CLI 首扫 follow-up（包含最终 snapshot） | 1.79 s / 23.43B instructions | 1.80 s / 23.46B instructions | 同批改动未以 unchanged 快路换取首扫退化；墙钟与指令数均在采样噪声内持平 |
 | 5,000 目录 × 1 文件 SDK 首扫 follow-up | 1.58 s / 19.76B instructions | 0.85 s / 10.48B instructions | SQLite sink 合并最多 32 个小页面事务；墙钟下降约 46%，指令数下降约 47%，峰值 RSS 基本持平 |
+| 测试 NAS 30 秒 SMB 枚举吞吐 | 单 session 82,892 项 | 双 session 合计 215,926 项 | 两个独立只读进程各 107,963 项；用于确认服务器能承受 2 路目录会话，不等同于 Demo 端到端倍率 |
 
 8k 当前已满足 2.5 秒初始预算。compact checkpoint、持久 frontier 与 per-run discovery staging
 已消除主要非线性写放大并补齐失败 run 的发布边界；下一优先级是 scheduler、本地 metadata
@@ -569,14 +573,20 @@ protocol DirectoryCursorSession {
 
 `Libsmb2SMB2SessionState.withClient` 明确限制每个 libsmb2 context 同时只有一个 active operation。Scanner 默认允许 4 个目录任务，但如果它们共用一个 session/context，最后仍在同一锁/队列后串行执行。
 
+当前 SDK 已允许调用方显式配置 1–4 个独立目录 session，默认保持 1。connector 会让同一目录的
+分页 cursor 固定到原 session，并把新目录分配给当前负载最低的 session；Demo 根据测试 NAS 的
+实测选择 2。2026-09-02 的同机 30 秒只读样本中，单 session 枚举 82,892 项，两个独立 session
+合计 215,926 项。由于双路读取同一共享会受 NAS 缓存影响，这组数据只证明 2 路没有造成服务端
+退化并有明确吞吐收益，不把 2.60 倍当作 Demo 的稳定承诺。
+
 现有 fake source 的 bounded concurrency 测试只能证明 Scanner 不超过上限，不能证明真实 SMB 能并发 4 路。
 
 ### 修复方向
 
 - 让 source/session 暴露 `preferredConcurrency` 或 capability；
 - 单 libsmb2 context 默认设为 1，避免制造无效任务和排队内存；
-- 若确有必要，可建立 2 个独立登录 session 的只读目录连接池；
-- 连接池必须通过真实 NAS 基准决定，不能默认放大，因为多连接可能恶化低端 NAS、鉴权和限流；
+- 已提供显式只读目录连接池；默认不放大，Demo 仅在真实 NAS 基准确认后选择 2；
+- 其他调用方仍需用自己的服务器数据决定连接数，因为多连接可能恶化低端 NAS、鉴权和限流；
 - 文件读取、目录读取和元数据探测可以使用不同的 workload budget，避免大文件 I/O 饿死目录发现。
 
 ## 7.3 P0：checkpoint 结构造成非线性开销
@@ -918,7 +928,8 @@ Library Views / UI
 
 ## Phase 1：修复目录伪分页（P0，预计 3–5 天）
 
-> 进度：每目录一次协议枚举、source concurrency 和生产 libsmb2 handle/batch 消费已完成；
+> 进度：每目录一次协议枚举、source concurrency、显式多 session 目录连接池和生产 libsmb2
+> handle/batch 消费已完成；Demo 已基于测试 NAS 选择 2 路，而 SDK 默认仍为 1；
 > wrapper/Swift 不再建立多份完整目录数组或排序快照，cursor 恢复与释放语义已接入。由于上游
 > `smb2_opendir` 内部仍预取完整目录，低层 QUERY_DIRECTORY 真流式及真实 NAS RSS 对照仍待推进。
 

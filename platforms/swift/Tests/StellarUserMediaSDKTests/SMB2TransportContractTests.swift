@@ -285,6 +285,56 @@ struct SMB2TransportContractTests {
     #expect(await session.pageRequestCount == 2)
     #expect(await session.fullListRequestCount == 0)
   }
+
+  @Test("The SMB adapter distributes directory requests across configured connections")
+  func directoryConnectionPool() async throws {
+    let firstPath = try SMB2Path("First")
+    let secondPath = try SMB2Path("Second")
+    let firstSession = TreeSMB2Session(
+      entriesByDirectory: [firstPath: []],
+      entriesByPath: [:]
+    )
+    let secondSession = TreeSMB2Session(
+      entriesByDirectory: [secondPath: []],
+      entriesByPath: [:]
+    )
+    let transport = SequencedFakeSMB2Transport(sessions: [firstSession, secondSession])
+    let connector = SMB2MediaSourceConnector(
+      transport: transport,
+      configuration: try SMB2MediaSourceConfiguration(
+        sourceUID: "smb-pool-fixture",
+        connectionRequest: SMB2ConnectionRequest(
+          endpoint: SMB2Endpoint(server: "nas.example.test", share: "Media"),
+          credential: SMB2Credential(username: "alice", password: "secret")
+        ),
+        directoryConnectionCount: 2
+      )
+    )
+    let connected = try await connector.connect()
+    let firstLocator = try RemoteLocator(
+      sourceUID: "smb-pool-fixture",
+      path: RemotePath("First")
+    )
+    let secondLocator = try RemoteLocator(
+      sourceUID: "smb-pool-fixture",
+      path: RemotePath("Second")
+    )
+
+    async let firstPage = connected.listDirectory(
+      RemoteDirectoryPageRequest(directory: firstLocator, limit: 10)
+    )
+    async let secondPage = connected.listDirectory(
+      RemoteDirectoryPageRequest(directory: secondLocator, limit: 10)
+    )
+    _ = try await (firstPage, secondPage)
+    let capabilities = await connected.capabilities
+    await connected.disconnect()
+
+    #expect(await transport.connectionCount == 2)
+    #expect(capabilities.preferredDirectoryRequestConcurrency == 2)
+    #expect(await firstSession.listCount(at: firstPath) == 1)
+    #expect(await secondSession.listCount(at: secondPath) == 1)
+  }
 }
 
 private actor FakeSMB2Transport: SMB2Transport {
@@ -298,6 +348,23 @@ private actor FakeSMB2Transport: SMB2Transport {
   func connect(_: SMB2ConnectionRequest) async throws -> any SMB2Session {
     connectionCount += 1
     return session
+  }
+}
+
+private actor SequencedFakeSMB2Transport: SMB2Transport {
+  private var sessions: [any SMB2Session]
+  private(set) var connectionCount = 0
+
+  init(sessions: [any SMB2Session]) {
+    self.sessions = sessions
+  }
+
+  func connect(_: SMB2ConnectionRequest) async throws -> any SMB2Session {
+    guard connectionCount < sessions.count else {
+      throw SDKError(code: .remoteUnavailable, message: "no fake SMB session is available")
+    }
+    defer { connectionCount += 1 }
+    return sessions[connectionCount]
   }
 }
 

@@ -14,6 +14,7 @@
 8. 文件删除主要由成功扫描快照与旧 FileIndex 的集合差发现；扫描失败、来源离线或范围不完整不能成为批量删除依据。
 9. 文件索引、在线元数据缓存和观看状态是不同生命周期；元数据存在 7 天延迟两阶段回收证据。
 10. 项目最终采用 27 张核心 SQLite 表 + 3 张缓存表，并在此基础上设计可恢复、按范围、带删除保护的 scanner。
+11. 媒体缩略图存在专用 decoder 与 pixel-buffer picture 路径；SDK 采用 libav 解码帧再由 ImageIO 编码，而不是截取播放器 UI。
 
 ## 归档文件
 
@@ -21,6 +22,8 @@
 - [`infuse_ios_8.5.1_static_analysis.md`](infuse_ios_8.5.1_static_analysis.md)：iOS 8.5.1 解析、刮削、请求链和索引静态分析。
 - [`infuse_library_scan_rebuild_and_our_scanner_design.md`](infuse_library_scan_rebuild_and_our_scanner_design.md)：建库、扫描触发、重建和自有 scanner 设计。
 - [`infuse_tmdb_matcher_parity_audit.md`](infuse_tmdb_matcher_parity_audit.md)：Python 参考实现与 Infuse 行为的一致性边界。
+- [`infuse_screenshot_pipeline_static_analysis.md`](infuse_screenshot_pipeline_static_analysis.md)：截图/缩略图 decoder、pixel buffer 证据及 SDK clean-room 映射。
+- [`../../../debug-infuse/infuse-ios-8.5.1/README.md`](../../../debug-infuse/infuse-ios-8.5.1/README.md)：保留的 IPA 展开与机械分析工作区说明。
 - [`../../../tools/reference/infuse_tmdb_matcher.py`](../../../tools/reference/infuse_tmdb_matcher.py)：文件名解析、TMDB、图片和 marker 的研究脚本。
 
 ## 生产使用边界
@@ -30,4 +33,3 @@
 - provider URL、字段和限流规则需要在生产实现前按官方文档重新确认；
 - 静态分析不能替代目标设备上的合法运行时测试；
 - 生产代码必须由本仓库规范和测试驱动重新实现。
-

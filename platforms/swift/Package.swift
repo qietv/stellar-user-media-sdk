@@ -16,15 +16,24 @@ var testDependencies: [Target.Dependency] = [
   "StellarUserMediaSDK",
   .product(name: "GRDB", package: "GRDB.swift"),
 ]
+var packageDependencies: [Package.Dependency] = [
+  .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1")
+]
 
-#if os(Linux)
-  cliDependencies.append("StellarSMB2Core")
-  cliDependencies.append("StellarSMB2Linux")
-  testDependencies.append("StellarSMB2Linux")
-#elseif os(macOS)
+#if os(macOS)
   cliDependencies.append("StellarSMB2Core")
   cliDependencies.append("StellarSMB2Apple")
   testDependencies.append("StellarSMB2Apple")
+  testDependencies.append("StellarMediaImaging")
+  packageDependencies.append(
+    .package(url: "https://github.com/TracyPlayer/AMSMB2.git", exact: "4.0.3")
+  )
+  packageDependencies.append(
+    .package(
+      url: "https://github.com/TracyPlayer/FFmpegKit.git",
+      revision: "233c6bb6657a244ef57178e5d54979d1fd3cd45d"
+    )
+  )
 #endif
 
 var packageTargets: [Target] = [
@@ -89,45 +98,39 @@ var packageTargets: [Target] = [
   ),
 ]
 
-#if os(Linux)
+#if os(macOS)
   packageTargets.append(contentsOf: [
-    .systemLibrary(
-      name: "CStellarLibsmb2Private",
-      path: "Sources/CStellarLibsmb2Private",
-      pkgConfig: "stellar-libsmb2-private"
-    ),
     .target(
-      name: "CStellarSMB2Wrapper",
-      dependencies: ["CStellarLibsmb2Private"],
-      publicHeadersPath: "include",
-      linkerSettings: [
-        .unsafeFlags([
-          "-Xlinker", "--exclude-libs=libstellar_libsmb2_private.a",
-        ])
+      name: "StellarSMB2Apple",
+      dependencies: [
+        "StellarCore",
+        "StellarSMB2Core",
+        .product(name: "AMSMB2", package: "AMSMB2"),
       ]
     ),
     .target(
-      name: "StellarSMB2Libsmb2",
-      dependencies: ["StellarCore", "StellarSMB2Core", "CStellarSMB2Wrapper"]
+      name: "CStellarFFmpegScreenshot",
+      dependencies: [
+        .product(name: "Libavcodec", package: "FFmpegKit"),
+        .product(name: "Libavformat", package: "FFmpegKit"),
+        .product(name: "Libavutil", package: "FFmpegKit"),
+        .product(name: "Libswresample", package: "FFmpegKit"),
+        .product(name: "Libswscale", package: "FFmpegKit"),
+        .product(name: "libzvbi", package: "FFmpegKit"),
+      ],
+      publicHeadersPath: "include"
     ),
     .target(
-      name: "StellarSMB2Linux",
-      dependencies: ["StellarSMB2Libsmb2"]
-    ),
-  ])
-#elseif os(macOS)
-  packageTargets.append(contentsOf: [
-    .binaryTarget(
-      name: "CStellarSMB2Wrapper",
-      path: "Artifacts/CStellarSMB2Wrapper.xcframework"
-    ),
-    .target(
-      name: "StellarSMB2Libsmb2",
-      dependencies: ["StellarCore", "StellarSMB2Core", "CStellarSMB2Wrapper"]
-    ),
-    .target(
-      name: "StellarSMB2Apple",
-      dependencies: ["StellarSMB2Libsmb2"]
+      name: "StellarMediaImaging",
+      dependencies: [
+        "CStellarFFmpegScreenshot",
+        "StellarCore",
+        "StellarRemoteMedia",
+      ],
+      linkerSettings: [
+        .linkedFramework("CoreGraphics"),
+        .linkedFramework("ImageIO"),
+      ]
     ),
   ])
 #endif
@@ -143,17 +146,16 @@ var packageProducts: [Product] = [
   ),
 ]
 
-#if os(Linux)
-  packageProducts.append(
-    .library(
-      name: "StellarSMB2",
-      targets: ["StellarSMB2Core", "StellarSMB2Linux"]
-    ))
-#elseif os(macOS)
+#if os(macOS)
   packageProducts.append(
     .library(
       name: "StellarSMB2",
       targets: ["StellarSMB2Core", "StellarSMB2Apple"]
+    ))
+  packageProducts.append(
+    .library(
+      name: "StellarMediaImaging",
+      targets: ["StellarMediaImaging"]
     ))
 #endif
 
@@ -165,9 +167,7 @@ let package = Package(
     .tvOS(.v17),
   ],
   products: packageProducts,
-  dependencies: [
-    .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1")
-  ],
+  dependencies: packageDependencies,
   targets: packageTargets,
   swiftLanguageModes: [.v6]
 )

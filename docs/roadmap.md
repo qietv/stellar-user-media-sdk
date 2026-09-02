@@ -1,5 +1,7 @@
 # 开发路线图
 
+> 当前依赖迁移：Apple SMB backend 已改用 AMSMB2，旧自编译 libsmb2 链路已移除；FFmpegKit/libav 截图首版见 [ADR-0006](decisions/0006-amsmb2-ffmpegkit-and-screenshot.md)。下文早期 Linux/libsmb2 里程碑保留为历史完成记录。
+
 本文描述三平台共同的产品阶段。Swift 的实际开发顺序、Linux/libsmb2 首个验收里程碑及完成定义见 [Swift Reference Implementation Plan](plans/swift-reference-implementation.md)。
 
 ## M0：仓库与合同

@@ -1,19 +1,12 @@
-#if canImport(StellarSMB2Linux) || canImport(StellarSMB2Apple)
+#if canImport(StellarSMB2Apple)
   import Foundation
+  import StellarSMB2Apple
   import StellarSMB2Core
   import StellarUserMediaSDK
 
-  #if canImport(StellarSMB2Linux)
-    import StellarSMB2Linux
-    private typealias SMBPlatformTransport = LinuxSMB2Transport
-  #else
-    import StellarSMB2Apple
-    private typealias SMBPlatformTransport = AppleSMB2Transport
-  #endif
+  private typealias SMBPlatformTransport = AppleSMB2Transport
 
-  #if canImport(Glibc)
-    import Glibc
-  #elseif canImport(Darwin)
+  #if canImport(Darwin)
     import Darwin
   #endif
 
@@ -192,7 +185,7 @@
             directoryCount: directoryCount,
             fileCount: fileCount,
             dialect: nil,
-            implementation: "libsmb2-6.1.0@aedafb2c8742"
+            implementation: "AMSMB2-4.0.3@1726aaaf7adf"
           ))
         writeError(sdkError.message)
         return sdkError.code == .cancelled ? 130 : 1

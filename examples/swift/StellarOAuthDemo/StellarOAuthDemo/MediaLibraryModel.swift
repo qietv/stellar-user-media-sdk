@@ -728,7 +728,8 @@ final class MediaLibraryModel: ObservableObject {
     let configuration = try SMB2MediaSourceConfiguration(
       sourceUID: sourceUID,
       connectionRequest: request,
-      stableIDScope: .persistent
+      stableIDScope: .persistent,
+      directoryConnectionCount: 2
     )
     let connector = SMB2MediaSourceConnector(
       transport: AppleSMB2Transport(),

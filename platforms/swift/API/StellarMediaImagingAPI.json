@@ -1,0 +1,229 @@
+{
+  "modules": {
+    "StellarMediaImaging": {
+      "symbols": [
+        {
+          "declaration": "struct FFmpegMediaScreenshotGenerator",
+          "identifier": "s:19StellarMediaImaging06FFmpegB19ScreenshotGeneratorV",
+          "kind": "swift.struct",
+          "path": [
+            "FFmpegMediaScreenshotGenerator"
+          ]
+        },
+        {
+          "declaration": "func capture(fileAt sourceURL: URL, request: MediaScreenshotRequest) async throws -> MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging06FFmpegB19ScreenshotGeneratorV7capture6fileAt7requestAA0bE6ResultV10Foundation3URLV_AA0bE7RequestVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "FFmpegMediaScreenshotGenerator",
+            "capture(fileAt:request:)"
+          ]
+        },
+        {
+          "declaration": "func capture(_ locator: RemoteLocator, using session: any MediaSourceSession, request: MediaScreenshotRequest) async throws -> MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging06FFmpegB19ScreenshotGeneratorV7capture_5using7requestAA0bE6ResultV0a6RemoteB00K7LocatorV_AI0B13SourceSession_pAA0bE7RequestVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "FFmpegMediaScreenshotGenerator",
+            "capture(_:using:request:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaImaging06FFmpegB19ScreenshotGeneratorVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "FFmpegMediaScreenshotGenerator",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "struct MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging0B16ScreenshotResultV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaScreenshotResult"
+          ]
+        },
+        {
+          "declaration": "let data: Data",
+          "identifier": "s:19StellarMediaImaging0B16ScreenshotResultV4data10Foundation4DataVvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotResult",
+            "data"
+          ]
+        },
+        {
+          "declaration": "init(data: Data, format: MediaScreenshotImageFormat, width: Int, height: Int) throws",
+          "identifier": "s:19StellarMediaImaging0B16ScreenshotResultV4data6format5width6heightAC10Foundation4DataV_AA0bD11ImageFormatOS2itKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScreenshotResult",
+            "init(data:format:width:height:)"
+          ]
+        },
+        {
+          "declaration": "let width: Int",
+          "identifier": "s:19StellarMediaImaging0B16ScreenshotResultV5widthSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotResult",
+            "width"
+          ]
+        },
+        {
+          "declaration": "let format: MediaScreenshotImageFormat",
+          "identifier": "s:19StellarMediaImaging0B16ScreenshotResultV6formatAA0bD11ImageFormatOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotResult",
+            "format"
+          ]
+        },
+        {
+          "declaration": "let height: Int",
+          "identifier": "s:19StellarMediaImaging0B16ScreenshotResultV6heightSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotResult",
+            "height"
+          ]
+        },
+        {
+          "declaration": "var mimeType: String { get }",
+          "identifier": "s:19StellarMediaImaging0B16ScreenshotResultV8mimeTypeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotResult",
+            "mimeType"
+          ]
+        },
+        {
+          "declaration": "struct MediaScreenshotRequest",
+          "identifier": "s:19StellarMediaImaging0B17ScreenshotRequestV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaScreenshotRequest"
+          ]
+        },
+        {
+          "declaration": "let jpegQuality: Double",
+          "identifier": "s:19StellarMediaImaging0B17ScreenshotRequestV11jpegQualitySdvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotRequest",
+            "jpegQuality"
+          ]
+        },
+        {
+          "declaration": "let maximumPixelDimension: Int?",
+          "identifier": "s:19StellarMediaImaging0B17ScreenshotRequestV21maximumPixelDimensionSiSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotRequest",
+            "maximumPixelDimension"
+          ]
+        },
+        {
+          "declaration": "init(timestampMilliseconds: Int64, format: MediaScreenshotImageFormat = .jpeg, maximumPixelDimension: Int? = nil, jpegQuality: Double = 0.9) throws",
+          "identifier": "s:19StellarMediaImaging0B17ScreenshotRequestV21timestampMilliseconds6format21maximumPixelDimension11jpegQualityACs5Int64V_AA0bD11ImageFormatOSiSgSdtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScreenshotRequest",
+            "init(timestampMilliseconds:format:maximumPixelDimension:jpegQuality:)"
+          ]
+        },
+        {
+          "declaration": "let timestampMilliseconds: Int64",
+          "identifier": "s:19StellarMediaImaging0B17ScreenshotRequestV21timestampMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotRequest",
+            "timestampMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let format: MediaScreenshotImageFormat",
+          "identifier": "s:19StellarMediaImaging0B17ScreenshotRequestV6formatAA0bD11ImageFormatOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotRequest",
+            "format"
+          ]
+        },
+        {
+          "declaration": "protocol MediaScreenshotGenerating : Sendable",
+          "identifier": "s:19StellarMediaImaging0B20ScreenshotGeneratingP",
+          "kind": "swift.protocol",
+          "path": [
+            "MediaScreenshotGenerating"
+          ]
+        },
+        {
+          "declaration": "func capture(fileAt sourceURL: URL, request: MediaScreenshotRequest) async throws -> MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging0B20ScreenshotGeneratingP7capture6fileAt7requestAA0bD6ResultV10Foundation3URLV_AA0bD7RequestVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScreenshotGenerating",
+            "capture(fileAt:request:)"
+          ]
+        },
+        {
+          "declaration": "func capture(_ locator: RemoteLocator, using session: any MediaSourceSession, request: MediaScreenshotRequest) async throws -> MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging0B20ScreenshotGeneratingP7capture_5using7requestAA0bD6ResultV0a6RemoteB00J7LocatorV_AI0B13SourceSession_pAA0bD7RequestVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScreenshotGenerating",
+            "capture(_:using:request:)"
+          ]
+        },
+        {
+          "declaration": "enum MediaScreenshotImageFormat",
+          "identifier": "s:19StellarMediaImaging0B21ScreenshotImageFormatO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaScreenshotImageFormat"
+          ]
+        },
+        {
+          "declaration": "case png",
+          "identifier": "s:19StellarMediaImaging0B21ScreenshotImageFormatO3pngyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaScreenshotImageFormat",
+            "png"
+          ]
+        },
+        {
+          "declaration": "case jpeg",
+          "identifier": "s:19StellarMediaImaging0B21ScreenshotImageFormatO4jpegyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaScreenshotImageFormat",
+            "jpeg"
+          ]
+        },
+        {
+          "declaration": "var mimeType: String { get }",
+          "identifier": "s:19StellarMediaImaging0B21ScreenshotImageFormatO8mimeTypeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScreenshotImageFormat",
+            "mimeType"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaImaging0B21ScreenshotImageFormatO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScreenshotImageFormat",
+            "init(rawValue:)"
+          ]
+        }
+      ]
+    }
+  },
+  "schema_version": 1
+}
