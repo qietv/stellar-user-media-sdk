@@ -17,6 +17,11 @@ __pycache__/
 # Swift / Xcode
 .build/
 .swiftpm/
+!platforms/swift/.swiftpm/
+platforms/swift/.swiftpm/*
+!platforms/swift/.swiftpm/configuration/
+platforms/swift/.swiftpm/configuration/*
+!platforms/swift/.swiftpm/configuration/mirrors.json
 DerivedData/
 *.xcuserstate
 xcuserdata/

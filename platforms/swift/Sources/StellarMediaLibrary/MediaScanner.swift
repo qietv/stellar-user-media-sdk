@@ -375,6 +375,7 @@ public struct MediaScanCompletion: Codable, Equatable, Sendable {
 /// One atomic scanner write: entries and the checkpoint that acknowledges their page.
 public struct MediaScanBatch: Sendable {
   public let entries: [RemoteEntry]
+  public let compositeMedia: [CompositeMediaDetection]
   public let checkpoint: MediaScanCheckpoint
   public let completion: MediaScanCompletion?
   public let enumerationState: MediaScanEnumerationState?
@@ -392,6 +393,23 @@ public struct MediaScanBatch: Sendable {
   ) {
     self.init(
       entries: entries,
+      compositeMedia: [],
+      checkpoint: checkpoint,
+      completion: completion,
+      enumerationState: nil,
+      pageTransitions: []
+    )
+  }
+
+  public init(
+    entries: [RemoteEntry],
+    compositeMedia: [CompositeMediaDetection],
+    checkpoint: MediaScanCheckpoint,
+    completion: MediaScanCompletion? = nil
+  ) {
+    self.init(
+      entries: entries,
+      compositeMedia: compositeMedia,
       checkpoint: checkpoint,
       completion: completion,
       enumerationState: nil,
@@ -408,6 +426,25 @@ public struct MediaScanBatch: Sendable {
   ) {
     self.init(
       entries: entries,
+      compositeMedia: [],
+      checkpoint: checkpoint,
+      completion: completion,
+      enumerationState: enumerationState,
+      pageTransitions: pageTransition.map { [$0] } ?? []
+    )
+  }
+
+  public init(
+    entries: [RemoteEntry],
+    compositeMedia: [CompositeMediaDetection],
+    checkpoint: MediaScanCheckpoint,
+    completion: MediaScanCompletion? = nil,
+    enumerationState: MediaScanEnumerationState?,
+    pageTransition: MediaScanPageTransition?
+  ) {
+    self.init(
+      entries: entries,
+      compositeMedia: compositeMedia,
       checkpoint: checkpoint,
       completion: completion,
       enumerationState: enumerationState,
@@ -422,7 +459,26 @@ public struct MediaScanBatch: Sendable {
     enumerationState: MediaScanEnumerationState?,
     pageTransitions: [MediaScanPageTransition]
   ) {
+    self.init(
+      entries: entries,
+      compositeMedia: [],
+      checkpoint: checkpoint,
+      completion: completion,
+      enumerationState: enumerationState,
+      pageTransitions: pageTransitions
+    )
+  }
+
+  public init(
+    entries: [RemoteEntry],
+    compositeMedia: [CompositeMediaDetection],
+    checkpoint: MediaScanCheckpoint,
+    completion: MediaScanCompletion? = nil,
+    enumerationState: MediaScanEnumerationState?,
+    pageTransitions: [MediaScanPageTransition]
+  ) {
     self.entries = entries
+    self.compositeMedia = compositeMedia
     self.checkpoint = checkpoint
     self.completion = completion
     self.enumerationState = enumerationState
@@ -508,10 +564,21 @@ public struct NoopMediaScanObserver: MediaScanObserver {
   public func emit(_: MediaScanEvent) async {}
 }
 
-/// Synchronous directory admission hook evaluated before a discovered child is enqueued.
+/// Synchronous entry-admission hooks evaluated before durable discovery and child traversal.
 public protocol MediaScanTraversalPolicy: Sendable {
+  /// Returns whether a file belongs in this scan's discovered set.
+  ///
+  /// This hook runs before file identity tracking, durable `scan_seen` persistence, and sink
+  /// buffering. Callers should keep it deterministic and inexpensive, such as an extension or
+  /// path-scope check. Directories use `shouldTraverseDirectory(_:)` instead.
+  func shouldIndexFile(_ entry: RemoteEntry) -> Bool
+
   /// Returns whether the scanner should recursively enumerate this directory.
   func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool
+}
+
+extension MediaScanTraversalPolicy {
+  public func shouldIndexFile(_: RemoteEntry) -> Bool { true }
 }
 
 /// Default traversal policy that recursively enumerates every discovered directory.
@@ -574,7 +641,8 @@ public struct MediaScanner: Sendable {
       sink: sink,
       resumeFrom: suppliedCheckpoint,
       observer: observer,
-      traversalPolicy: TraverseAllMediaScanDirectories()
+      traversalPolicy: TraverseAllMediaScanDirectories(),
+      directoryClassifier: NoopMediaScanDirectoryClassifier()
     )
   }
 
@@ -586,6 +654,27 @@ public struct MediaScanner: Sendable {
     resumeFrom suppliedCheckpoint: MediaScanCheckpoint? = nil,
     observer: any MediaScanObserver = NoopMediaScanObserver(),
     traversalPolicy: any MediaScanTraversalPolicy
+  ) async throws -> MediaScanResult {
+    try await scan(
+      request,
+      using: connector,
+      sink: sink,
+      resumeFrom: suppliedCheckpoint,
+      observer: observer,
+      traversalPolicy: traversalPolicy,
+      directoryClassifier: NoopMediaScanDirectoryClassifier()
+    )
+  }
+
+  /// Scans with both synchronous admission policy and asynchronous compound-directory detection.
+  public func scan(
+    _ request: MediaScanRequest,
+    using connector: any MediaSourceConnector,
+    sink: any MediaScanSink,
+    resumeFrom suppliedCheckpoint: MediaScanCheckpoint? = nil,
+    observer: any MediaScanObserver = NoopMediaScanObserver(),
+    traversalPolicy: any MediaScanTraversalPolicy,
+    directoryClassifier: any MediaScanDirectoryClassifier
   ) async throws -> MediaScanResult {
     var checkpoint: MediaScanCheckpoint
     var enumerationState: MediaScanEnumerationState?
@@ -693,7 +782,8 @@ public struct MediaScanner: Sendable {
           state: try requireEnumerationState(enumerationState),
           sink: sink,
           observer: observer,
-          traversalPolicy: traversalPolicy
+          traversalPolicy: traversalPolicy,
+          directoryClassifier: directoryClassifier
         )
       } catch let interruption as EnumerationInterruption {
         checkpoint = interruption.checkpoint
@@ -715,7 +805,8 @@ public struct MediaScanner: Sendable {
     state initialState: MediaScanEnumerationState,
     sink: any MediaScanSink,
     observer: any MediaScanObserver,
-    traversalPolicy: any MediaScanTraversalPolicy
+    traversalPolicy: any MediaScanTraversalPolicy,
+    directoryClassifier: any MediaScanDirectoryClassifier
   ) async throws -> MediaScanCheckpoint {
     var checkpoint = initialCheckpoint
     guard let capabilities = checkpoint.capabilities else {
@@ -733,6 +824,7 @@ public struct MediaScanner: Sendable {
       return try await withThrowingTaskGroup(of: PageResponse.self) { group in
         var active = Set<MediaScanPageCursor>()
         var bufferedEntries: [RemoteEntry] = []
+        var bufferedCompositeMedia: [CompositeMediaDetection] = []
         var bufferedTransitions: [MediaScanPageTransition] = []
 
         while workingState.pendingPageCount > 0 {
@@ -761,16 +853,35 @@ public struct MediaScanner: Sendable {
             throw SDKError(code: .unknown, message: "scanner work queue ended unexpectedly")
           }
           active.remove(response.cursor)
+          try validatePageEntries(
+            response,
+            sourceUID: checkpoint.request.sourceUID,
+            semantics: capabilities.pathSemantics
+          )
+          let classification = try await directoryClassifier.classify(
+            directory: response.cursor.directory,
+            entries: response.page.items,
+            using: session
+          )
+          let processed = try process(
+            response,
+            checkpoint: checkpoint,
+            capabilities: capabilities,
+            workingState: &workingState,
+            traversalPolicy: traversalPolicy,
+            classification: classification
+          )
 
           // Keep entry memory bounded to approximately one configured source page. This still
           // coalesces the common many-small-directories case without retaining several large
           // directory pages at once.
           if !bufferedTransitions.isEmpty,
-            bufferedEntries.count + response.page.items.count > configuration.pageSize
+            bufferedEntries.count + processed.entries.count > configuration.pageSize
           {
             try await sink.commit(
               MediaScanBatch(
                 entries: bufferedEntries,
+                compositeMedia: bufferedCompositeMedia,
                 checkpoint: checkpoint,
                 enumerationState: nil,
                 pageTransitions: bufferedTransitions
@@ -778,19 +889,14 @@ public struct MediaScanner: Sendable {
             )
             durableCheckpoint = checkpoint
             bufferedEntries.removeAll(keepingCapacity: true)
+            bufferedCompositeMedia.removeAll(keepingCapacity: true)
             bufferedTransitions.removeAll(keepingCapacity: true)
             await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
           }
 
-          let processed = try process(
-            response,
-            checkpoint: checkpoint,
-            capabilities: capabilities,
-            workingState: &workingState,
-            traversalPolicy: traversalPolicy
-          )
           checkpoint = processed.checkpoint
-          bufferedEntries.append(contentsOf: response.page.items)
+          bufferedEntries.append(contentsOf: processed.entries)
+          bufferedCompositeMedia.append(contentsOf: processed.compositeMedia)
           bufferedTransitions.append(processed.transition)
           await observer.emit(MediaScanEvent(kind: .progress, checkpoint: checkpoint))
 
@@ -801,6 +907,7 @@ public struct MediaScanner: Sendable {
             try await sink.commit(
               MediaScanBatch(
                 entries: bufferedEntries,
+                compositeMedia: bufferedCompositeMedia,
                 checkpoint: checkpoint,
                 enumerationState: nil,
                 pageTransitions: bufferedTransitions
@@ -808,6 +915,7 @@ public struct MediaScanner: Sendable {
             )
             durableCheckpoint = checkpoint
             bufferedEntries.removeAll(keepingCapacity: true)
+            bufferedCompositeMedia.removeAll(keepingCapacity: true)
             bufferedTransitions.removeAll(keepingCapacity: true)
             await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
           }
@@ -832,24 +940,55 @@ public struct MediaScanner: Sendable {
     checkpoint: MediaScanCheckpoint,
     capabilities: MediaSourceCapabilities,
     workingState: inout EnumerationWorkingState,
-    traversalPolicy: any MediaScanTraversalPolicy
+    traversalPolicy: any MediaScanTraversalPolicy,
+    classification: MediaScanDirectoryClassification
   ) throws -> ProcessedPage {
     guard workingState.containsPending(response.cursor) else {
       throw SDKError(code: .conflict, message: "scanner received an untracked page")
     }
 
-    let semantics = capabilities.pathSemantics
-    let parentPath = response.cursor.directory.path
-    for entry in response.page.items {
-      guard entry.locator.sourceUID == checkpoint.request.sourceUID,
-        Self.hasDirectParent(entry.locator.path, parent: parentPath, semantics: semantics)
+    let hasClassification =
+      !classification.syntheticEntries.isEmpty
+      || !classification.compositeMedia.isEmpty
+      || !classification.suppressedEntries.isEmpty
+      || !classification.forceIndexedFiles.isEmpty
+    let suppressedEntries = Set(classification.suppressedEntries)
+    let forceIndexedFiles = Set(classification.forceIndexedFiles)
+    if hasClassification {
+      var pageEntryKinds: [RemoteLocator: RemoteEntryKind] = [:]
+      pageEntryKinds.reserveCapacity(response.page.items.count)
+      for entry in response.page.items {
+        pageEntryKinds[entry.locator] = entry.kind
+      }
+      guard
+        classification.syntheticEntries.allSatisfy({ entry in
+          entry.kind == .file && entry.locator == response.cursor.directory
+        }),
+        classification.compositeMedia.allSatisfy({ detection in
+          detection.descriptor.locator == response.cursor.directory
+            || pageEntryKinds[detection.descriptor.locator] == .file
+        }),
+        suppressedEntries.allSatisfy({ pageEntryKinds[$0] != nil }),
+        forceIndexedFiles.allSatisfy({ pageEntryKinds[$0] == .file })
       else {
-        throw SDKError(
-          code: .parseFailure,
-          message: "connector returned an entry outside the requested directory"
-        )
+        throw SDKError(code: .parseFailure, message: "directory classifier returned invalid data")
       }
     }
+    var indexedEntries: [RemoteEntry]?
+    for (index, entry) in response.page.items.enumerated() {
+      if suppressedEntries.contains(entry.locator)
+        || (entry.kind == .file && !forceIndexedFiles.contains(entry.locator)
+          && !traversalPolicy.shouldIndexFile(entry))
+      {
+        if indexedEntries == nil {
+          indexedEntries = Array(response.page.items[..<index])
+        }
+      } else if indexedEntries != nil {
+        indexedEntries?.append(entry)
+      }
+    }
+    var admittedEntries = indexedEntries ?? response.page.items
+    admittedEntries.append(contentsOf: classification.syntheticEntries)
 
     workingState.complete(response.cursor)
     workingState.completedPageCursors.insert(response.cursor)
@@ -873,7 +1012,7 @@ public struct MediaScanner: Sendable {
     var newlySeenEntryKeys: [String] = []
     var newlySeenDirectoryKeys: [String] = []
 
-    for entry in response.page.items {
+    for entry in admittedEntries {
       let identityKey = identityKey(for: entry, capabilities: capabilities)
       if workingState.seenEntryKeys.insert(identityKey).inserted {
         newlySeenEntryKeys.append(identityKey)
@@ -905,7 +1044,9 @@ public struct MediaScanner: Sendable {
         enqueuedPages: enqueuedPages,
         seenEntryIdentityKeys: newlySeenEntryKeys,
         seenDirectoryIdentityKeys: newlySeenDirectoryKeys
-      )
+      ),
+      entries: admittedEntries,
+      compositeMedia: classification.compositeMedia
     )
   }
 
@@ -973,6 +1114,28 @@ public struct MediaScanner: Sendable {
       return "stable:\(stableID)"
     }
     return "path:\(entry.locator.pathComparisonKey(using: capabilities.pathSemantics))"
+  }
+
+  private func validatePageEntries(
+    _ response: PageResponse,
+    sourceUID: String,
+    semantics: RemotePathSemantics
+  ) throws {
+    guard
+      response.page.items.allSatisfy({ entry in
+        entry.locator.sourceUID == sourceUID
+          && Self.hasDirectParent(
+            entry.locator.path,
+            parent: response.cursor.directory.path,
+            semantics: semantics
+          )
+      })
+    else {
+      throw SDKError(
+        code: .parseFailure,
+        message: "connector returned an entry outside the requested directory"
+      )
+    }
   }
 
   private static func hasDirectParent(
@@ -1164,6 +1327,8 @@ public struct MediaScanner: Sendable {
   private struct ProcessedPage {
     let checkpoint: MediaScanCheckpoint
     let transition: MediaScanPageTransition
+    let entries: [RemoteEntry]
+    let compositeMedia: [CompositeMediaDetection]
   }
 
   private struct EnumerationInterruption: Error {

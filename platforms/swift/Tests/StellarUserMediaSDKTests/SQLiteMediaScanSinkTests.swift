@@ -9,6 +9,120 @@ import Testing
 
 @Suite("SQLite media scan persistence", .serialized)
 struct SQLiteMediaScanSinkTests {
+  @Test("Composite descriptors publish atomically and participate in material revisions")
+  func compositeMediaPersistence() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "stellar-sqlite-composite-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let database = try await StorageDatabase.open(
+      kind: .library,
+      at: directory.appendingPathComponent("library.sqlite")
+    )
+    let store = try LibraryStore(database: database)
+    let sourceUID = "composite-source"
+    try await store.registerSource(
+      LibrarySourceDefinition(
+        uid: sourceUID,
+        kind: .smb,
+        displayName: "Composite",
+        rootURI: "smb://composite-fixture"
+      )
+    )
+    let capabilities = try MediaSourceCapabilities(
+      stableIDScope: .persistent,
+      pathSemantics: RemotePathSemantics(
+        caseSensitivity: .sensitive,
+        unicodeNormalization: .preserve
+      ),
+      supportsRangeReads: true,
+      supportsChangeCursor: false,
+      deltaDeletionsComplete: false
+    )
+    let root = try RemoteLocator(sourceUID: sourceUID, path: RemotePath())
+    let movieLocator = try RemoteLocator(
+      sourceUID: sourceUID,
+      path: RemotePath("Example Blu-ray")
+    )
+    let entryPoint = try RemoteLocator(
+      sourceUID: sourceUID,
+      path: RemotePath("Example Blu-ray/BDMV/index.bdmv")
+    )
+    let syntheticFile = try RemoteEntry(
+      locator: movieLocator,
+      kind: .file,
+      stableID: "example-bluray"
+    )
+    let descriptor = try CompositeMediaDescriptor(
+      locator: movieLocator,
+      logicalRoot: movieLocator,
+      container: .directory,
+      kind: .bluray,
+      confidence: .candidate,
+      entryPoint: entryPoint
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let composite = try LibraryScanCompositeMedia(
+      locator: movieLocator,
+      descriptorsJSON: String(
+        decoding: try encoder.encode([descriptor]),
+        as: UTF8.self
+      )
+    )
+
+    func publish(runUID: String, compositeMedia: [LibraryScanCompositeMedia]) async throws {
+      try await store.commit(
+        LibraryScanPersistenceBatch(
+          runUID: runUID,
+          sourceUID: sourceUID,
+          mode: "full",
+          state: "completed",
+          checkpointJSON: #"{"phase":"completed"}"#,
+          coverageJSON: #"{"roots":[""]}"#,
+          entries: [syntheticFile],
+          compositeMedia: compositeMedia,
+          capabilities: capabilities,
+          coveredRoots: [root],
+          reconcileMissingEligible: true,
+          discoveredEntryCount: 1
+        )
+      )
+    }
+
+    try await publish(runUID: "composite-run-1", compositeMedia: [composite])
+    try await publish(runUID: "composite-run-2", compositeMedia: [composite])
+    let unchanged: (String?, Int64?) = try await database.read { database in
+      let row = try Row.fetchOne(
+        database,
+        sql: """
+          SELECT composite_media_json, material_revision
+          FROM media_file WHERE stable_key = 'persistent:example-bluray'
+          """
+      )
+      return (row?["composite_media_json"], row?["material_revision"])
+    }
+    let (unchangedJSON, unchangedRevision) = unchanged
+    #expect(unchangedJSON == composite.descriptorsJSON)
+    #expect(unchangedRevision == 1)
+
+    try await publish(runUID: "composite-run-3", compositeMedia: [])
+    let removed: (String?, Int64?) = try await database.read { database in
+      let row = try Row.fetchOne(
+        database,
+        sql: """
+          SELECT composite_media_json, material_revision
+          FROM media_file WHERE stable_key = 'persistent:example-bluray'
+          """
+      )
+      return (row?["composite_media_json"], row?["material_revision"])
+    }
+    let (removedJSON, removedRevision) = removed
+    #expect(removedJSON == nil)
+    #expect(removedRevision == 2)
+  }
+
   @Test("A large file batch is atomic and replay-idempotent")
   func largeBatch() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(

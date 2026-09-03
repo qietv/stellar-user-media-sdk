@@ -6,8 +6,17 @@ The **Scan** tab performs a resumable SMB full scan, displays the current file a
 committed-page counters, and supports pause/resume from the latest SQLite checkpoint.
 The checkpoint remains compact while `scan_frontier` and `scan_seen` durably track
 unfinished pages and replay-safe identities in `library.sqlite`.
-After enumeration it resolves video paths and artwork through the development media
-service only:
+File admission covers Infuse-style video containers (including ASF, DVR-MS, ISO/IMG,
+MXF, OGM/OGV, WM, and VWTV) plus STRM pointers. `BDMV`, `AVCHD`, `DVD`, and `VIDEO_TS`
+directory structures are detected as one synthetic library item, so their internal
+transport files are not indexed as separate videos.
+
+After enumeration, each changed item first runs through the SDK filename parser and a
+bounded local-metadata intake. The demo classifies same-directory NFO/JSON, artwork,
+subtitle, and chapter sidecars; reads NFO/JSON documents up to 2 MiB; persists the
+normalized result in `library.sqlite`; and gives compatible local metadata precedence
+when building the match query. It then resolves online metadata and artwork through the
+development media service:
 
 ```text
 https://dev-api-st.2dland.cn/v1/media-info/
@@ -20,6 +29,11 @@ by a single-flight cache, paced to ten requests per second, persisted in
 until the file changes and creates new scan work. The demo consumes that work in stable
 200-item keyset pages joined directly with file and binding facts, so enrichment does not
 materialize the full library snapshot in memory.
+
+Technical probing remains optional because it opens and inspects media content. Enabling
+**Inspect technical metadata (low priority)** schedules one `.probe` worker that uses the
+same seekable `MediaSourceSession` range-read bridge as remote screenshots and commits
+its stream/container summary atomically with queue completion.
 
 The **Library** tab reads the materialized local library and presents one poster per
 logical movie or series. API calls never use a production media-service origin. Artwork

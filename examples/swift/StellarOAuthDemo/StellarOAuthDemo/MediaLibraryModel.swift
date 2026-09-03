@@ -1,36 +1,35 @@
 import Combine
+import CryptoKit
 import Foundation
 import StellarSMB2Apple
 import StellarSMB2Core
 import StellarUserMediaSDK
 
-private enum DemoScanFilePolicy {
-  private static let videoExtensions: Set<String> = [
-    "3gp", "avi", "flv", "m2ts", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "mts",
-    "ts", "webm", "wmv",
-  ]
-
-  static func isVideoPath(_ path: String) -> Bool {
-    guard let separator = path.utf8.lastIndex(of: 46),
-      path.utf8.lastIndex(of: 47).map({ $0 < separator }) ?? true
-    else {
-      return false
-    }
-    let extensionStart = path.index(after: separator)
-    guard extensionStart != path.endIndex else { return false }
-    return videoExtensions.contains(path[extensionStart...].lowercased())
-  }
-
-  static func shouldPersist(_ entry: RemoteEntry) -> Bool {
-    entry.kind != .file || isVideoPath(entry.locator.path.relativePath)
-  }
-}
-
 private struct DemoScanTraversalPolicy: MediaScanTraversalPolicy {
+  // File containers advertised by Infuse plus STRM playlist pointers. Optical-disc directory
+  // structures are admitted separately by OpticalDiscMediaScanClassifier below.
+  private static let videoExtensions: Set<String> = [
+    "3gp", "asf", "avi", "divx", "dvr-ms", "flv", "img", "iso", "m2ts", "m4v",
+    "media", "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "mxf", "ogm", "ogv", "strm",
+    "ts", "vob", "vwtv", "webm", "wm", "wmv",
+  ]
   private static let excludedNames: Set<String> = [
     "#recycle", "$recycle.bin", "@eadir", "@recycle", "lost+found",
     "system volume information",
   ]
+
+  func shouldIndexFile(_ entry: RemoteEntry) -> Bool {
+    Self.isSupportedMediaFileName(entry.locator.path.name)
+  }
+
+  static func isSupportedMediaFileName(_ name: String) -> Bool {
+    guard let separator = name.utf8.lastIndex(of: 46), separator != name.startIndex else {
+      return false
+    }
+    let extensionStart = name.index(after: separator)
+    guard extensionStart != name.endIndex else { return false }
+    return Self.videoExtensions.contains(name[extensionStart...].lowercased())
+  }
 
   func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool {
     let name = entry.locator.path.name
@@ -97,6 +96,239 @@ private enum DemoMetadataWorkResult: Sendable {
   case retry(path: String)
 }
 
+private struct DemoThumbnailWorkContext: Sendable {
+  let session: any MediaSourceSession
+  let cacheRoot: URL
+  let generator: any MediaScreenshotGenerating
+}
+
+private struct DemoLocalMetadataLoad: Sendable {
+  let batch: MediaMetadataIntakeBatch
+  let preferredMetadata: LocalMetadataDocument?
+}
+
+/// Loads bounded local metadata beside a media item without making sidecars library files.
+/// Directory pages are shared by concurrent workers and retained in a small LRU for the run.
+private actor DemoLocalMetadataLoader {
+  private static let directoryPageSize = 2_000
+  private static let maximumCachedDirectories = 64
+  private static let maximumMetadataDocumentBytes = 2 * 1_024 * 1_024
+
+  private let session: any MediaSourceSession
+  private let filenameParser = MediaFilenameParser()
+  private let sidecarClassifier = MediaSidecarClassifier()
+  private let nfoParser = NFOParser(maximumDocumentBytes: maximumMetadataDocumentBytes)
+  private let jsonParser = LocalMetadataJSONParser(
+    maximumDocumentBytes: maximumMetadataDocumentBytes
+  )
+  private var directoryCache: [RemoteLocator: [RemoteEntry]] = [:]
+  private var directoryLRU: [RemoteLocator] = []
+  private var directoryLoads: [RemoteLocator: Task<[RemoteEntry], Error>] = [:]
+
+  init(session: any MediaSourceSession) {
+    self.session = session
+  }
+
+  func load(for file: LibraryFileFact) async throws -> DemoLocalMetadataLoad {
+    let mediaPath = try RemotePath(file.relativePath)
+    let filename = try filenameParser.analyze(file.relativePath)
+    let root = try RemotePath()
+    var candidateDirectories: [RemotePath] = [mediaPath.parent ?? root]
+
+    // A compound BDMV/DVD item is represented by its outer directory. Inspect that directory
+    // for movie.nfo, artwork, and subtitles without indexing its internal transport files.
+    if !DemoScanTraversalPolicy.isSupportedMediaFileName(mediaPath.name),
+      let entry = try? await session.stat(
+        RemoteLocator(sourceUID: file.sourceUID, path: mediaPath)
+      ), entry.kind == .directory
+    {
+      candidateDirectories.insert(mediaPath, at: 0)
+    }
+
+    // Kodi-style tvshow.nfo and series artwork commonly live one level above Season NN.
+    if let parent = mediaPath.parent, Self.isSeasonDirectory(parent.name),
+      let seriesDirectory = parent.parent
+    {
+      candidateDirectories.append(seriesDirectory)
+    }
+
+    var sidecarsByPath: [String: MediaSidecarIntake] = [:]
+    for directoryPath in candidateDirectories {
+      let directory = try RemoteLocator(sourceUID: file.sourceUID, path: directoryPath)
+      let classificationMediaPath = try directoryPath.appending(component: mediaPath.name)
+      for entry in try await entries(in: directory) where entry.kind == .file {
+        guard
+          let descriptor = try sidecarClassifier.classify(
+            mediaPath: classificationMediaPath.relativePath,
+            candidatePath: entry.locator.path.relativePath
+          )
+        else { continue }
+        sidecarsByPath[descriptor.relativePath] = try await intake(
+          descriptor: descriptor,
+          entry: entry
+        )
+      }
+    }
+
+    let sidecars = sidecarsByPath.values.sorted {
+      $0.descriptor.relativePath < $1.descriptor.relativePath
+    }
+    let batch = try MediaMetadataIntakeBatch(
+      sourceUID: file.sourceUID,
+      mediaRelativePath: file.relativePath,
+      filename: filename,
+      sidecars: sidecars
+    )
+    return DemoLocalMetadataLoad(
+      batch: batch,
+      preferredMetadata: Self.preferredMetadata(
+        in: sidecars,
+        mediaStem: (mediaPath.name as NSString).deletingPathExtension
+      )
+    )
+  }
+
+  private func entries(in directory: RemoteLocator) async throws -> [RemoteEntry] {
+    if let cached = directoryCache[directory] {
+      touch(directory)
+      return cached
+    }
+    let task: Task<[RemoteEntry], Error>
+    if let active = directoryLoads[directory] {
+      task = active
+    } else {
+      task = Task { [session] in
+        try await Self.loadDirectory(directory, using: session)
+      }
+      directoryLoads[directory] = task
+    }
+    do {
+      let loaded = try await task.value
+      directoryLoads[directory] = nil
+      directoryCache[directory] = loaded
+      touch(directory)
+      while directoryLRU.count > Self.maximumCachedDirectories {
+        directoryCache[directoryLRU.removeFirst()] = nil
+      }
+      return loaded
+    } catch {
+      directoryLoads[directory] = nil
+      throw error
+    }
+  }
+
+  private nonisolated static func loadDirectory(
+    _ directory: RemoteLocator,
+    using session: any MediaSourceSession
+  ) async throws -> [RemoteEntry] {
+    var entries: [RemoteEntry] = []
+    var cursor: String?
+    repeat {
+      let page = try await session.listDirectory(
+        RemoteDirectoryPageRequest(
+          directory: directory,
+          cursor: cursor,
+          limit: Self.directoryPageSize
+        )
+      )
+      entries.append(contentsOf: page.items)
+      cursor = page.nextCursor
+    } while cursor != nil
+    return entries
+  }
+
+  private func touch(_ directory: RemoteLocator) {
+    directoryLRU.removeAll { $0 == directory }
+    directoryLRU.append(directory)
+  }
+
+  private func intake(
+    descriptor: MediaSidecarDescriptor,
+    entry: RemoteEntry
+  ) async throws -> MediaSidecarIntake {
+    guard descriptor.kind == .nfo || descriptor.kind == .metadataJSON else {
+      return try MediaSidecarIntake(
+        descriptor: descriptor,
+        modifiedAtMilliseconds: entry.modifiedAtMilliseconds
+      )
+    }
+    guard entry.size != 0,
+      entry.size.map({ $0 <= Int64(Self.maximumMetadataDocumentBytes) }) ?? true
+    else {
+      return try MediaSidecarIntake(
+        descriptor: descriptor,
+        modifiedAtMilliseconds: entry.modifiedAtMilliseconds
+      )
+    }
+
+    let requestedLength = entry.size.flatMap(Int.init) ?? Self.maximumMetadataDocumentBytes + 1
+    let data = try await session.read(
+      at: entry.locator,
+      range: RemoteByteRange(
+        offset: 0,
+        length: min(requestedLength, Self.maximumMetadataDocumentBytes + 1)
+      )
+    )
+    guard !data.isEmpty, data.count <= Self.maximumMetadataDocumentBytes else {
+      return try MediaSidecarIntake(
+        descriptor: descriptor,
+        modifiedAtMilliseconds: entry.modifiedAtMilliseconds
+      )
+    }
+    let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    let metadata: LocalMetadataDocument?
+    do {
+      metadata =
+        descriptor.kind == .nfo
+        ? try nfoParser.parse(data)
+        : try jsonParser.parse(data)
+    } catch let error as SDKError where error.code == .parseFailure {
+      // A malformed optional sidecar remains visible for diagnostics but cannot block the
+      // filename/online fallback for an otherwise playable media item.
+      metadata = nil
+    }
+    return try MediaSidecarIntake(
+      descriptor: descriptor,
+      modifiedAtMilliseconds: entry.modifiedAtMilliseconds,
+      sha256: digest,
+      metadata: metadata
+    )
+  }
+
+  private static func preferredMetadata(
+    in sidecars: [MediaSidecarIntake],
+    mediaStem: String
+  ) -> LocalMetadataDocument? {
+    sidecars
+      .filter { $0.metadata != nil }
+      .max { lhs, rhs in
+        metadataPriority(lhs, mediaStem: mediaStem)
+          < metadataPriority(rhs, mediaStem: mediaStem)
+      }?
+      .metadata
+  }
+
+  private static func metadataPriority(
+    _ intake: MediaSidecarIntake,
+    mediaStem: String
+  ) -> Int {
+    let sidecarStem = (intake.descriptor.relativePath as NSString)
+      .lastPathComponent as NSString
+    let isMediaSpecific = sidecarStem.deletingPathExtension.caseInsensitiveCompare(mediaStem)
+      == .orderedSame
+    let hasExplicitID = intake.metadata?.externalIDs.isEmpty == false
+    return (hasExplicitID ? 100 : 0) + (isMediaSpecific ? 20 : 0)
+      + (intake.descriptor.kind == .nfo ? 2 : 1)
+  }
+
+  private static func isSeasonDirectory(_ name: String) -> Bool {
+    name.range(
+      of: #"^(?:season|series|s)[\s._-]*\d{1,3}$"#,
+      options: [.regularExpression, .caseInsensitive]
+    ) != nil
+  }
+}
+
 @MainActor
 final class MediaLibraryModel: ObservableObject {
   static let mediaServiceOrigin = "https://dev-api-st.2dland.cn"
@@ -107,6 +339,8 @@ final class MediaLibraryModel: ObservableObject {
   @Published var rootPath = ""
   @Published var username = "coldlake"
   @Published var password = ""
+  @Published var prefetchVideoThumbnailsWhenIdle = false
+  @Published var enableTechnicalProbe = false
 
   @Published private(set) var scanState: DemoScanState = .idle
   @Published private(set) var notice = "Enter the SMB password, then start a full scan."
@@ -140,6 +374,10 @@ final class MediaLibraryModel: ObservableObject {
 
   var canPause: Bool {
     scanTask != nil && [.preparing, .scanning, .enriching].contains(scanState)
+  }
+
+  var canRepair: Bool {
+    scanTask == nil && libraryStore != nil && sourceUIDForRecovery() != nil
   }
 
   var inputsAreDisabled: Bool {
@@ -206,6 +444,13 @@ final class MediaLibraryModel: ObservableObject {
     scanTask?.cancel()
   }
 
+  func repairFailedMetadata() {
+    guard canRepair else { return }
+    scanTask = Task { [weak self] in
+      await self?.runRepair()
+    }
+  }
+
   func refreshPosterWall() async {
     await prepareIfNeeded()
     guard let libraryDatabase else { return }
@@ -233,6 +478,7 @@ final class MediaLibraryModel: ObservableObject {
         allItems.append(contentsOf: page.items)
       } while cursor != nil
 
+      let supportFolder = try applicationSupportFolder()
       posterItems = allItems.map { item in
         return DemoPosterItem(
           mediaUID: item.mediaUID,
@@ -241,7 +487,7 @@ final class MediaLibraryModel: ObservableObject {
           originalTitle: nil,
           overview: nil,
           year: item.year,
-          artworkURL: item.poster?.remoteReference.flatMap(URL.init(string:)),
+          artworkURL: Self.artworkURL(item.poster, supportFolder: supportFolder),
           availability: item.availability
         )
       }
@@ -258,10 +504,16 @@ final class MediaLibraryModel: ObservableObject {
     await prepareIfNeeded()
     guard let libraryDatabase else { return item }
     do {
-      let details = try await PosterWallStore(database: libraryDatabase).details(
+      let wall = try PosterWallStore(database: libraryDatabase)
+      var details = try await wall.details(
         mediaUID: item.mediaUID,
         locale: "zh-CN"
       )
+      if details.item.poster == nil {
+        try? await generateOnDemandThumbnail(from: details)
+        details = try await wall.details(mediaUID: item.mediaUID, locale: "zh-CN")
+      }
+      let supportFolder = try applicationSupportFolder()
       return DemoPosterItem(
         mediaUID: item.mediaUID,
         kind: item.kind,
@@ -269,7 +521,7 @@ final class MediaLibraryModel: ObservableObject {
         originalTitle: details.originalTitle,
         overview: details.overview,
         year: details.item.year,
-        artworkURL: details.item.poster?.remoteReference.flatMap(URL.init(string:)),
+        artworkURL: Self.artworkURL(details.item.poster, supportFolder: supportFolder),
         availability: details.item.availability
       )
     } catch {
@@ -284,14 +536,34 @@ final class MediaLibraryModel: ObservableObject {
 
     do {
       if let sourceUID = metadataRecoverySourceUID {
+        let connection = try makeConnection()
+        guard connection.sourceUID == sourceUID else {
+          throw SDKError(code: .invalidConfiguration, message: "metadata recovery source changed")
+        }
+        let metadataSession = try await connection.connector.connect()
+        let localMetadataLoader = DemoLocalMetadataLoader(session: metadataSession)
         scanState = .enriching
         show("Continuing durable metadata work without rescanning the SMB source…")
-        try await enrichLibrary(
-          sourceUID: sourceUID,
-          libraryStore: libraryStore,
-          metadataCacheStore: metadataCacheStore,
-          mediaInfoClient: mediaInfoClient
-        )
+        do {
+          try await enrichLibrary(
+            sourceUID: sourceUID,
+            libraryStore: libraryStore,
+            metadataCacheStore: metadataCacheStore,
+            mediaInfoClient: mediaInfoClient,
+            localMetadataLoader: localMetadataLoader
+          )
+        } catch {
+          await metadataSession.disconnect()
+          throw error
+        }
+        await metadataSession.disconnect()
+        if prefetchVideoThumbnailsWhenIdle || enableTechnicalProbe {
+          await runConfiguredOptionalWorkIfPossible(
+            sourceUID: sourceUID,
+            libraryStore: libraryStore,
+            mediaInfoClient: mediaInfoClient
+          )
+        }
         try Task.checkCancellation()
         if try await libraryStore.hasOutstandingScanWork(sourceUID: sourceUID, stage: .parse) {
           scanState = .paused
@@ -302,7 +574,7 @@ final class MediaLibraryModel: ObservableObject {
           scanState = .completed
           updateCurrentFile(nil)
           show(
-            "Metadata completed: \(mediaFileCount) video files, \(matchedFileCount) matched, "
+            "Metadata completed: \(mediaFileCount) media items, \(matchedFileCount) matched, "
               + "\(failedFileCount) skipped."
           )
         }
@@ -372,19 +644,37 @@ final class MediaLibraryModel: ObservableObject {
         sink: sink,
         resumeFrom: checkpoint,
         observer: DemoScanObserver(relay: relay),
-        traversalPolicy: DemoScanTraversalPolicy()
+        traversalPolicy: DemoScanTraversalPolicy(),
+        directoryClassifier: try OpticalDiscMediaScanClassifier()
       )
 
       flushScanProgress()
       scanState = .enriching
-      show("Matching video files with the test media service…")
-      try await enrichLibrary(
-        sourceUID: request.sourceUID,
-        libraryStore: libraryStore,
-        metadataCacheStore: metadataCacheStore,
-        mediaInfoClient: mediaInfoClient
-      )
+      show("Reading local metadata and matching media with the test service…")
+      let metadataSession = try await connection.connector.connect()
+      let localMetadataLoader = DemoLocalMetadataLoader(session: metadataSession)
+      do {
+        try await enrichLibrary(
+          sourceUID: request.sourceUID,
+          libraryStore: libraryStore,
+          metadataCacheStore: metadataCacheStore,
+          mediaInfoClient: mediaInfoClient,
+          localMetadataLoader: localMetadataLoader
+        )
+      } catch {
+        await metadataSession.disconnect()
+        throw error
+      }
+      await metadataSession.disconnect()
+      if prefetchVideoThumbnailsWhenIdle || enableTechnicalProbe {
+        await runConfiguredOptionalWorkIfPossible(
+          sourceUID: request.sourceUID,
+          libraryStore: libraryStore,
+          mediaInfoClient: mediaInfoClient
+        )
+      }
       try Task.checkCancellation()
+      _ = try await libraryStore.runGarbageCollection()
 
       if try await libraryStore.hasOutstandingScanWork(
         sourceUID: request.sourceUID,
@@ -405,7 +695,7 @@ final class MediaLibraryModel: ObservableObject {
       activeRequest = nil
       updateCurrentFile(nil)
       show(
-        "Scan completed: \(mediaFileCount) video files, \(matchedFileCount) matched, "
+        "Scan completed: \(mediaFileCount) media items, \(matchedFileCount) matched, "
           + "\(failedFileCount) skipped or failed."
       )
       await refreshPosterWall()
@@ -428,7 +718,9 @@ final class MediaLibraryModel: ObservableObject {
     sourceUID: String,
     libraryStore: LibraryStore,
     metadataCacheStore: MetadataCacheStore,
-    mediaInfoClient: TestMediaInfoClient
+    mediaInfoClient: TestMediaInfoClient,
+    localMetadataLoader: DemoLocalMetadataLoader,
+    thumbnailContext: DemoThumbnailWorkContext? = nil
   ) async throws {
     let initialSummary = try await libraryStore.sourceMediaSummary(sourceUID: sourceUID)
     mediaFileCount = initialSummary.presentFileCount
@@ -440,6 +732,7 @@ final class MediaLibraryModel: ObservableObject {
       metadataCacheStore: metadataCacheStore,
       scorer: MediaMetadataCandidateScorer(policy: policy)
     )
+    let metadataStore = SQLiteMediaMetadataStore(store: libraryStore)
     await mediaInfoClient.resetProviderSuspension()
     var completedCount = 0
     let workerID = "stellar-oauth-demo-\(UUID().uuidString.lowercased())"
@@ -463,7 +756,9 @@ final class MediaLibraryModel: ObservableObject {
             sourceUID: sourceUID,
             matcher: matcher,
             libraryStore: libraryStore,
-            mediaInfoClient: mediaInfoClient
+            mediaInfoClient: mediaInfoClient,
+            localMetadataLoader: localMetadataLoader,
+            metadataStore: metadataStore
           )
         }
       }
@@ -485,7 +780,7 @@ final class MediaLibraryModel: ObservableObject {
           failedFileCount += 1
         }
         updateCurrentFile(path)
-        show("Matched or classified \(completedCount) changed videos…")
+        show("Matched or classified \(completedCount) changed media items…")
 
         try Task.checkCancellation()
         if let replacementLease = try await libraryStore.claimScanFileWork(
@@ -503,7 +798,9 @@ final class MediaLibraryModel: ObservableObject {
               sourceUID: sourceUID,
               matcher: matcher,
               libraryStore: libraryStore,
-              mediaInfoClient: mediaInfoClient
+              mediaInfoClient: mediaInfoClient,
+              localMetadataLoader: localMetadataLoader,
+              metadataStore: metadataStore
             )
           }
         }
@@ -519,33 +816,40 @@ final class MediaLibraryModel: ObservableObject {
     try await enrichArtwork(
       sourceUID: sourceUID,
       libraryStore: libraryStore,
-      mediaInfoClient: mediaInfoClient
+      mediaInfoClient: mediaInfoClient,
+      thumbnailContext: thumbnailContext
     )
   }
 
   private func enrichArtwork(
     sourceUID: String,
     libraryStore: LibraryStore,
-    mediaInfoClient: TestMediaInfoClient
+    mediaInfoClient: TestMediaInfoClient,
+    thumbnailContext: DemoThumbnailWorkContext? = nil,
+    maximumItems: Int? = nil
   ) async throws {
     let workerID = "stellar-oauth-demo-artwork-\(UUID().uuidString.lowercased())"
-    let workerConcurrency = 2
+    let workerConcurrency = thumbnailContext == nil ? 2 : 1
     try await withThrowingTaskGroup(of: String.self) { group in
       var activeWorkerCount = 0
+      var startedCount = 0
+      let initialLimit = min(workerConcurrency, maximumItems ?? workerConcurrency)
       let initialLeases = try await libraryStore.claimScanFileWork(
         sourceUID: sourceUID,
         stage: .artwork,
         workerID: workerID,
-        limit: workerConcurrency,
+        limit: initialLimit,
         leaseDurationMilliseconds: 120_000
       )
       for lease in initialLeases {
         activeWorkerCount += 1
+        startedCount += 1
         group.addTask {
           try await Self.processArtworkWork(
             DemoMetadataWorkItem(lease: lease),
             libraryStore: libraryStore,
-            mediaInfoClient: mediaInfoClient
+            mediaInfoClient: mediaInfoClient,
+            thumbnailContext: thumbnailContext
           )
         }
       }
@@ -558,19 +862,23 @@ final class MediaLibraryModel: ObservableObject {
         show("Fetched or classified \(completedCount) posters…")
 
         try Task.checkCancellation()
-        if let replacementLease = try await libraryStore.claimScanFileWork(
-          sourceUID: sourceUID,
-          stage: .artwork,
-          workerID: workerID,
-          limit: 1,
-          leaseDurationMilliseconds: 120_000
-        ).first {
+        if maximumItems.map({ startedCount < $0 }) ?? true,
+          let replacementLease = try await libraryStore.claimScanFileWork(
+            sourceUID: sourceUID,
+            stage: .artwork,
+            workerID: workerID,
+            limit: 1,
+            leaseDurationMilliseconds: 120_000
+          ).first
+        {
           activeWorkerCount += 1
+          startedCount += 1
           group.addTask {
             try await Self.processArtworkWork(
               DemoMetadataWorkItem(lease: replacementLease),
               libraryStore: libraryStore,
-              mediaInfoClient: mediaInfoClient
+              mediaInfoClient: mediaInfoClient,
+              thumbnailContext: thumbnailContext
             )
           }
         }
@@ -583,7 +891,9 @@ final class MediaLibraryModel: ObservableObject {
     sourceUID: String,
     matcher: SQLiteMediaMatcher,
     libraryStore: LibraryStore,
-    mediaInfoClient: TestMediaInfoClient
+    mediaInfoClient: TestMediaInfoClient,
+    localMetadataLoader: DemoLocalMetadataLoader,
+    metadataStore: SQLiteMediaMetadataStore
   ) async throws -> DemoMetadataWorkResult {
     let path = workItem.file.relativePath
     let heartbeat = Task<Void, Never> {
@@ -602,6 +912,12 @@ final class MediaLibraryModel: ObservableObject {
     }
     defer { heartbeat.cancel() }
     do {
+      let local = try await localMetadataLoader.load(for: workItem.file)
+      try await metadataStore.persist(local.batch)
+      let localQuery = try? MediaMatchQueryBuilder().build(
+        filename: local.batch.filename.parsed,
+        localMetadata: local.preferredMetadata
+      )
       let resolution = try await mediaInfoClient.resolve(path: path)
       guard let resolved = try await mediaInfoClient.primaryMetadata(from: resolution) else {
         throw SDKError(
@@ -609,7 +925,12 @@ final class MediaLibraryModel: ObservableObject {
           message: "the media service returned no usable metadata"
         )
       }
-      let query = try resolution.makeMatchQuery()
+      let query: MediaMatchQuery
+      if let localQuery {
+        query = localQuery
+      } else {
+        query = try resolution.makeMatchQuery()
+      }
       let candidate = try resolved.makeCandidate(for: query)
       let result = try await matcher.evaluate(
         query: query,
@@ -679,7 +1000,8 @@ final class MediaLibraryModel: ObservableObject {
   private nonisolated static func processArtworkWork(
     _ workItem: DemoMetadataWorkItem,
     libraryStore: LibraryStore,
-    mediaInfoClient: TestMediaInfoClient
+    mediaInfoClient: TestMediaInfoClient,
+    thumbnailContext: DemoThumbnailWorkContext?
   ) async throws -> String {
     let path = workItem.file.relativePath
     let heartbeat = Task<Void, Never> {
@@ -697,14 +1019,14 @@ final class MediaLibraryModel: ObservableObject {
       }
     }
     defer { heartbeat.cancel() }
+    var failure: Error?
     do {
       let target = try await libraryStore.remoteArtworkTarget(
         for: workItem.lease,
         provider: ResolvedPosterMetadata.provider
       )
       guard let variant = try await mediaInfoClient.bestArtwork(for: target, path: path) else {
-        try await libraryStore.failScanWork(workItem.lease, errorCode: .metadataNotFound)
-        return path
+        throw SDKError(code: .metadataNotFound, message: "the provider has no poster")
       }
       let artwork = try LibraryRemoteArtwork(
         target: target,
@@ -713,11 +1035,232 @@ final class MediaLibraryModel: ObservableObject {
         width: variant.width,
         height: variant.height
       )
-      _ = try await libraryStore.commitRemoteArtwork(
-        artwork,
-        completing: workItem.lease
-      )
+      _ = try await libraryStore.storeRemoteArtwork(artwork, for: workItem.lease)
+    } catch {
+      if Self.isCancellation(error) {
+        try? await libraryStore.retryScanWork(
+          workItem.lease,
+          errorCode: .cancelled,
+          retryAfterMilliseconds: 0
+        )
+        throw error
+      }
+      // A missing provider poster is not a failure when this run can still produce a local
+      // thumbnail. Other errors remain durable so repair can retry them independently later.
+      if (error as? SDKError)?.code != .metadataNotFound || thumbnailContext == nil {
+        failure = error
+      }
+    }
+
+    var completedByThumbnail = false
+    if let thumbnailContext {
+      do {
+        let locator = try RemoteLocator(
+          sourceUID: workItem.file.sourceUID,
+          path: RemotePath(path)
+        )
+        let result = try await thumbnailContext.generator.capture(
+          locator,
+          using: thumbnailContext.session,
+          request: MediaScreenshotRequest(
+            timestampMilliseconds: 0,
+            format: .jpeg,
+            maximumPixelDimension: 1_280,
+            jpegQuality: 0.82
+          )
+        )
+        let thumbnail = try storeThumbnail(result, cacheRoot: thumbnailContext.cacheRoot)
+        if failure == nil {
+          _ = try await libraryStore.commitGeneratedThumbnail(thumbnail, for: workItem.lease)
+          completedByThumbnail = true
+        } else {
+          _ = try await libraryStore.storeGeneratedThumbnail(thumbnail, for: workItem.lease)
+        }
+      } catch {
+        if Self.isCancellation(error) {
+          try? await libraryStore.retryScanWork(
+            workItem.lease,
+            errorCode: .cancelled,
+            retryAfterMilliseconds: 0
+          )
+          throw error
+        }
+        if failure == nil { failure = error }
+      }
+    }
+
+    guard let failure else {
+      if !completedByThumbnail {
+        try await libraryStore.completeScanWork(workItem.lease)
+      }
       return path
+    }
+    let code = (failure as? SDKError)?.code ?? .unknown
+    if code == .metadataNotFound || code == .parseFailure || workItem.lease.attempts + 1 >= 3 {
+      try await libraryStore.failScanWork(workItem.lease, errorCode: code)
+      return path
+    }
+    let providerDelay = (failure as? SDKError)?.retryAfterMilliseconds
+    let retryDelay = max(
+      providerDelay ?? 0,
+      min(300_000, 5_000 * Int64(1 << min(workItem.lease.attempts, 5)))
+    )
+    try await libraryStore.retryScanWork(
+      workItem.lease,
+      errorCode: code,
+      retryAfterMilliseconds: retryDelay
+    )
+    return path
+  }
+
+  private nonisolated static func storeThumbnail(
+    _ result: MediaScreenshotResult,
+    cacheRoot: URL
+  ) throws -> LibraryGeneratedThumbnail {
+    let digest = SHA256.hash(data: result.data).map { String(format: "%02x", $0) }.joined()
+    let fileExtension = result.format == .png ? "png" : "jpg"
+    let relativePath = "thumbnails/\(digest).\(fileExtension)"
+    let folder = cacheRoot.appendingPathComponent("thumbnails", isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let destination = cacheRoot.appendingPathComponent(relativePath)
+    if !FileManager.default.fileExists(atPath: destination.path) {
+      try result.data.write(to: destination, options: .atomic)
+    }
+    return try LibraryGeneratedThumbnail(
+      localRelativePath: relativePath,
+      sha256: digest,
+      mimeType: result.mimeType,
+      width: result.width,
+      height: result.height
+    )
+  }
+
+  private func runConfiguredOptionalWorkIfPossible(
+    sourceUID: String,
+    libraryStore: LibraryStore,
+    mediaInfoClient: TestMediaInfoClient
+  ) async {
+    guard !password.isEmpty else {
+      show("Optional thumbnail/probe work is waiting for the SMB password.")
+      return
+    }
+    do {
+      let connection = try makeConnection()
+      guard connection.sourceUID == sourceUID else {
+        throw SDKError(code: .invalidConfiguration, message: "optional work source changed")
+      }
+      let session = try await connection.connector.connect()
+      do {
+        let context = DemoThumbnailWorkContext(
+          session: session,
+          cacheRoot: try applicationSupportFolder(),
+          generator: FFmpegMediaScreenshotGenerator()
+        )
+        if prefetchVideoThumbnailsWhenIdle {
+          var scheduled: Int
+          repeat {
+            scheduled = try await libraryStore.enqueueMissingThumbnailWork(
+              sourceUID: sourceUID,
+              priority: -100,
+              limit: 200
+            )
+            if scheduled > 0 {
+              show("Generating optional video thumbnails…")
+              try await enrichArtwork(
+                sourceUID: sourceUID,
+                libraryStore: libraryStore,
+                mediaInfoClient: mediaInfoClient,
+                thumbnailContext: context
+              )
+            }
+          } while scheduled == 200
+        }
+        if enableTechnicalProbe {
+          var scheduled: Int
+          repeat {
+            scheduled = try await libraryStore.enqueueMissingProbeWork(
+              sourceUID: sourceUID,
+              probeVersion: FFmpegMediaTechnicalProbe.version,
+              priority: -200,
+              limit: 200
+            )
+            if scheduled > 0 {
+              show("Inspecting optional technical metadata…")
+              try await enrichProbeWork(
+                sourceUID: sourceUID,
+                libraryStore: libraryStore,
+                session: session
+              )
+            }
+          } while scheduled == 200
+        }
+      } catch {
+        await session.disconnect()
+        throw error
+      }
+      await session.disconnect()
+    } catch {
+      show("Optional work deferred: \(Self.message(for: error))")
+    }
+  }
+
+  private func enrichProbeWork(
+    sourceUID: String,
+    libraryStore: LibraryStore,
+    session: any MediaSourceSession
+  ) async throws {
+    let workerID = "stellar-oauth-demo-probe-\(UUID().uuidString.lowercased())"
+    let metadataStore = SQLiteMediaMetadataStore(store: libraryStore)
+    while let lease = try await libraryStore.claimScanFileWork(
+      sourceUID: sourceUID,
+      stage: .probe,
+      workerID: workerID,
+      limit: 1,
+      leaseDurationMilliseconds: 120_000
+    ).first {
+      updateCurrentFile(lease.file.relativePath)
+      try await Self.processProbeWork(
+        DemoMetadataWorkItem(lease: lease),
+        libraryStore: libraryStore,
+        metadataStore: metadataStore,
+        session: session
+      )
+    }
+  }
+
+  private nonisolated static func processProbeWork(
+    _ workItem: DemoMetadataWorkItem,
+    libraryStore: LibraryStore,
+    metadataStore: SQLiteMediaMetadataStore,
+    session: any MediaSourceSession
+  ) async throws {
+    let heartbeat = Task<Void, Never> {
+      while !Task.isCancelled {
+        do {
+          try await Task.sleep(for: .seconds(30))
+          guard !Task.isCancelled else { return }
+          _ = try await libraryStore.renewScanWorkLease(
+            workItem.lease,
+            leaseDurationMilliseconds: 120_000
+          )
+        } catch {
+          return
+        }
+      }
+    }
+    defer { heartbeat.cancel() }
+    do {
+      let request = try MediaTechnicalProbeRequest(
+        locator: RemoteLocator(
+          sourceUID: workItem.file.sourceUID,
+          path: RemotePath(workItem.file.relativePath)
+        ),
+        sizeBytes: workItem.file.sizeBytes,
+        modifiedAtMilliseconds: workItem.file.modifiedAtMilliseconds,
+        entityTag: workItem.file.entityTag
+      )
+      let result = try await FFmpegMediaTechnicalProbe().probe(request, using: session)
+      try await metadataStore.persistTechnicalProbe(result, completing: workItem.lease)
     } catch {
       if Self.isCancellation(error) {
         try? await libraryStore.retryScanWork(
@@ -728,21 +1271,110 @@ final class MediaLibraryModel: ObservableObject {
         throw error
       }
       let code = (error as? SDKError)?.code ?? .unknown
-      if code == .metadataNotFound || workItem.lease.attempts + 1 >= 3 {
+      if code == .parseFailure || code == .metadataNotFound || workItem.lease.attempts + 1 >= 3 {
         try await libraryStore.failScanWork(workItem.lease, errorCode: code)
-        return path
+      } else {
+        let retryDelay = min(300_000, 5_000 * Int64(1 << min(workItem.lease.attempts, 5)))
+        try await libraryStore.retryScanWork(
+          workItem.lease,
+          errorCode: code,
+          retryAfterMilliseconds: retryDelay
+        )
       }
-      let providerDelay = (error as? SDKError)?.retryAfterMilliseconds
-      let retryDelay = max(
-        providerDelay ?? 0,
-        min(300_000, 5_000 * Int64(1 << min(workItem.lease.attempts, 5)))
+    }
+  }
+
+  private func generateOnDemandThumbnail(from details: PosterWallDetails) async throws {
+    guard scanTask == nil, let libraryStore, let mediaInfoClient, !password.isEmpty else { return }
+    let files =
+      details.playableFiles
+      + details.seasons.flatMap { season in
+        season.episodes.flatMap(\.files)
+      }
+    guard let file = files.first(where: { $0.availability == "present" }) else { return }
+    let connection = try makeConnection()
+    guard connection.sourceUID == file.sourceUID else { return }
+    try await libraryStore.enqueueOptionalScanWork(
+      sourceUID: file.sourceUID,
+      relativePath: file.relativePath,
+      stage: .artwork,
+      priority: 1_000
+    )
+    let session = try await connection.connector.connect()
+    do {
+      let context = DemoThumbnailWorkContext(
+        session: session,
+        cacheRoot: try applicationSupportFolder(),
+        generator: FFmpegMediaScreenshotGenerator()
       )
-      try await libraryStore.retryScanWork(
-        workItem.lease,
-        errorCode: code,
-        retryAfterMilliseconds: retryDelay
+      try await enrichArtwork(
+        sourceUID: file.sourceUID,
+        libraryStore: libraryStore,
+        mediaInfoClient: mediaInfoClient,
+        thumbnailContext: context,
+        maximumItems: 1
       )
-      return path
+    } catch {
+      await session.disconnect()
+      throw error
+    }
+    await session.disconnect()
+  }
+
+  private func runRepair() async {
+    defer { scanTask = nil }
+    await prepareIfNeeded()
+    guard let libraryStore, let metadataCacheStore, let mediaInfoClient,
+      let sourceUID = sourceUIDForRecovery()
+    else { return }
+    do {
+      let connection = try makeConnection()
+      guard connection.sourceUID == sourceUID else {
+        throw SDKError(code: .invalidConfiguration, message: "repair source changed")
+      }
+      scanState = .enriching
+      let repaired = try await libraryStore.resetFailedScanWork(
+        sourceUID: sourceUID,
+        stages: [.parse, .artwork, .probe]
+      )
+      guard repaired > 0 else {
+        scanState = .completed
+        show("There is no failed metadata work to repair.")
+        return
+      }
+      let session = try await connection.connector.connect()
+      do {
+        let context = DemoThumbnailWorkContext(
+          session: session,
+          cacheRoot: try applicationSupportFolder(),
+          generator: FFmpegMediaScreenshotGenerator()
+        )
+        try await enrichLibrary(
+          sourceUID: sourceUID,
+          libraryStore: libraryStore,
+          metadataCacheStore: metadataCacheStore,
+          mediaInfoClient: mediaInfoClient,
+          localMetadataLoader: DemoLocalMetadataLoader(session: session),
+          thumbnailContext: context
+        )
+        try await enrichProbeWork(
+          sourceUID: sourceUID,
+          libraryStore: libraryStore,
+          session: session
+        )
+      } catch {
+        await session.disconnect()
+        throw error
+      }
+      await session.disconnect()
+      scanState = .completed
+      updateCurrentFile(nil)
+      show("Repair processed \(repaired) failed metadata tasks.")
+      await refreshPosterWall()
+    } catch {
+      scanState = .failed
+      updateCurrentFile(nil)
+      show(error: error)
     }
   }
 
@@ -967,6 +1599,21 @@ final class MediaLibraryModel: ObservableObject {
     return "demo-smb-" + String(hash, radix: 16)
   }
 
+  private static func artworkURL(
+    _ artwork: PosterWallArtwork?,
+    supportFolder: URL
+  ) -> URL? {
+    if let remoteReference = artwork?.remoteReference,
+      let url = URL(string: remoteReference)
+    {
+      return url
+    }
+    guard let localPath = artwork?.localRelativePath,
+      let path = try? RemotePath(localPath), !path.isRoot
+    else { return nil }
+    return supportFolder.appendingPathComponent(path.relativePath)
+  }
+
   private nonisolated static func isCancellation(_ error: Error) -> Bool {
     if error is CancellationError { return true }
     return (error as? SDKError)?.code == .cancelled
@@ -1018,16 +1665,8 @@ private struct DemoScanSink: MediaScanSink {
   var preferredPageCommitBatchSize: Int { base.preferredPageCommitBatchSize }
 
   func commit(_ batch: MediaScanBatch) async throws {
-    let retainedEntries = batch.entries.filter(DemoScanFilePolicy.shouldPersist)
-    let retainedBatch = MediaScanBatch(
-      entries: retainedEntries,
-      checkpoint: batch.checkpoint,
-      completion: batch.completion,
-      enumerationState: batch.enumerationState,
-      pageTransitions: batch.pageTransitions
-    )
-    try await base.commit(retainedBatch)
-    await relay.batch(retainedEntries, checkpoint: batch.checkpoint)
+    try await base.commit(batch)
+    await relay.batch(batch.entries, checkpoint: batch.checkpoint)
   }
 }
 

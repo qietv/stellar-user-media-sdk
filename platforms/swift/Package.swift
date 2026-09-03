@@ -28,6 +28,10 @@ let package = Package(
       name: "StellarMediaImaging",
       targets: ["StellarMediaImaging"]
     ),
+    .library(
+      name: "StellarDiscMedia",
+      targets: ["StellarDiscMedia"]
+    ),
     .executable(
       name: "stellar-media",
       targets: ["StellarMediaCLI"]
@@ -39,6 +43,16 @@ let package = Package(
     .package(
       url: "https://github.com/TracyPlayer/FFmpegKit.git",
       revision: "233c6bb6657a244ef57178e5d54979d1fd3cd45d"
+    ),
+    .package(
+      url: "https://github.com/TracyPlayer/BDMVIOContext.git",
+      revision: "639c793ff0cac9a9e3601db49e5790b5ba18f321"
+    ),
+    // BDMVIOContext's `from: 5.0.0` floor lacks its current FilesManager API. Keep a direct,
+    // reproducible pin to the verified latest KSPlayer `lgpl` commit instead.
+    .package(
+      url: "https://github.com/TracyPlayer/KSPlayer.git",
+      revision: "da62452393eac406176605e6cceac8aeae265e9d"
     ),
   ],
   targets: [
@@ -110,6 +124,7 @@ let package = Package(
       dependencies: [
         "CStellarFFmpegScreenshot",
         "StellarCore",
+        "StellarMediaLibrary",
         "StellarRemoteMedia",
       ],
       linkerSettings: [
@@ -118,10 +133,20 @@ let package = Package(
       ]
     ),
     .target(
+      name: "StellarDiscMedia",
+      dependencies: [
+        "StellarCore",
+        "StellarMediaLibrary",
+        "StellarRemoteMedia",
+        .product(name: "BDMVIOContext", package: "BDMVIOContext"),
+        .product(name: "KSPlayer", package: "KSPlayer"),
+      ]
+    ),
+    .target(
       name: "StellarUserMediaSDK",
       dependencies: [
         "StellarCore", "StellarAuth", "StellarRemoteMedia", "StellarLocalMedia",
-        "StellarMediaLibrary",
+        "StellarMediaLibrary", "StellarMediaImaging",
         "StellarPosterWall", "StellarStorage", "StellarWebDAV",
       ]
     ),
@@ -143,6 +168,7 @@ let package = Package(
         "StellarSMB2Core",
         "StellarSMB2Apple",
         "StellarMediaImaging",
+        "StellarDiscMedia",
         "StellarUserMediaSDK",
         .product(name: "GRDB", package: "GRDB.swift"),
       ]

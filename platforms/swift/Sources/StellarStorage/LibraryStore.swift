@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GRDB
 import StellarCore
@@ -43,6 +44,23 @@ public struct LibrarySourceDefinition: Equatable, Sendable {
 }
 
 /// One storage command derived from an atomic source-independent scanner batch.
+public struct LibraryScanCompositeMedia: Equatable, Sendable {
+  public let locator: RemoteLocator
+  public let descriptorsJSON: String
+
+  public init(locator: RemoteLocator, descriptorsJSON: String) throws {
+    let data = Data(descriptorsJSON.utf8)
+    guard !descriptorsJSON.isEmpty, data.count <= 262_144,
+      let value = try? JSONSerialization.jsonObject(with: data), value is [Any]
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "composite media JSON is invalid")
+    }
+    self.locator = locator
+    self.descriptorsJSON = descriptorsJSON
+  }
+}
+
+/// One storage command derived from an atomic source-independent scanner batch.
 public struct LibraryScanPersistenceBatch: Sendable {
   public let runUID: String
   public let sourceUID: String
@@ -51,6 +69,7 @@ public struct LibraryScanPersistenceBatch: Sendable {
   public let checkpointJSON: String
   public let coverageJSON: String
   public let entries: [RemoteEntry]
+  public let compositeMedia: [LibraryScanCompositeMedia]
   public let capabilities: MediaSourceCapabilities?
   public let coveredRoots: [RemoteLocator]
   public let reconcileMissingEligible: Bool
@@ -84,6 +103,43 @@ public struct LibraryScanPersistenceBatch: Sendable {
       checkpointJSON: checkpointJSON,
       coverageJSON: coverageJSON,
       entries: entries,
+      compositeMedia: [],
+      capabilities: capabilities,
+      coveredRoots: coveredRoots,
+      reconcileMissingEligible: reconcileMissingEligible,
+      discoveredEntryCount: discoveredEntryCount,
+      pendingPageCount: nil,
+      processedPageCount: nil,
+      errorCode: errorCode,
+      enumerationState: nil,
+      pageTransition: nil
+    )
+  }
+
+  public init(
+    runUID: String,
+    sourceUID: String,
+    mode: String,
+    state: String,
+    checkpointJSON: String,
+    coverageJSON: String,
+    entries: [RemoteEntry],
+    compositeMedia: [LibraryScanCompositeMedia],
+    capabilities: MediaSourceCapabilities?,
+    coveredRoots: [RemoteLocator] = [],
+    reconcileMissingEligible: Bool = false,
+    discoveredEntryCount: Int64,
+    errorCode: String? = nil
+  ) throws {
+    try self.init(
+      runUID: runUID,
+      sourceUID: sourceUID,
+      mode: mode,
+      state: state,
+      checkpointJSON: checkpointJSON,
+      coverageJSON: coverageJSON,
+      entries: entries,
+      compositeMedia: compositeMedia,
       capabilities: capabilities,
       coveredRoots: coveredRoots,
       reconcileMissingEligible: reconcileMissingEligible,
@@ -122,6 +178,47 @@ public struct LibraryScanPersistenceBatch: Sendable {
       checkpointJSON: checkpointJSON,
       coverageJSON: coverageJSON,
       entries: entries,
+      compositeMedia: [],
+      capabilities: capabilities,
+      coveredRoots: coveredRoots,
+      reconcileMissingEligible: reconcileMissingEligible,
+      discoveredEntryCount: discoveredEntryCount,
+      pendingPageCount: pendingPageCount,
+      processedPageCount: processedPageCount,
+      errorCode: errorCode,
+      enumerationState: enumerationState,
+      pageTransitions: pageTransition.map { [$0] } ?? []
+    )
+  }
+
+  public init(
+    runUID: String,
+    sourceUID: String,
+    mode: String,
+    state: String,
+    checkpointJSON: String,
+    coverageJSON: String,
+    entries: [RemoteEntry],
+    compositeMedia: [LibraryScanCompositeMedia],
+    capabilities: MediaSourceCapabilities?,
+    coveredRoots: [RemoteLocator] = [],
+    reconcileMissingEligible: Bool = false,
+    discoveredEntryCount: Int64,
+    pendingPageCount: Int?,
+    processedPageCount: Int64?,
+    errorCode: String? = nil,
+    enumerationState: LibraryScanEnumerationState?,
+    pageTransition: LibraryScanPageTransition?
+  ) throws {
+    try self.init(
+      runUID: runUID,
+      sourceUID: sourceUID,
+      mode: mode,
+      state: state,
+      checkpointJSON: checkpointJSON,
+      coverageJSON: coverageJSON,
+      entries: entries,
+      compositeMedia: compositeMedia,
       capabilities: capabilities,
       coveredRoots: coveredRoots,
       reconcileMissingEligible: reconcileMissingEligible,
@@ -142,6 +239,7 @@ public struct LibraryScanPersistenceBatch: Sendable {
     checkpointJSON: String,
     coverageJSON: String,
     entries: [RemoteEntry],
+    compositeMedia: [LibraryScanCompositeMedia],
     capabilities: MediaSourceCapabilities?,
     coveredRoots: [RemoteLocator] = [],
     reconcileMissingEligible: Bool = false,
@@ -159,6 +257,10 @@ public struct LibraryScanPersistenceBatch: Sendable {
       pendingPageCount.map({ $0 >= 0 }) ?? true,
       processedPageCount.map({ $0 >= 0 }) ?? true,
       entries.allSatisfy({ $0.locator.sourceUID == sourceUID }),
+      compositeMedia.allSatisfy({ $0.locator.sourceUID == sourceUID }),
+      compositeMedia.allSatisfy({ item in
+        entries.contains(where: { $0.kind == .file && $0.locator == item.locator })
+      }),
       coveredRoots.allSatisfy({ $0.sourceUID == sourceUID }),
       enumerationState.map({ state in
         (state.pendingPages + state.completedPages).allSatisfy {
@@ -170,7 +272,8 @@ public struct LibraryScanPersistenceBatch: Sendable {
       }),
       enumerationState == nil || pageTransitions.isEmpty,
       !reconcileMissingEligible || state == "completed",
-      !reconcileMissingEligible || capabilities != nil
+      !reconcileMissingEligible || capabilities != nil,
+      !reconcileMissingEligible || !coveredRoots.isEmpty
     else {
       throw SDKError(code: .invalidConfiguration, message: "scan persistence batch is invalid")
     }
@@ -181,6 +284,7 @@ public struct LibraryScanPersistenceBatch: Sendable {
     self.checkpointJSON = checkpointJSON
     self.coverageJSON = coverageJSON
     self.entries = entries
+    self.compositeMedia = compositeMedia
     self.capabilities = capabilities
     self.coveredRoots = coveredRoots
     self.reconcileMissingEligible = reconcileMissingEligible
@@ -560,6 +664,78 @@ public struct LibraryRemoteArtwork: Equatable, Sendable {
   }
 }
 
+/// One generated local video thumbnail ready for an artwork-stage commit.
+public struct LibraryGeneratedThumbnail: Equatable, Sendable {
+  public let localRelativePath: String
+  public let sha256: String
+  public let mimeType: String
+  public let width: Int
+  public let height: Int
+
+  public init(
+    localRelativePath: String,
+    sha256: String,
+    mimeType: String,
+    width: Int,
+    height: Int
+  ) throws {
+    let path = try RemotePath(localRelativePath)
+    let digestPattern = #"^[0-9a-f]{64}$"#
+    guard !path.isRoot, path.relativePath == localRelativePath,
+      sha256.range(of: digestPattern, options: .regularExpression) != nil,
+      mimeType == "image/jpeg" || mimeType == "image/png",
+      width > 0, height > 0
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "generated thumbnail is invalid")
+    }
+    self.localRelativePath = path.relativePath
+    self.sha256 = sha256
+    self.mimeType = mimeType
+    self.width = width
+    self.height = height
+  }
+}
+
+/// One ordered, currently available media input selected for a collection thumbnail.
+public struct LibraryCollectionThumbnailMember: Equatable, Sendable {
+  public let entityUID: String
+  public let fileUID: String
+  public let locator: RemoteLocator
+  public let materialRevision: Int64
+
+  package init(
+    entityUID: String,
+    fileUID: String,
+    locator: RemoteLocator,
+    materialRevision: Int64
+  ) {
+    self.entityUID = entityUID
+    self.fileUID = fileUID
+    self.locator = locator
+    self.materialRevision = materialRevision
+  }
+}
+
+/// A revision-safe collection thumbnail target and its ordered media inputs.
+public struct LibraryCollectionThumbnailTarget: Equatable, Sendable {
+  public let collectionUID: String
+  public let inputSignature: String
+  public let members: [LibraryCollectionThumbnailMember]
+  public let currentThumbnail: LibraryGeneratedThumbnail?
+
+  package init(
+    collectionUID: String,
+    inputSignature: String,
+    members: [LibraryCollectionThumbnailMember],
+    currentThumbnail: LibraryGeneratedThumbnail?
+  ) {
+    self.collectionUID = collectionUID
+    self.inputSignature = inputSignature
+    self.members = members
+    self.currentThumbnail = currentThumbnail
+  }
+}
+
 /// A normalized filename parse result ready for the library database.
 package struct LibraryFilenameParseRecord: Equatable, Sendable {
   public let mediaKind: String
@@ -842,26 +1018,119 @@ public struct LibraryStore: Sendable {
     self.uuidGenerator = uuidGenerator
   }
 
+  /// Resolves the ordered, currently available media inputs for a collection thumbnail.
+  ///
+  /// The input signature covers the complete ordered collection membership and the revisions of
+  /// its bound files. A stored thumbnail is returned only while that signature remains current.
+  public func collectionThumbnailTarget(
+    collectionUID: String,
+    maximumItems: Int = 4
+  ) async throws -> LibraryCollectionThumbnailTarget {
+    guard !collectionUID.isEmpty, !collectionUID.contains("\0"), (1...4).contains(maximumItems)
+    else {
+      throw SDKError(
+        code: .invalidConfiguration,
+        message: "collection thumbnail target request is invalid"
+      )
+    }
+    do {
+      return try await database.read { database in
+        try Self.makeCollectionThumbnailTarget(
+          collectionUID: collectionUID,
+          maximumItems: maximumItems,
+          database: database
+        )
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "collection thumbnail target read failed")
+    }
+  }
+
+  /// Persists a generated collection thumbnail if its complete input signature is still current.
+  @discardableResult
+  public func commitGeneratedCollectionThumbnail(
+    _ thumbnail: LibraryGeneratedThumbnail,
+    for target: LibraryCollectionThumbnailTarget,
+    provider: String = "stellar-media-imaging-playlist-v1"
+  ) async throws -> String {
+    guard !provider.isEmpty, !provider.contains("\0") else {
+      throw SDKError(
+        code: .invalidConfiguration, message: "collection thumbnail provider is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    do {
+      return try await database.write { database in
+        let currentSignature = try Self.collectionThumbnailInputSignature(
+          collectionUID: target.collectionUID,
+          database: database
+        )
+        guard currentSignature == target.inputSignature else {
+          throw SDKError(code: .conflict, message: "collection thumbnail input changed")
+        }
+        try database.execute(
+          sql: """
+            INSERT INTO collection_thumbnail(
+              collection_id, provider, input_signature, sha256, local_relative_path,
+              mime_type, width, height, updated_at_ms
+            )
+            SELECT id, ?, ?, ?, ?, ?, ?, ?, ?
+            FROM media_collection
+            WHERE uid = ? AND deleted_at_ms IS NULL
+            ON CONFLICT(collection_id) DO UPDATE SET
+              provider = excluded.provider,
+              input_signature = excluded.input_signature,
+              sha256 = excluded.sha256,
+              local_relative_path = excluded.local_relative_path,
+              mime_type = excluded.mime_type,
+              width = excluded.width,
+              height = excluded.height,
+              updated_at_ms = excluded.updated_at_ms
+            """,
+          arguments: [
+            provider, target.inputSignature, thumbnail.sha256, thumbnail.localRelativePath,
+            thumbnail.mimeType, thumbnail.width, thumbnail.height, now, target.collectionUID,
+          ]
+        )
+        guard database.changesCount == 1 else {
+          throw SDKError(code: .metadataNotFound, message: "collection was not found")
+        }
+        return target.collectionUID
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "collection thumbnail commit failed")
+    }
+  }
+
   /// Inserts or updates non-secret media-source metadata.
   public func registerSource(_ source: LibrarySourceDefinition) async throws {
     let now = clock.nowMilliseconds()
+    let missingPolicy = LibraryMissingRetentionPolicy.recommended(for: source.kind)
     do {
       try await database.write { database in
         try database.execute(
           sql: """
             INSERT INTO library_source(
               uid, kind, display_name, root_uri, scan_policy, enabled,
+              missing_grace_ms, missing_required_scan_count, missing_empty_root_guard,
+              missing_drop_guard_percent, missing_drop_guard_minimum_count,
               created_at_ms, updated_at_ms
-            ) VALUES (?, ?, ?, ?, 'incremental', 1, ?, ?)
+            ) VALUES (?, ?, ?, ?, 'incremental', 1, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(uid) DO UPDATE SET
               kind = excluded.kind,
               display_name = excluded.display_name,
               root_uri = excluded.root_uri,
               updated_at_ms = excluded.updated_at_ms,
               deleted_at_ms = NULL
-            """,
+          """,
           arguments: [
-            source.uid, source.kind.rawValue, source.displayName, source.rootURI, now, now,
+            source.uid, source.kind.rawValue, source.displayName, source.rootURI,
+            missingPolicy.gracePeriodMilliseconds, missingPolicy.requiredMissingScanCount,
+            missingPolicy.protectsEmptyResult ? 1 : 0, missingPolicy.suspiciousDropPercentage,
+            missingPolicy.suspiciousDropMinimumCount, now, now,
           ]
         )
       }
@@ -1005,9 +1274,14 @@ public struct LibraryStore: Sendable {
         }
 
         var changedCount = 0
+        var observedFileCount: Int64 = 0
+        var actualReconcileMissing = false
+        var reconciliationWarningCode: String?
+        var reconciliationWarningSummary: String?
         if let capabilities = batch.capabilities {
           try Self.stage(
             entries: batch.entries,
+            compositeMedia: batch.compositeMedia,
             runID: runID,
             capabilities: capabilities,
             database: database
@@ -1017,12 +1291,7 @@ public struct LibraryStore: Sendable {
         }
 
         if batch.state == "completed" {
-          changedCount = try Self.publishStagedFiles(
-            sourceID: sourceID,
-            runID: runID,
-            now: now,
-            database: database
-          )
+          observedFileCount = try Self.countStagedFiles(runID: runID, database: database)
           if batch.reconcileMissingEligible {
             guard let capabilities = batch.capabilities else {
               throw SDKError(
@@ -1030,6 +1299,27 @@ public struct LibraryStore: Sendable {
                 message: "missing reconciliation has no source capabilities"
               )
             }
+            let decision = try Self.missingReconciliationDecision(
+              sourceID: sourceID,
+              runID: runID,
+              coverageJSON: batch.coverageJSON,
+              roots: batch.coveredRoots,
+              semantics: capabilities.pathSemantics,
+              database: database
+            )
+            observedFileCount = decision.observedFileCount
+            actualReconcileMissing = decision.shouldReconcile
+            reconciliationWarningCode = decision.warningCode
+            reconciliationWarningSummary = decision.warningSummary
+          }
+          changedCount = try Self.publishStagedFiles(
+            sourceID: sourceID,
+            runID: runID,
+            now: now,
+            database: database
+          )
+          try Self.reactivateEntitiesBoundToPublishedFiles(now: now, database: database)
+          if actualReconcileMissing, let capabilities = batch.capabilities {
             try Self.reconcileMissing(
               sourceID: sourceID,
               runID: runID,
@@ -1042,6 +1332,8 @@ public struct LibraryStore: Sendable {
         }
 
         let terminal = ["completed", "failed", "cancelled"].contains(batch.state)
+        let effectiveErrorCode = batch.errorCode ?? reconciliationWarningCode
+        let effectiveErrorSummary = reconciliationWarningSummary
         try database.execute(
           sql: """
             UPDATE scan_run SET
@@ -1049,32 +1341,72 @@ public struct LibraryStore: Sendable {
               checkpoint_json = ?,
               coverage_json = ?,
               reconcile_missing = ?,
+              observed_file_count = ?,
               finished_at_ms = ?,
               discovered_count = ?,
               changed_count = changed_count + ?,
               error_count = CASE WHEN ? IS NULL THEN error_count ELSE error_count + 1 END,
-              error_code = ?
+              error_code = ?,
+              error_summary = ?
             WHERE id = ?
             """,
           arguments: [
             batch.state, batch.checkpointJSON, batch.coverageJSON,
-            batch.reconcileMissingEligible ? 1 : 0, terminal ? now : nil,
-            batch.discoveredEntryCount, changedCount, batch.errorCode, batch.errorCode, runID,
+            actualReconcileMissing ? 1 : 0, observedFileCount, terminal ? now : nil,
+            batch.discoveredEntryCount, changedCount, effectiveErrorCode, effectiveErrorCode,
+            effectiveErrorSummary, runID,
           ]
         )
         if batch.state == "completed" {
           try database.execute(
-            sql: "UPDATE library_source SET last_scan_at_ms = ?, updated_at_ms = ? WHERE id = ?",
-            arguments: [now, now, sourceID]
+            sql: """
+              UPDATE library_source SET
+                last_scan_at_ms = ?,
+                last_successful_scan_at_ms = CASE
+                  WHEN ? = 1 OR ? = 0 THEN ? ELSE last_successful_scan_at_ms END,
+                offline_since_ms = NULL,
+                last_error_code = ?,
+                updated_at_ms = ?
+              WHERE id = ?
+              """,
+            arguments: [
+              now, actualReconcileMissing ? 1 : 0, batch.reconcileMissingEligible ? 1 : 0,
+              now, reconciliationWarningCode, now, sourceID,
+            ]
           )
           try database.execute(
             sql: "DELETE FROM scan_frontier WHERE run_id = ?",
             arguments: [runID]
           )
           try database.execute(sql: "DELETE FROM scan_seen WHERE run_id = ?", arguments: [runID])
+          if reconciliationWarningCode != Self.missingReconciliationWithheldCode {
+            try database.execute(
+              sql: "DELETE FROM scan_discovery WHERE run_id = ?",
+              arguments: [runID]
+            )
+          }
           try database.execute(
-            sql: "DELETE FROM scan_discovery WHERE run_id = ?",
-            arguments: [runID]
+            sql: """
+              DELETE FROM scan_discovery
+              WHERE run_id IN (
+                SELECT id FROM scan_run
+                WHERE source_id = ? AND id <> ? AND state = 'completed' AND error_code = ?
+              )
+              """,
+            arguments: [sourceID, runID, Self.missingReconciliationWithheldCode]
+          )
+        } else if batch.state == "failed" {
+          let marksOffline = batch.errorCode == SDKErrorCode.networkUnavailable.rawValue
+            || batch.errorCode == SDKErrorCode.remoteUnavailable.rawValue
+          try database.execute(
+            sql: """
+              UPDATE library_source SET
+                offline_since_ms = CASE WHEN ? = 1
+                  THEN COALESCE(offline_since_ms, ?) ELSE offline_since_ms END,
+                last_error_code = ?, updated_at_ms = ?
+              WHERE id = ?
+              """,
+            arguments: [marksOffline ? 1 : 0, now, batch.errorCode, now, sourceID]
           )
         }
       }
@@ -1288,6 +1620,261 @@ public struct LibraryStore: Sendable {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "outstanding scan work query failed")
+    }
+  }
+
+  /// Enqueues one optional artwork/probe task against the file's current material revision.
+  /// Completed and failed rows may be deliberately revived by on-demand or repair workflows.
+  public func enqueueOptionalScanWork(
+    sourceUID: String,
+    relativePath: String,
+    stage: LibraryScanQueueStage,
+    priority: Int = 0
+  ) async throws {
+    let path = try RemotePath(relativePath)
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0"), !path.isRoot,
+      stage == .artwork || stage == .probe,
+      (-1_000_000...1_000_000).contains(priority)
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "optional scan work is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    do {
+      try await database.write { database in
+        guard
+          let row = try Row.fetchOne(
+            database,
+            sql: """
+              SELECT f.id AS media_file_id, f.material_revision,
+                     (SELECT r.id FROM scan_run r
+                      WHERE r.source_id = s.id ORDER BY r.id DESC LIMIT 1) AS run_id
+              FROM media_file f
+              JOIN library_source s ON s.id = f.source_id
+              WHERE s.uid = ? AND f.relative_path = ?
+                AND s.deleted_at_ms IS NULL AND f.deleted_at_ms IS NULL
+                AND f.availability = 'present'
+              """,
+            arguments: [sourceUID, path.relativePath]
+          ),
+          let runID: Int64 = row["run_id"]
+        else {
+          throw SDKError(code: .metadataNotFound, message: "optional work file was not found")
+        }
+        try Self.enqueueOptionalScanWork(
+          runID: runID,
+          mediaFileID: row["media_file_id"],
+          inputRevision: row["material_revision"],
+          stage: stage,
+          priority: priority,
+          now: now,
+          database: database
+        )
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "optional scan work enqueue failed")
+    }
+  }
+
+  /// Queues at most one current file per logical entity that lacks a current generated thumbnail.
+  @discardableResult
+  public func enqueueMissingThumbnailWork(
+    sourceUID: String,
+    priority: Int = -100,
+    limit: Int = 200
+  ) async throws -> Int {
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0"),
+      (-1_000_000...1_000_000).contains(priority), (1...2_000).contains(limit)
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "thumbnail work enqueue is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    do {
+      return try await database.write { database in
+        guard
+          let runID = try Int64.fetchOne(
+            database,
+            sql: """
+              SELECT r.id
+              FROM scan_run r JOIN library_source s ON s.id = r.source_id
+              WHERE s.uid = ? ORDER BY r.id DESC LIMIT 1
+              """,
+            arguments: [sourceUID]
+          )
+        else { return 0 }
+        let rows = try Row.fetchAll(
+          database,
+          sql: """
+            WITH RECURSIVE ancestors(media_file_id, entity_id, parent_id) AS (
+              SELECT binding.media_file_id, entity.id, entity.parent_id
+              FROM file_binding binding
+              JOIN media_entity entity ON entity.id = binding.entity_id
+              WHERE binding.binding_role IN ('primary', 'version')
+              UNION ALL
+              SELECT child.media_file_id, parent.id, parent.parent_id
+              FROM ancestors child
+              JOIN media_entity parent ON parent.id = child.parent_id
+            ), candidates AS (
+              SELECT file.id AS media_file_id, file.material_revision,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY root.entity_id
+                       ORDER BY file.path_compare_key, file.id
+                     ) AS entity_rank
+              FROM ancestors root
+              JOIN media_file file ON file.id = root.media_file_id
+              JOIN library_source source ON source.id = file.source_id
+              WHERE root.parent_id IS NULL AND source.uid = ?
+                AND source.deleted_at_ms IS NULL AND file.deleted_at_ms IS NULL
+                AND file.availability = 'present'
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM artwork art
+                  JOIN ancestors valid_root
+                    ON valid_root.entity_id = root.entity_id AND valid_root.parent_id IS NULL
+                  JOIN media_file valid_file ON valid_file.id = valid_root.media_file_id
+                  WHERE art.entity_id = root.entity_id AND art.kind = 'thumbnail'
+                    AND art.provider = 'stellar-media-imaging-v1:' || valid_file.uid || ':'
+                      || valid_file.material_revision
+                    AND valid_file.availability = 'present'
+                    AND valid_file.deleted_at_ms IS NULL
+                )
+            )
+            SELECT media_file_id, material_revision
+            FROM candidates
+            WHERE entity_rank = 1
+            ORDER BY media_file_id
+            LIMIT ?
+            """,
+          arguments: [sourceUID, limit]
+        )
+        for row in rows {
+          try Self.enqueueOptionalScanWork(
+            runID: runID,
+            mediaFileID: row["media_file_id"],
+            inputRevision: row["material_revision"],
+            stage: .artwork,
+            priority: priority,
+            now: now,
+            database: database
+          )
+        }
+        return rows.count
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "thumbnail work enqueue failed")
+    }
+  }
+
+  /// Queues present files whose persisted technical result is absent or from another version.
+  @discardableResult
+  public func enqueueMissingProbeWork(
+    sourceUID: String,
+    probeVersion: Int,
+    priority: Int = -200,
+    limit: Int = 200
+  ) async throws -> Int {
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0"), probeVersion > 0,
+      (-1_000_000...1_000_000).contains(priority), (1...2_000).contains(limit)
+    else {
+      throw SDKError(code: .invalidConfiguration, message: "probe work enqueue is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    do {
+      return try await database.write { database in
+        guard
+          let runID = try Int64.fetchOne(
+            database,
+            sql: """
+              SELECT r.id
+              FROM scan_run r JOIN library_source s ON s.id = r.source_id
+              WHERE s.uid = ? ORDER BY r.id DESC LIMIT 1
+              """,
+            arguments: [sourceUID]
+          )
+        else { return 0 }
+        let rows = try Row.fetchAll(
+          database,
+          sql: """
+            SELECT file.id AS media_file_id, file.material_revision
+            FROM media_file file
+            JOIN library_source source ON source.id = file.source_id
+            LEFT JOIN technical_summary summary ON summary.media_file_id = file.id
+            WHERE source.uid = ? AND source.deleted_at_ms IS NULL
+              AND file.deleted_at_ms IS NULL AND file.availability = 'present'
+              AND (file.probe_version IS NULL OR file.probe_version <> ?
+                   OR summary.probe_version IS NULL OR summary.probe_version <> ?)
+            ORDER BY file.path_compare_key, file.id
+            LIMIT ?
+            """,
+          arguments: [sourceUID, probeVersion, probeVersion, limit]
+        )
+        for row in rows {
+          try Self.enqueueOptionalScanWork(
+            runID: runID,
+            mediaFileID: row["media_file_id"],
+            inputRevision: row["material_revision"],
+            stage: .probe,
+            priority: priority,
+            now: now,
+            database: database
+          )
+        }
+        return rows.count
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "probe work enqueue failed")
+    }
+  }
+
+  /// Revives terminal failures for a user-initiated repair without changing successful work.
+  @discardableResult
+  public func resetFailedScanWork(
+    sourceUID: String,
+    stages: [LibraryScanQueueStage] = LibraryScanQueueStage.allCases
+  ) async throws -> Int {
+    let uniqueStages = Array(Set(stages.map(\.rawValue))).sorted()
+    guard !sourceUID.isEmpty, !sourceUID.contains("\0"), !uniqueStages.isEmpty else {
+      throw SDKError(code: .invalidConfiguration, message: "scan work repair is invalid")
+    }
+    let placeholders = Array(repeating: "?", count: uniqueStages.count).joined(separator: ",")
+    let now = clock.nowMilliseconds()
+    do {
+      return try await database.write { database in
+        try database.execute(
+          sql: """
+            UPDATE scan_queue AS queue
+            SET state = 'retry', attempts = 0, next_attempt_at_ms = NULL,
+                lease_until_ms = NULL, claimed_by = NULL, claim_token = NULL,
+                heartbeat_at_ms = NULL, error_code = NULL, error_message = NULL,
+                input_revision = (
+                  SELECT file.material_revision FROM media_file file
+                  WHERE file.id = queue.media_file_id
+                ),
+                updated_at_ms = ?
+            WHERE queue.state = 'failed'
+              AND queue.stage IN (\(placeholders))
+              AND EXISTS (
+                SELECT 1
+                FROM media_file file
+                JOIN library_source source ON source.id = file.source_id
+                WHERE file.id = queue.media_file_id AND source.uid = ?
+                  AND source.deleted_at_ms IS NULL AND file.deleted_at_ms IS NULL
+                  AND file.availability = 'present'
+              )
+            """,
+          arguments: StatementArguments([now] + uniqueStages + [sourceUID])
+        )
+        return database.changesCount
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "scan work repair failed")
     }
   }
 
@@ -2072,6 +2659,23 @@ public struct LibraryStore: Sendable {
     _ artwork: LibraryRemoteArtwork,
     completing lease: LibraryScanWorkLease
   ) async throws -> String {
+    try await storeRemoteArtwork(artwork, for: lease, completesLease: true)
+  }
+
+  /// Persists a remote poster while retaining the visual-assets lease for another optional asset.
+  @discardableResult
+  public func storeRemoteArtwork(
+    _ artwork: LibraryRemoteArtwork,
+    for lease: LibraryScanWorkLease
+  ) async throws -> String {
+    try await storeRemoteArtwork(artwork, for: lease, completesLease: false)
+  }
+
+  private func storeRemoteArtwork(
+    _ artwork: LibraryRemoteArtwork,
+    for lease: LibraryScanWorkLease,
+    completesLease: Bool
+  ) async throws -> String {
     guard lease.stage == .artwork else {
       throw SDKError(code: .invalidConfiguration, message: "remote artwork lease is invalid")
     }
@@ -2173,21 +2777,23 @@ public struct LibraryStore: Sendable {
           )
         }
 
-        try database.execute(
-          sql: """
-            UPDATE scan_queue
-            SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
-                claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
-                error_code = NULL, error_message = NULL, updated_at_ms = ?
-            WHERE id = ? AND stage = 'artwork' AND state = 'running'
-              AND claimed_by = ? AND claim_token = ? AND input_revision = ?
-            """,
-          arguments: [
-            now, lease.queueID, lease.workerID, lease.claimToken, lease.inputRevision,
-          ]
-        )
-        guard database.changesCount == 1 else {
-          throw SDKError(code: .conflict, message: "remote artwork commit lost its lease")
+        if completesLease {
+          try database.execute(
+            sql: """
+              UPDATE scan_queue
+              SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                  claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                  error_code = NULL, error_message = NULL, updated_at_ms = ?
+              WHERE id = ? AND stage = 'artwork' AND state = 'running'
+                AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+              """,
+            arguments: [
+              now, lease.queueID, lease.workerID, lease.claimToken, lease.inputRevision,
+            ]
+          )
+          guard database.changesCount == 1 else {
+            throw SDKError(code: .conflict, message: "remote artwork commit lost its lease")
+          }
         }
         return entityUID
       }
@@ -2195,6 +2801,129 @@ public struct LibraryStore: Sendable {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "remote artwork commit failed")
+    }
+  }
+
+  /// Persists a generated thumbnail for the claimed file revision while retaining the lease.
+  /// The provider key embeds the source file UID and material revision so idle scheduling can
+  /// distinguish a current thumbnail from a stale, regenerable one without another schema table.
+  @discardableResult
+  public func storeGeneratedThumbnail(
+    _ thumbnail: LibraryGeneratedThumbnail,
+    for lease: LibraryScanWorkLease
+  ) async throws -> String {
+    try await persistGeneratedThumbnail(thumbnail, for: lease, completesLease: false)
+  }
+
+  /// Atomically persists a generated thumbnail and completes its artwork lease.
+  @discardableResult
+  public func commitGeneratedThumbnail(
+    _ thumbnail: LibraryGeneratedThumbnail,
+    for lease: LibraryScanWorkLease
+  ) async throws -> String {
+    try await persistGeneratedThumbnail(thumbnail, for: lease, completesLease: true)
+  }
+
+  private func persistGeneratedThumbnail(
+    _ thumbnail: LibraryGeneratedThumbnail,
+    for lease: LibraryScanWorkLease,
+    completesLease: Bool
+  ) async throws -> String {
+    guard lease.stage == .artwork else {
+      throw SDKError(code: .invalidConfiguration, message: "thumbnail artwork lease is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    let artworkUID = uuidGenerator.makeUUID().uuidString.lowercased()
+    do {
+      return try await database.write { database in
+        try Self.requireActiveScanWorkLease(lease, now: now, database: database)
+        guard
+          let row = try Row.fetchOne(
+            database,
+            sql: """
+              WITH RECURSIVE ancestors(id, uid, parent_id) AS (
+                SELECT entity.id, entity.uid, entity.parent_id
+                FROM scan_queue queue
+                JOIN file_binding binding ON binding.media_file_id = queue.media_file_id
+                JOIN media_entity entity ON entity.id = binding.entity_id
+                WHERE queue.id = ? AND binding.binding_role IN ('primary', 'version')
+                UNION ALL
+                SELECT parent.id, parent.uid, parent.parent_id
+                FROM media_entity parent
+                JOIN ancestors child ON child.parent_id = parent.id
+              )
+              SELECT ancestors.id AS entity_id, ancestors.uid AS entity_uid,
+                     file.uid AS file_uid
+              FROM ancestors
+              JOIN scan_queue queue ON queue.id = ?
+              JOIN media_file file ON file.id = queue.media_file_id
+              WHERE ancestors.parent_id IS NULL
+                AND ancestors.id IN (
+                  SELECT id FROM media_entity WHERE kind IN ('movie', 'series')
+                )
+              LIMIT 1
+              """,
+            arguments: [lease.queueID, lease.queueID]
+          )
+        else {
+          throw SDKError(code: .metadataNotFound, message: "thumbnail has no bound root entity")
+        }
+        let entityID: Int64 = row["entity_id"]
+        let entityUID: String = row["entity_uid"]
+        let fileUID: String = row["file_uid"]
+        let provider = "stellar-media-imaging-v1:\(fileUID):\(lease.inputRevision)"
+
+        try database.execute(
+          sql: """
+            DELETE FROM artwork
+            WHERE entity_id = ? AND kind = 'thumbnail'
+              AND provider LIKE 'stellar-media-imaging-v1:%'
+            """,
+          arguments: [entityID]
+        )
+        try database.execute(
+          sql: """
+            UPDATE artwork SET is_selected = 0, updated_at_ms = ?
+            WHERE entity_id = ? AND kind = 'thumbnail' AND is_selected = 1
+            """,
+          arguments: [now, entityID]
+        )
+        try database.execute(
+          sql: """
+            INSERT INTO artwork(
+              uid, entity_id, kind, locale, provider, sha256, local_relative_path,
+              mime_type, width, height, score, is_selected, fetched_at_ms, updated_at_ms
+            ) VALUES (?, ?, 'thumbnail', 'und', ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)
+            """,
+          arguments: [
+            artworkUID, entityID, provider, thumbnail.sha256, thumbnail.localRelativePath,
+            thumbnail.mimeType, thumbnail.width, thumbnail.height, now, now,
+          ]
+        )
+        if completesLease {
+          try database.execute(
+            sql: """
+              UPDATE scan_queue
+              SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                  claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                  error_code = NULL, error_message = NULL, updated_at_ms = ?
+              WHERE id = ? AND stage = 'artwork' AND state = 'running'
+                AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+              """,
+            arguments: [
+              now, lease.queueID, lease.workerID, lease.claimToken, lease.inputRevision,
+            ]
+          )
+          guard database.changesCount == 1 else {
+            throw SDKError(code: .conflict, message: "generated thumbnail commit lost its lease")
+          }
+        }
+        return entityUID
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "generated thumbnail commit failed")
     }
   }
 
@@ -2548,6 +3277,107 @@ public struct LibraryStore: Sendable {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "metadata intake transaction failed")
+    }
+  }
+
+  /// Atomically persists an opt-in technical probe and completes its revision-safe lease.
+  package func commitTechnicalProbe(
+    _ probe: LibraryTechnicalProbeRecord,
+    completing lease: LibraryScanWorkLease
+  ) async throws {
+    guard lease.stage == .probe else {
+      throw SDKError(code: .invalidConfiguration, message: "technical probe lease is invalid")
+    }
+    let now = clock.nowMilliseconds()
+    do {
+      try await database.write { database in
+        try Self.requireActiveScanWorkLease(lease, now: now, database: database)
+        guard
+          let mediaFileID = try Int64.fetchOne(
+            database,
+            sql: "SELECT media_file_id FROM scan_queue WHERE id = ?",
+            arguments: [lease.queueID]
+          )
+        else {
+          throw SDKError(code: .metadataNotFound, message: "technical probe file is unavailable")
+        }
+        let summary = probe.summary
+        try database.execute(
+          sql: """
+            INSERT INTO technical_summary(
+              media_file_id, container, duration_ms, overall_bitrate, video_codec,
+              width, height, frame_rate, hdr_profile, audio_codec, audio_channels,
+              embedded_cover, probe_provider, probe_version, probed_at_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(media_file_id) DO UPDATE SET
+              container = excluded.container,
+              duration_ms = excluded.duration_ms,
+              overall_bitrate = excluded.overall_bitrate,
+              video_codec = excluded.video_codec,
+              width = excluded.width,
+              height = excluded.height,
+              frame_rate = excluded.frame_rate,
+              hdr_profile = excluded.hdr_profile,
+              audio_codec = excluded.audio_codec,
+              audio_channels = excluded.audio_channels,
+              embedded_cover = excluded.embedded_cover,
+              probe_provider = excluded.probe_provider,
+              probe_version = excluded.probe_version,
+              probed_at_ms = excluded.probed_at_ms
+            """,
+          arguments: [
+            mediaFileID, summary.container, summary.durationMilliseconds, summary.overallBitrate,
+            summary.videoCodec, summary.width, summary.height, summary.frameRate,
+            summary.hdrProfile, summary.audioCodec, summary.audioChannels,
+            summary.hasEmbeddedCover ? 1 : 0, probe.probeProvider, probe.probeVersion, now,
+          ]
+        )
+        try database.execute(
+          sql: "DELETE FROM media_stream WHERE media_file_id = ?",
+          arguments: [mediaFileID]
+        )
+        for stream in probe.streams {
+          try database.execute(
+            sql: """
+              INSERT INTO media_stream(
+                media_file_id, stream_index, kind, codec, language, title, bit_rate,
+                width, height, frame_rate, hdr_profile, channel_count, channel_layout,
+                sample_rate, is_default, is_forced
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              """,
+            arguments: [
+              mediaFileID, stream.streamIndex, stream.kind, stream.codec, stream.language,
+              stream.title, stream.bitrate, stream.width, stream.height, stream.frameRate,
+              stream.hdrProfile, stream.channelCount, stream.channelLayout, stream.sampleRate,
+              stream.isDefault ? 1 : 0, stream.isForced ? 1 : 0,
+            ]
+          )
+        }
+        try database.execute(
+          sql: "UPDATE media_file SET probe_version = ?, updated_at_ms = ? WHERE id = ?",
+          arguments: [probe.probeVersion, now, mediaFileID]
+        )
+        try database.execute(
+          sql: """
+            UPDATE scan_queue
+            SET state = 'done', next_attempt_at_ms = NULL, lease_until_ms = NULL,
+                claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+                error_code = NULL, error_message = NULL, updated_at_ms = ?
+            WHERE id = ? AND stage = 'probe' AND state = 'running'
+              AND claimed_by = ? AND claim_token = ? AND input_revision = ?
+            """,
+          arguments: [
+            now, lease.queueID, lease.workerID, lease.claimToken, lease.inputRevision,
+          ]
+        )
+        guard database.changesCount == 1 else {
+          throw SDKError(code: .conflict, message: "technical probe commit lost its lease")
+        }
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "technical probe commit failed")
     }
   }
 
@@ -2919,18 +3749,12 @@ public struct LibraryStore: Sendable {
 
   private static func stage(
     entries: [RemoteEntry],
+    compositeMedia: [LibraryScanCompositeMedia],
     runID: Int64,
     capabilities: MediaSourceCapabilities,
     database: Database
   ) throws {
-    let files = entries.compactMap { entry in
-      entry.kind == .file
-        ? PreparedScanFile(
-          entry: entry,
-          capabilities: capabilities
-        ) : nil
-    }
-    guard !files.isEmpty else { return }
+    guard let firstFileIndex = entries.firstIndex(where: { $0.kind == .file }) else { return }
     // Keep the staging row lightweight. A durable UID is generated only after publish confirms
     // that no media_file already owns this stable key.
     let insert = try database.makeStatement(
@@ -2952,7 +3776,8 @@ public struct LibraryStore: Sendable {
           etag = excluded.etag
         """
     )
-    for file in files {
+    for entry in entries[firstFileIndex...] where entry.kind == .file {
+      let file = PreparedScanFile(entry: entry, capabilities: capabilities)
       try insert.execute(
         arguments: [
           runID, file.stableKey, file.stableID, file.parentStableKey,
@@ -2960,6 +3785,24 @@ public struct LibraryStore: Sendable {
           file.sizeBytes, file.modifiedAtMilliseconds, file.entityTag,
         ]
       )
+    }
+    guard !compositeMedia.isEmpty else { return }
+    let updateComposite = try database.makeStatement(
+      sql: """
+        UPDATE scan_discovery
+        SET composite_media_json = ?
+        WHERE run_id = ? AND path_compare_key = ?
+        """
+    )
+    for item in compositeMedia {
+      let pathCompareKey = item.locator.pathComparisonKey(using: capabilities.pathSemantics)
+      try updateComposite.execute(arguments: [item.descriptorsJSON, runID, pathCompareKey])
+      guard database.changesCount == 1 else {
+        throw SDKError(
+          code: .storageFailure,
+          message: "composite media descriptor has no staged file"
+        )
+      }
     }
   }
 
@@ -2989,6 +3832,7 @@ public struct LibraryStore: Sendable {
             OR file.size_bytes IS NOT discovery.size_bytes
             OR file.modified_at_ms IS NOT discovery.modified_at_ms
             OR file.etag IS NOT discovery.etag
+            OR file.composite_media_json IS NOT discovery.composite_media_json
             OR file.availability <> 'present'
           THEN 1 ELSE 0 END
         FROM scan_discovery AS discovery
@@ -3016,6 +3860,7 @@ public struct LibraryStore: Sendable {
             size_bytes = discovery.size_bytes,
             modified_at_ms = discovery.modified_at_ms,
             etag = discovery.etag,
+            composite_media_json = discovery.composite_media_json,
             availability = 'present',
             last_seen_run_id = ?,
             missing_since_ms = NULL,
@@ -3068,14 +3913,14 @@ public struct LibraryStore: Sendable {
           INSERT INTO media_file(
             uid, source_id, stable_key, stable_id, parent_stable_key, relative_path,
             path_compare_key, display_name, extension, size_bytes, modified_at_ms, etag,
-            availability, last_seen_run_id, updated_at_ms
+            composite_media_json, availability, last_seen_run_id, updated_at_ms
           )
           SELECT substr(uid_hex, 1, 8) || '-' || substr(uid_hex, 9, 4) || '-4'
                    || substr(uid_hex, 14, 3) || '-8' || substr(uid_hex, 18, 3) || '-'
                    || substr(uid_hex, 21, 12),
                  ?, stable_key, stable_id, parent_stable_key, relative_path,
                  path_compare_key, display_name, extension, size_bytes, modified_at_ms, etag,
-                 'present', ?, ?
+                 composite_media_json, 'present', ?, ?
           FROM new_file
           """,
         arguments: [runID, sourceID, runID, now]
@@ -3163,6 +4008,34 @@ public struct LibraryStore: Sendable {
     }
   }
 
+  private static func enqueueOptionalScanWork(
+    runID: Int64,
+    mediaFileID: Int64,
+    inputRevision: Int64,
+    stage: LibraryScanQueueStage,
+    priority: Int,
+    now: Int64,
+    database: Database
+  ) throws {
+    try database.execute(
+      sql: """
+        INSERT INTO scan_queue(
+          run_id, media_file_id, stage, state, priority, attempts,
+          input_revision, updated_at_ms
+        ) VALUES (?, ?, ?, 'queued', ?, 0, ?, ?)
+        ON CONFLICT(run_id, media_file_id, stage) DO UPDATE SET
+          state = 'queued', priority = excluded.priority, attempts = 0,
+          next_attempt_at_ms = NULL, lease_until_ms = NULL,
+          claimed_by = NULL, claim_token = NULL, heartbeat_at_ms = NULL,
+          error_code = NULL, error_message = NULL,
+          input_revision = excluded.input_revision,
+          updated_at_ms = excluded.updated_at_ms
+        WHERE scan_queue.state <> 'running'
+        """,
+      arguments: [runID, mediaFileID, stage.rawValue, priority, inputRevision, now]
+    )
+  }
+
   private static func requireActiveScanWorkLease(
     _ lease: LibraryScanWorkLease,
     expectedMediaFileID: Int64? = nil,
@@ -3218,6 +4091,177 @@ public struct LibraryStore: Sendable {
     return cursor
   }
 
+  private static func makeCollectionThumbnailTarget(
+    collectionUID: String,
+    maximumItems: Int,
+    database: Database
+  ) throws -> LibraryCollectionThumbnailTarget {
+    let signature = try collectionThumbnailInputSignature(
+      collectionUID: collectionUID,
+      database: database
+    )
+    let rows = try Row.fetchAll(
+      database,
+      sql: """
+        WITH RECURSIVE roots(root_entity_id, position) AS (
+          SELECT item.entity_id, item.position
+          FROM collection_item item
+          JOIN media_collection collection ON collection.id = item.collection_id
+          WHERE collection.uid = ? AND collection.deleted_at_ms IS NULL
+        ),
+        descendants(root_entity_id, entity_id, position) AS (
+          SELECT root_entity_id, root_entity_id, position FROM roots
+          UNION
+          SELECT tree.root_entity_id, child.id, tree.position
+          FROM descendants tree
+          JOIN media_entity child ON child.parent_id = tree.entity_id
+          WHERE child.deleted_at_ms IS NULL
+        ),
+        ranked AS (
+          SELECT root.uid AS entity_uid, file.uid AS file_uid, source.uid AS source_uid,
+                 file.relative_path, file.material_revision, tree.position,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY tree.root_entity_id
+                   ORDER BY CASE binding.binding_role
+                              WHEN 'primary' THEN 0 WHEN 'version' THEN 1 ELSE 2 END,
+                            file.path_compare_key, file.id
+                 ) AS file_rank
+          FROM descendants tree
+          JOIN media_entity root ON root.id = tree.root_entity_id
+          JOIN file_binding binding ON binding.entity_id = tree.entity_id
+            AND binding.binding_role IN ('primary', 'version', 'contained')
+          JOIN media_file file ON file.id = binding.media_file_id
+            AND file.availability = 'present' AND file.deleted_at_ms IS NULL
+          JOIN library_source source ON source.id = file.source_id
+            AND source.enabled = 1 AND source.deleted_at_ms IS NULL
+          WHERE root.deleted_at_ms IS NULL
+        )
+        SELECT entity_uid, file_uid, source_uid, relative_path, material_revision
+        FROM ranked
+        WHERE file_rank = 1
+        ORDER BY position, entity_uid
+        LIMIT ?
+        """,
+      arguments: [collectionUID, maximumItems]
+    )
+    let members = try rows.map { row in
+      let sourceUID: String = row["source_uid"]
+      let relativePath: String = row["relative_path"]
+      return LibraryCollectionThumbnailMember(
+        entityUID: row["entity_uid"],
+        fileUID: row["file_uid"],
+        locator: try RemoteLocator(sourceUID: sourceUID, path: RemotePath(relativePath)),
+        materialRevision: row["material_revision"]
+      )
+    }
+    let thumbnailRow = try Row.fetchOne(
+      database,
+      sql: """
+        SELECT thumbnail.local_relative_path, thumbnail.sha256, thumbnail.mime_type,
+               thumbnail.width, thumbnail.height
+        FROM collection_thumbnail thumbnail
+        JOIN media_collection collection ON collection.id = thumbnail.collection_id
+        WHERE collection.uid = ? AND collection.deleted_at_ms IS NULL
+          AND thumbnail.input_signature = ?
+        """,
+      arguments: [collectionUID, signature]
+    )
+    let thumbnail = try thumbnailRow.map { row in
+      try LibraryGeneratedThumbnail(
+        localRelativePath: row["local_relative_path"],
+        sha256: row["sha256"],
+        mimeType: row["mime_type"],
+        width: row["width"],
+        height: row["height"]
+      )
+    }
+    return LibraryCollectionThumbnailTarget(
+      collectionUID: collectionUID,
+      inputSignature: signature,
+      members: members,
+      currentThumbnail: thumbnail
+    )
+  }
+
+  private static func collectionThumbnailInputSignature(
+    collectionUID: String,
+    database: Database
+  ) throws -> String {
+    guard
+      let collection = try Row.fetchOne(
+        database,
+        sql: """
+          SELECT uid, kind, rule_json, provider, provider_key
+          FROM media_collection
+          WHERE uid = ? AND deleted_at_ms IS NULL
+          """,
+        arguments: [collectionUID]
+      )
+    else {
+      throw SDKError(code: .metadataNotFound, message: "collection was not found")
+    }
+    let rows = try Row.fetchAll(
+      database,
+      sql: """
+        WITH RECURSIVE descendants(root_entity_id, entity_id) AS (
+          SELECT item.entity_id, item.entity_id
+          FROM collection_item item
+          JOIN media_collection collection ON collection.id = item.collection_id
+          WHERE collection.uid = ? AND collection.deleted_at_ms IS NULL
+          UNION
+          SELECT tree.root_entity_id, child.id
+          FROM descendants tree
+          JOIN media_entity child ON child.parent_id = tree.entity_id
+          WHERE child.deleted_at_ms IS NULL
+        )
+        SELECT root.uid AS root_uid, item.position, item.added_at_ms,
+               descendant.uid AS descendant_uid,
+               COALESCE(binding.binding_role, '') AS binding_role,
+               COALESCE(file.uid, '') AS file_uid,
+               COALESCE(file.material_revision, 0) AS material_revision
+        FROM collection_item item
+        JOIN media_collection selected ON selected.id = item.collection_id
+        JOIN media_entity root ON root.id = item.entity_id
+        JOIN descendants tree ON tree.root_entity_id = item.entity_id
+        JOIN media_entity descendant ON descendant.id = tree.entity_id
+        LEFT JOIN file_binding binding ON binding.entity_id = tree.entity_id
+        LEFT JOIN media_file file ON file.id = binding.media_file_id
+        WHERE selected.uid = ? AND selected.deleted_at_ms IS NULL
+        ORDER BY item.position, root.uid, descendant.uid, binding_role, file_uid
+        """,
+      arguments: [collectionUID, collectionUID]
+    )
+
+    var material = "collection-thumbnail-input-v1"
+    func append(_ value: String) {
+      material += "\(value.utf8.count):\(value)"
+    }
+    let uid: String = collection["uid"]
+    let kind: String = collection["kind"]
+    let ruleJSON: String? = collection["rule_json"]
+    let provider: String? = collection["provider"]
+    let providerKey: String? = collection["provider_key"]
+    for value in [uid, kind, ruleJSON ?? "", provider ?? "", providerKey ?? ""] {
+      append(value)
+    }
+    for row in rows {
+      let rootUID: String = row["root_uid"]
+      let position: Int64 = row["position"]
+      let addedAt: Int64 = row["added_at_ms"]
+      let descendantUID: String = row["descendant_uid"]
+      let bindingRole: String = row["binding_role"]
+      let fileUID: String = row["file_uid"]
+      let materialRevision: Int64 = row["material_revision"]
+      for value in [
+        rootUID, String(position), String(addedAt), descendantUID, bindingRole, fileUID,
+        String(materialRevision),
+      ] {
+        append(value)
+      }
+    }
+    return SHA256.hash(data: Data(material.utf8)).map { String(format: "%02x", $0) }.joined()
+  }
+
   private static func reconcileMissing(
     sourceID: Int64,
     runID: Int64,
@@ -3226,23 +4270,8 @@ public struct LibraryStore: Sendable {
     now: Int64,
     database: Database
   ) throws {
-    let rootKeys = roots.map { $0.pathComparisonKey(using: semantics) }
-    guard !rootKeys.isEmpty else { return }
-
-    try database.execute(
-      sql: """
-        CREATE TEMP TABLE IF NOT EXISTS stellar_scan_covered_root (
-          path_compare_key TEXT PRIMARY KEY
-        ) WITHOUT ROWID
-        """
-    )
-    try database.execute(sql: "DELETE FROM stellar_scan_covered_root")
-    let insertRoot = try database.makeStatement(
-      sql: "INSERT OR IGNORE INTO stellar_scan_covered_root(path_compare_key) VALUES (?)"
-    )
-    for rootKey in rootKeys {
-      try insertRoot.execute(arguments: [rootKey])
-    }
+    guard !roots.isEmpty else { return }
+    try replaceCoveredRoots(roots, semantics: semantics, database: database)
 
     try database.execute(
       sql: """

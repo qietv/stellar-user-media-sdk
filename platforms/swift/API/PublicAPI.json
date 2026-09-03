@@ -1937,6 +1937,41 @@
     "StellarMediaLibrary": {
       "symbols": [
         {
+          "declaration": "struct OpticalDiscMediaScanClassifier",
+          "identifier": "s:19StellarMediaLibrary011OpticalDiscB14ScanClassifierV",
+          "kind": "swift.struct",
+          "path": [
+            "OpticalDiscMediaScanClassifier"
+          ]
+        },
+        {
+          "declaration": "init(probePageSize: Int = 500) throws",
+          "identifier": "s:19StellarMediaLibrary011OpticalDiscB14ScanClassifierV13probePageSizeACSi_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "OpticalDiscMediaScanClassifier",
+            "init(probePageSize:)"
+          ]
+        },
+        {
+          "declaration": "let probePageSize: Int",
+          "identifier": "s:19StellarMediaLibrary011OpticalDiscB14ScanClassifierV13probePageSizeSivp",
+          "kind": "swift.property",
+          "path": [
+            "OpticalDiscMediaScanClassifier",
+            "probePageSize"
+          ]
+        },
+        {
+          "declaration": "func classify(directory: RemoteLocator, entries: [RemoteEntry], using session: any MediaSourceSession) async throws -> MediaScanDirectoryClassification",
+          "identifier": "s:19StellarMediaLibrary011OpticalDiscB14ScanClassifierV8classify9directory7entries5usingAA0bF23DirectoryClassificationV0a6RemoteB00N7LocatorV_SayAJ0N5EntryVGAJ0B13SourceSession_ptYaKF",
+          "kind": "swift.method",
+          "path": [
+            "OpticalDiscMediaScanClassifier",
+            "classify(directory:entries:using:)"
+          ]
+        },
+        {
           "declaration": "struct TraverseAllMediaScanDirectories",
           "identifier": "s:19StellarMediaLibrary011TraverseAllB15ScanDirectoriesV",
           "kind": "swift.struct",
@@ -1985,6 +2020,32 @@
           "kind": "swift.init",
           "path": [
             "NoopMediaScanObserver",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "struct NoopMediaScanDirectoryClassifier",
+          "identifier": "s:19StellarMediaLibrary04NoopB23ScanDirectoryClassifierV",
+          "kind": "swift.struct",
+          "path": [
+            "NoopMediaScanDirectoryClassifier"
+          ]
+        },
+        {
+          "declaration": "func classify(directory _: RemoteLocator, entries _: [RemoteEntry], using _: any MediaSourceSession) async throws -> MediaScanDirectoryClassification",
+          "identifier": "s:19StellarMediaLibrary04NoopB23ScanDirectoryClassifierV8classify9directory7entries5usingAA0beF14ClassificationV0a6RemoteB00M7LocatorV_SayAJ0M5EntryVGAJ0B13SourceSession_ptYaKF",
+          "kind": "swift.method",
+          "path": [
+            "NoopMediaScanDirectoryClassifier",
+            "classify(directory:entries:using:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaLibrary04NoopB23ScanDirectoryClassifierVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "NoopMediaScanDirectoryClassifier",
             "init()"
           ]
         },
@@ -2199,6 +2260,15 @@
           "kind": "swift.struct",
           "path": [
             "SQLiteMediaMetadataStore"
+          ]
+        },
+        {
+          "declaration": "func persistTechnicalProbe(_ result: MediaTechnicalProbeResult, completing lease: LibraryScanWorkLease) async throws",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB13MetadataStoreV21persistTechnicalProbe_10completingyAA0bhI6ResultV_0A7Storage0C13ScanWorkLeaseVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaMetadataStore",
+            "persistTechnicalProbe(_:completing:)"
           ]
         },
         {
@@ -2466,6 +2536,315 @@
           "path": [
             "ScoredMediaMetadataCandidate",
             "candidate"
+          ]
+        },
+        {
+          "declaration": "enum CompositeMediaConfidence",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10ConfidenceO",
+          "kind": "swift.enum",
+          "path": [
+            "CompositeMediaConfidence"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10ConfidenceO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "CompositeMediaConfidence",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case candidate",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10ConfidenceO9candidateyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CompositeMediaConfidence",
+            "candidate"
+          ]
+        },
+        {
+          "declaration": "case confirmed",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10ConfidenceO9confirmedyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CompositeMediaConfidence",
+            "confirmed"
+          ]
+        },
+        {
+          "declaration": "struct CompositeMediaDescriptor",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV",
+          "kind": "swift.struct",
+          "path": [
+            "CompositeMediaDescriptor"
+          ]
+        },
+        {
+          "declaration": "let confidence: CompositeMediaConfidence",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV10confidenceAA0dB10ConfidenceOvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDescriptor",
+            "confidence"
+          ]
+        },
+        {
+          "declaration": "let entryPoint: RemoteLocator?",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV10entryPoint0a6RemoteB00H7LocatorVSgvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDescriptor",
+            "entryPoint"
+          ]
+        },
+        {
+          "declaration": "let logicalRoot: RemoteLocator",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV11logicalRoot0a6RemoteB00H7LocatorVvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDescriptor",
+            "logicalRoot"
+          ]
+        },
+        {
+          "declaration": "let schemaVersion: Int",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV13schemaVersionSivp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDescriptor",
+            "schemaVersion"
+          ]
+        },
+        {
+          "declaration": "static let currentSchemaVersion: Int",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV20currentSchemaVersionSivpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "CompositeMediaDescriptor",
+            "currentSchemaVersion"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CompositeMediaDescriptor",
+            "init(from:)"
+          ]
+        },
+        {
+          "declaration": "let kind: CompositeMediaKind",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV4kindAA0dB4KindOvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDescriptor",
+            "kind"
+          ]
+        },
+        {
+          "declaration": "let locator: RemoteLocator",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV7locator0a6RemoteB00G7LocatorVvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDescriptor",
+            "locator"
+          ]
+        },
+        {
+          "declaration": "init(locator: RemoteLocator, logicalRoot: RemoteLocator, container: CompositeMediaContainer, kind: CompositeMediaKind, confidence: CompositeMediaConfidence, entryPoint: RemoteLocator? = nil) throws",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV7locator11logicalRoot9container4kind10confidence10entryPointAC0a6RemoteB00N7LocatorV_AlA0dB9ContainerOAA0dB4KindOAA0dB10ConfidenceOALSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CompositeMediaDescriptor",
+            "init(locator:logicalRoot:container:kind:confidence:entryPoint:)"
+          ]
+        },
+        {
+          "declaration": "let container: CompositeMediaContainer",
+          "identifier": "s:19StellarMediaLibrary09CompositeB10DescriptorV9containerAA0dB9ContainerOvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDescriptor",
+            "container"
+          ]
+        },
+        {
+          "declaration": "struct CompositeMediaDirectorySnapshot",
+          "identifier": "s:19StellarMediaLibrary09CompositeB17DirectorySnapshotV",
+          "kind": "swift.struct",
+          "path": [
+            "CompositeMediaDirectorySnapshot"
+          ]
+        },
+        {
+          "declaration": "let children: [RemoteEntry]",
+          "identifier": "s:19StellarMediaLibrary09CompositeB17DirectorySnapshotV8childrenSay0a6RemoteB00H5EntryVGvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDirectorySnapshot",
+            "children"
+          ]
+        },
+        {
+          "declaration": "let directory: RemoteEntry",
+          "identifier": "s:19StellarMediaLibrary09CompositeB17DirectorySnapshotV9directory0a6RemoteB00H5EntryVvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDirectorySnapshot",
+            "directory"
+          ]
+        },
+        {
+          "declaration": "init(directory: RemoteEntry, children: [RemoteEntry]) throws",
+          "identifier": "s:19StellarMediaLibrary09CompositeB17DirectorySnapshotV9directory8childrenAC0a6RemoteB00I5EntryV_SayAHGtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CompositeMediaDirectorySnapshot",
+            "init(directory:children:)"
+          ]
+        },
+        {
+          "declaration": "enum CompositeMediaKind",
+          "identifier": "s:19StellarMediaLibrary09CompositeB4KindO",
+          "kind": "swift.enum",
+          "path": [
+            "CompositeMediaKind"
+          ]
+        },
+        {
+          "declaration": "case unknownDiscImage",
+          "identifier": "s:19StellarMediaLibrary09CompositeB4KindO16unknownDiscImageyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CompositeMediaKind",
+            "unknownDiscImage"
+          ]
+        },
+        {
+          "declaration": "case avchd",
+          "identifier": "s:19StellarMediaLibrary09CompositeB4KindO5avchdyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CompositeMediaKind",
+            "avchd"
+          ]
+        },
+        {
+          "declaration": "case bluray",
+          "identifier": "s:19StellarMediaLibrary09CompositeB4KindO6blurayyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CompositeMediaKind",
+            "bluray"
+          ]
+        },
+        {
+          "declaration": "case dvdVideo",
+          "identifier": "s:19StellarMediaLibrary09CompositeB4KindO8dvdVideoyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CompositeMediaKind",
+            "dvdVideo"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaLibrary09CompositeB4KindO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "CompositeMediaKind",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "enum CompositeMediaContainer",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9ContainerO",
+          "kind": "swift.enum",
+          "path": [
+            "CompositeMediaContainer"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9ContainerO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "CompositeMediaContainer",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case directory",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9ContainerO9directoryyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CompositeMediaContainer",
+            "directory"
+          ]
+        },
+        {
+          "declaration": "case diskImage",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9ContainerO9diskImageyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "CompositeMediaContainer",
+            "diskImage"
+          ]
+        },
+        {
+          "declaration": "struct CompositeMediaDetection",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9DetectionV",
+          "kind": "swift.struct",
+          "path": [
+            "CompositeMediaDetection"
+          ]
+        },
+        {
+          "declaration": "init(descriptor: CompositeMediaDescriptor, consumeAsLeaf: Bool, suppressedDescendants: [RemoteLocator])",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9DetectionV10descriptor13consumeAsLeaf21suppressedDescendantsAcA0dB10DescriptorV_SbSay0a6RemoteB00M7LocatorVGtcfc",
+          "kind": "swift.init",
+          "path": [
+            "CompositeMediaDetection",
+            "init(descriptor:consumeAsLeaf:suppressedDescendants:)"
+          ]
+        },
+        {
+          "declaration": "let descriptor: CompositeMediaDescriptor",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9DetectionV10descriptorAA0dB10DescriptorVvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDetection",
+            "descriptor"
+          ]
+        },
+        {
+          "declaration": "let consumeAsLeaf: Bool",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9DetectionV13consumeAsLeafSbvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDetection",
+            "consumeAsLeaf"
+          ]
+        },
+        {
+          "declaration": "let suppressedDescendants: [RemoteLocator]",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9DetectionV21suppressedDescendantsSay0a6RemoteB00H7LocatorVGvp",
+          "kind": "swift.property",
+          "path": [
+            "CompositeMediaDetection",
+            "suppressedDescendants"
+          ]
+        },
+        {
+          "declaration": "init(from decoder: any Decoder) throws",
+          "identifier": "s:19StellarMediaLibrary09CompositeB9DetectionV4fromACs7Decoder_p_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CompositeMediaDetection",
+            "init(from:)"
           ]
         },
         {
@@ -4624,12 +5003,30 @@
           ]
         },
         {
+          "declaration": "func shouldIndexFile(_ entry: RemoteEntry) -> Bool",
+          "identifier": "s:19StellarMediaLibrary0B19ScanTraversalPolicyP15shouldIndexFileySb0a6RemoteB00J5EntryVF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanTraversalPolicy",
+            "shouldIndexFile(_:)"
+          ]
+        },
+        {
           "declaration": "func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool",
           "identifier": "s:19StellarMediaLibrary0B19ScanTraversalPolicyP23shouldTraverseDirectoryySb0a6RemoteB00J5EntryVF",
           "kind": "swift.method",
           "path": [
             "MediaScanTraversalPolicy",
             "shouldTraverseDirectory(_:)"
+          ]
+        },
+        {
+          "declaration": "func shouldIndexFile(_: RemoteEntry) -> Bool",
+          "identifier": "s:19StellarMediaLibrary0B19ScanTraversalPolicyPAAE15shouldIndexFileySb0a6RemoteB00J5EntryVF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanTraversalPolicy",
+            "shouldIndexFile(_:)"
           ]
         },
         {
@@ -5111,6 +5508,76 @@
           ]
         },
         {
+          "declaration": "protocol MediaScanDirectoryClassifier : Sendable",
+          "identifier": "s:19StellarMediaLibrary0B23ScanDirectoryClassifierP",
+          "kind": "swift.protocol",
+          "path": [
+            "MediaScanDirectoryClassifier"
+          ]
+        },
+        {
+          "declaration": "func classify(directory: RemoteLocator, entries: [RemoteEntry], using session: any MediaSourceSession) async throws -> MediaScanDirectoryClassification",
+          "identifier": "s:19StellarMediaLibrary0B23ScanDirectoryClassifierP8classify9directory7entries5usingAA0bdE14ClassificationV0a6RemoteB00L7LocatorV_SayAJ0L5EntryVGAJ0B13SourceSession_ptYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanDirectoryClassifier",
+            "classify(directory:entries:using:)"
+          ]
+        },
+        {
+          "declaration": "struct MediaScanDirectoryClassification",
+          "identifier": "s:19StellarMediaLibrary0B27ScanDirectoryClassificationV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaScanDirectoryClassification"
+          ]
+        },
+        {
+          "declaration": "let compositeMedia: [CompositeMediaDetection]",
+          "identifier": "s:19StellarMediaLibrary0B27ScanDirectoryClassificationV09compositeB0SayAA09CompositeB9DetectionVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanDirectoryClassification",
+            "compositeMedia"
+          ]
+        },
+        {
+          "declaration": "init(syntheticEntries: [RemoteEntry] = [], compositeMedia: [CompositeMediaDetection] = [], suppressedEntries: [RemoteLocator] = [], forceIndexedFiles: [RemoteLocator] = [])",
+          "identifier": "s:19StellarMediaLibrary0B27ScanDirectoryClassificationV16syntheticEntries09compositeB0010suppressedH017forceIndexedFilesACSay0a6RemoteB00N5EntryVG_SayAA09CompositeB9DetectionVGSayAH0N7LocatorVGAQtcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanDirectoryClassification",
+            "init(syntheticEntries:compositeMedia:suppressedEntries:forceIndexedFiles:)"
+          ]
+        },
+        {
+          "declaration": "let syntheticEntries: [RemoteEntry]",
+          "identifier": "s:19StellarMediaLibrary0B27ScanDirectoryClassificationV16syntheticEntriesSay0a6RemoteB00I5EntryVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanDirectoryClassification",
+            "syntheticEntries"
+          ]
+        },
+        {
+          "declaration": "let forceIndexedFiles: [RemoteLocator]",
+          "identifier": "s:19StellarMediaLibrary0B27ScanDirectoryClassificationV17forceIndexedFilesSay0a6RemoteB00J7LocatorVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanDirectoryClassification",
+            "forceIndexedFiles"
+          ]
+        },
+        {
+          "declaration": "let suppressedEntries: [RemoteLocator]",
+          "identifier": "s:19StellarMediaLibrary0B27ScanDirectoryClassificationV17suppressedEntriesSay0a6RemoteB00I7LocatorVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanDirectoryClassification",
+            "suppressedEntries"
+          ]
+        },
+        {
           "declaration": "struct MediaScanner",
           "identifier": "s:19StellarMediaLibrary0B7ScannerV",
           "kind": "swift.struct",
@@ -5134,6 +5601,15 @@
           "path": [
             "MediaScanner",
             "init(configuration:)"
+          ]
+        },
+        {
+          "declaration": "func scan(_ request: MediaScanRequest, using connector: any MediaSourceConnector, sink: any MediaScanSink, resumeFrom suppliedCheckpoint: MediaScanCheckpoint? = nil, observer: any MediaScanObserver = NoopMediaScanObserver(), traversalPolicy: any MediaScanTraversalPolicy, directoryClassifier: any MediaScanDirectoryClassifier) async throws -> MediaScanResult",
+          "identifier": "s:19StellarMediaLibrary0B7ScannerV4scan_5using4sink10resumeFrom8observer15traversalPolicy19directoryClassifierAA0B10ScanResultVAA0bO7RequestV_0a6RemoteB00B15SourceConnector_pAA0bO4Sink_pAA0bO10CheckpointVSgAA0bO8Observer_pAA0bo9TraversalL0_pAA0bo9DirectoryN0_ptYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanner",
+            "scan(_:using:sink:resumeFrom:observer:traversalPolicy:directoryClassifier:)"
           ]
         },
         {
@@ -5260,6 +5736,15 @@
           ]
         },
         {
+          "declaration": "let compositeMedia: [CompositeMediaDetection]",
+          "identifier": "s:19StellarMediaLibrary0B9ScanBatchV09compositeB0SayAA09CompositeB9DetectionVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanBatch",
+            "compositeMedia"
+          ]
+        },
+        {
           "declaration": "let checkpoint: MediaScanCheckpoint",
           "identifier": "s:19StellarMediaLibrary0B9ScanBatchV10checkpointAA0bD10CheckpointVvp",
           "kind": "swift.property",
@@ -5302,6 +5787,33 @@
           "path": [
             "MediaScanBatch",
             "enumerationState"
+          ]
+        },
+        {
+          "declaration": "init(entries: [RemoteEntry], compositeMedia: [CompositeMediaDetection], checkpoint: MediaScanCheckpoint, completion: MediaScanCompletion? = nil, enumerationState: MediaScanEnumerationState?, pageTransition: MediaScanPageTransition?)",
+          "identifier": "s:19StellarMediaLibrary0B9ScanBatchV7entries09compositeB010checkpoint10completion16enumerationState14pageTransitionACSay0a6RemoteB00N5EntryVG_SayAA09CompositeB9DetectionVGAA0bD10CheckpointVAA0bD10CompletionVSgAA0bd11EnumerationK0VSgAA0bd4PageM0VSgtcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanBatch",
+            "init(entries:compositeMedia:checkpoint:completion:enumerationState:pageTransition:)"
+          ]
+        },
+        {
+          "declaration": "init(entries: [RemoteEntry], compositeMedia: [CompositeMediaDetection], checkpoint: MediaScanCheckpoint, completion: MediaScanCompletion? = nil, enumerationState: MediaScanEnumerationState?, pageTransitions: [MediaScanPageTransition])",
+          "identifier": "s:19StellarMediaLibrary0B9ScanBatchV7entries09compositeB010checkpoint10completion16enumerationState15pageTransitionsACSay0a6RemoteB00N5EntryVG_SayAA09CompositeB9DetectionVGAA0bD10CheckpointVAA0bD10CompletionVSgAA0bd11EnumerationK0VSgSayAA0bD14PageTransitionVGtcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanBatch",
+            "init(entries:compositeMedia:checkpoint:completion:enumerationState:pageTransitions:)"
+          ]
+        },
+        {
+          "declaration": "init(entries: [RemoteEntry], compositeMedia: [CompositeMediaDetection], checkpoint: MediaScanCheckpoint, completion: MediaScanCompletion? = nil)",
+          "identifier": "s:19StellarMediaLibrary0B9ScanBatchV7entries09compositeB010checkpoint10completionACSay0a6RemoteB00J5EntryVG_SayAA09CompositeB9DetectionVGAA0bD10CheckpointVAA0bD10CompletionVSgtcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanBatch",
+            "init(entries:compositeMedia:checkpoint:completion:)"
           ]
         },
         {
@@ -6481,6 +6993,50 @@
           "path": [
             "TMDBProviderConfiguration",
             "language"
+          ]
+        },
+        {
+          "declaration": "struct OpticalDiscCandidateDetector",
+          "identifier": "s:19StellarMediaLibrary28OpticalDiscCandidateDetectorV",
+          "kind": "swift.struct",
+          "path": [
+            "OpticalDiscCandidateDetector"
+          ]
+        },
+        {
+          "declaration": "func directDirectoryCandidate(rootedAt root: RemoteEntry, snapshot: CompositeMediaDirectorySnapshot) throws -> CompositeMediaDetection?",
+          "identifier": "s:19StellarMediaLibrary28OpticalDiscCandidateDetectorV015directDirectoryF08rootedAt8snapshotAA09CompositeB9DetectionVSg0a6RemoteB00O5EntryV_AA0mbI8SnapshotVtKF",
+          "kind": "swift.method",
+          "path": [
+            "OpticalDiscCandidateDetector",
+            "directDirectoryCandidate(rootedAt:snapshot:)"
+          ]
+        },
+        {
+          "declaration": "func diskImageCandidate(for entry: RemoteEntry) throws -> CompositeMediaDetection?",
+          "identifier": "s:19StellarMediaLibrary28OpticalDiscCandidateDetectorV09diskImageF03forAA09CompositeB9DetectionVSg0a6RemoteB00M5EntryV_tKF",
+          "kind": "swift.method",
+          "path": [
+            "OpticalDiscCandidateDetector",
+            "diskImageCandidate(for:)"
+          ]
+        },
+        {
+          "declaration": "func directoryCandidates(rootedAt root: RemoteEntry, snapshots: [CompositeMediaDirectorySnapshot]) throws -> [CompositeMediaDetection]",
+          "identifier": "s:19StellarMediaLibrary28OpticalDiscCandidateDetectorV19directoryCandidates8rootedAt9snapshotsSayAA09CompositeB9DetectionVG0a6RemoteB00O5EntryV_SayAA0mB17DirectorySnapshotVGtKF",
+          "kind": "swift.method",
+          "path": [
+            "OpticalDiscCandidateDetector",
+            "directoryCandidates(rootedAt:snapshots:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaLibrary28OpticalDiscCandidateDetectorVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "OpticalDiscCandidateDetector",
+            "init()"
           ]
         },
         {
@@ -11943,12 +12499,30 @@
           ]
         },
         {
+          "declaration": "func markSourceOnline(sourceUID: String) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV16markSourceOnline9sourceUIDySS_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "markSourceOnline(sourceUID:)"
+          ]
+        },
+        {
           "declaration": "func claimScanFileWork(sourceUID: String, stage: LibraryScanQueueStage, workerID: String, limit: Int = 50, leaseDurationMilliseconds: Int64 = 120_000) async throws -> [LibraryScanWorkLease]",
           "identifier": "s:14StellarStorage12LibraryStoreV17claimScanFileWork9sourceUID5stage8workerID5limit25leaseDurationMillisecondsSayAA0cfH5LeaseVGSS_AA0cF10QueueStageOSSSis5Int64VtYaKF",
           "kind": "swift.method",
           "path": [
             "LibraryStore",
             "claimScanFileWork(sourceUID:stage:workerID:limit:leaseDurationMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "func markSourceOffline(sourceUID: String, errorCode: SDKErrorCode = .networkUnavailable) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV17markSourceOffline9sourceUID9errorCodeySS_0A4Core08SDKErrorK0OtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "markSourceOffline(sourceUID:errorCode:)"
           ]
         },
         {
@@ -11970,6 +12544,15 @@
           ]
         },
         {
+          "declaration": "@discardableResult func storeRemoteArtwork(_ artwork: LibraryRemoteArtwork, for lease: LibraryScanWorkLease) async throws -> String",
+          "identifier": "s:14StellarStorage12LibraryStoreV18storeRemoteArtwork_3forSSAA0cfG0V_AA0C13ScanWorkLeaseVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "storeRemoteArtwork(_:for:)"
+          ]
+        },
+        {
           "declaration": "@discardableResult func commitRemoteArtwork(_ artwork: LibraryRemoteArtwork, completing lease: LibraryScanWorkLease) async throws -> String",
           "identifier": "s:14StellarStorage12LibraryStoreV19commitRemoteArtwork_10completingSSAA0cfG0V_AA0C13ScanWorkLeaseVtYaKF",
           "kind": "swift.method",
@@ -11985,6 +12568,15 @@
           "path": [
             "LibraryStore",
             "remoteArtworkTarget(for:provider:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func resetFailedScanWork(sourceUID: String, stages: [LibraryScanQueueStage] = LibraryScanQueueStage.allCases) async throws -> Int",
+          "identifier": "s:14StellarStorage12LibraryStoreV19resetFailedScanWork9sourceUID6stagesSiSS_SayAA0cG10QueueStageOGtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "resetFailedScanWork(sourceUID:stages:)"
           ]
         },
         {
@@ -12015,6 +12607,15 @@
           ]
         },
         {
+          "declaration": "func runGarbageCollection(policy: LibraryGarbageCollectionPolicy = .recommended) async throws -> LibraryGarbageCollectionResult",
+          "identifier": "s:14StellarStorage12LibraryStoreV20runGarbageCollection6policyAA0cfG6ResultVAA0cfG6PolicyV_tYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "runGarbageCollection(policy:)"
+          ]
+        },
+        {
           "declaration": "func scanEnumerationState(runUID: String) async throws -> LibraryScanEnumerationState?",
           "identifier": "s:14StellarStorage12LibraryStoreV20scanEnumerationState6runUIDAA0c4ScanfG0VSgSS_tYaKF",
           "kind": "swift.method",
@@ -12042,6 +12643,24 @@
           ]
         },
         {
+          "declaration": "@discardableResult func enqueueMissingProbeWork(sourceUID: String, probeVersion: Int, priority: Int = -200, limit: Int = 200) async throws -> Int",
+          "identifier": "s:14StellarStorage12LibraryStoreV23enqueueMissingProbeWork9sourceUID12probeVersion8priority5limitSiSS_S3itYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "enqueueMissingProbeWork(sourceUID:probeVersion:priority:limit:)"
+          ]
+        },
+        {
+          "declaration": "func enqueueOptionalScanWork(sourceUID: String, relativePath: String, stage: LibraryScanQueueStage, priority: Int = 0) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV23enqueueOptionalScanWork9sourceUID12relativePath5stage8priorityySS_SSAA0cG10QueueStageOSitYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "enqueueOptionalScanWork(sourceUID:relativePath:stage:priority:)"
+          ]
+        },
+        {
           "declaration": "func pendingScanFileWorkPage(sourceUID: String, stage: LibraryScanQueueStage, pageSize: Int = 200, cursor: String? = nil) async throws -> LibraryScanFileWorkPage",
           "identifier": "s:14StellarStorage12LibraryStoreV23pendingScanFileWorkPage9sourceUID5stage8pageSize6cursorAA0cfghI0VSS_AA0cF10QueueStageOSiSSSgtYaKF",
           "kind": "swift.method",
@@ -12051,12 +12670,66 @@
           ]
         },
         {
+          "declaration": "@discardableResult func storeGeneratedThumbnail(_ thumbnail: LibraryGeneratedThumbnail, for lease: LibraryScanWorkLease) async throws -> String",
+          "identifier": "s:14StellarStorage12LibraryStoreV23storeGeneratedThumbnail_3forSSAA0cfG0V_AA0C13ScanWorkLeaseVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "storeGeneratedThumbnail(_:for:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func commitGeneratedThumbnail(_ thumbnail: LibraryGeneratedThumbnail, for lease: LibraryScanWorkLease) async throws -> String",
+          "identifier": "s:14StellarStorage12LibraryStoreV24commitGeneratedThumbnail_3forSSAA0cfG0V_AA0C13ScanWorkLeaseVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "commitGeneratedThumbnail(_:for:)"
+          ]
+        },
+        {
+          "declaration": "func collectionThumbnailTarget(collectionUID: String, maximumItems: Int = 4) async throws -> LibraryCollectionThumbnailTarget",
+          "identifier": "s:14StellarStorage12LibraryStoreV25collectionThumbnailTarget0E3UID12maximumItemsAA0c10CollectionfG0VSS_SitYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "collectionThumbnailTarget(collectionUID:maximumItems:)"
+          ]
+        },
+        {
           "declaration": "func matchedMediaRelativePaths(sourceUID: String) async throws -> [String]",
           "identifier": "s:14StellarStorage12LibraryStoreV25matchedMediaRelativePaths9sourceUIDSaySSGSS_tYaKF",
           "kind": "swift.method",
           "path": [
             "LibraryStore",
             "matchedMediaRelativePaths(sourceUID:)"
+          ]
+        },
+        {
+          "declaration": "func setMissingRetentionPolicy(_ policy: LibraryMissingRetentionPolicy, forSourceUID sourceUID: String) async throws",
+          "identifier": "s:14StellarStorage12LibraryStoreV25setMissingRetentionPolicy_12forSourceUIDyAA0cfgH0V_SStYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "setMissingRetentionPolicy(_:forSourceUID:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func enqueueMissingThumbnailWork(sourceUID: String, priority: Int = -100, limit: Int = 200) async throws -> Int",
+          "identifier": "s:14StellarStorage12LibraryStoreV27enqueueMissingThumbnailWork9sourceUID8priority5limitSiSS_S2itYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "enqueueMissingThumbnailWork(sourceUID:priority:limit:)"
+          ]
+        },
+        {
+          "declaration": "@discardableResult func commitGeneratedCollectionThumbnail(_ thumbnail: LibraryGeneratedThumbnail, for target: LibraryCollectionThumbnailTarget, provider: String = \"stellar-media-imaging-playlist-v1\") async throws -> String",
+          "identifier": "s:14StellarStorage12LibraryStoreV34commitGeneratedCollectionThumbnail_3for8providerSSAA0cfH0V_AA0cgH6TargetVSStYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LibraryStore",
+            "commitGeneratedCollectionThumbnail(_:for:provider:)"
           ]
         },
         {
@@ -13009,6 +13682,68 @@
           ]
         },
         {
+          "declaration": "struct LibraryGeneratedThumbnail",
+          "identifier": "s:14StellarStorage25LibraryGeneratedThumbnailV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryGeneratedThumbnail"
+          ]
+        },
+        {
+          "declaration": "init(localRelativePath: String, sha256: String, mimeType: String, width: Int, height: Int) throws",
+          "identifier": "s:14StellarStorage25LibraryGeneratedThumbnailV17localRelativePath6sha2568mimeType5width6heightACSS_S2SS2itKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryGeneratedThumbnail",
+            "init(localRelativePath:sha256:mimeType:width:height:)"
+          ]
+        },
+        {
+          "declaration": "let localRelativePath: String",
+          "identifier": "s:14StellarStorage25LibraryGeneratedThumbnailV17localRelativePathSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGeneratedThumbnail",
+            "localRelativePath"
+          ]
+        },
+        {
+          "declaration": "let width: Int",
+          "identifier": "s:14StellarStorage25LibraryGeneratedThumbnailV5widthSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGeneratedThumbnail",
+            "width"
+          ]
+        },
+        {
+          "declaration": "let height: Int",
+          "identifier": "s:14StellarStorage25LibraryGeneratedThumbnailV6heightSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGeneratedThumbnail",
+            "height"
+          ]
+        },
+        {
+          "declaration": "let sha256: String",
+          "identifier": "s:14StellarStorage25LibraryGeneratedThumbnailV6sha256SSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGeneratedThumbnail",
+            "sha256"
+          ]
+        },
+        {
+          "declaration": "let mimeType: String",
+          "identifier": "s:14StellarStorage25LibraryGeneratedThumbnailV8mimeTypeSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGeneratedThumbnail",
+            "mimeType"
+          ]
+        },
+        {
           "declaration": "enum LibraryRemoteMetadataKind",
           "identifier": "s:14StellarStorage25LibraryRemoteMetadataKindO",
           "kind": "swift.enum",
@@ -13041,6 +13776,41 @@
           "path": [
             "LibraryRemoteMetadataKind",
             "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "struct LibraryScanCompositeMedia",
+          "identifier": "s:14StellarStorage25LibraryScanCompositeMediaV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryScanCompositeMedia"
+          ]
+        },
+        {
+          "declaration": "let descriptorsJSON: String",
+          "identifier": "s:14StellarStorage25LibraryScanCompositeMediaV15descriptorsJSONSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanCompositeMedia",
+            "descriptorsJSON"
+          ]
+        },
+        {
+          "declaration": "let locator: RemoteLocator",
+          "identifier": "s:14StellarStorage25LibraryScanCompositeMediaV7locator0a6RemoteF00H7LocatorVvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanCompositeMedia",
+            "locator"
+          ]
+        },
+        {
+          "declaration": "init(locator: RemoteLocator, descriptorsJSON: String) throws",
+          "identifier": "s:14StellarStorage25LibraryScanCompositeMediaV7locator15descriptorsJSONAC0a6RemoteF00J7LocatorV_SStKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryScanCompositeMedia",
+            "init(locator:descriptorsJSON:)"
           ]
         },
         {
@@ -13273,6 +14043,15 @@
           ]
         },
         {
+          "declaration": "let compositeMedia: [LibraryScanCompositeMedia]",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV14compositeMediaSayAA0cd9CompositeH0VGvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "compositeMedia"
+          ]
+        },
+        {
           "declaration": "let pageTransition: LibraryScanPageTransition?",
           "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV14pageTransitionAA0cd4PageH0VSgvp",
           "kind": "swift.property",
@@ -13363,6 +14142,24 @@
           ]
         },
         {
+          "declaration": "init(runUID: String, sourceUID: String, mode: String, state: String, checkpointJSON: String, coverageJSON: String, entries: [RemoteEntry], compositeMedia: [LibraryScanCompositeMedia], capabilities: MediaSourceCapabilities?, coveredRoots: [RemoteLocator] = [], reconcileMissingEligible: Bool = false, discoveredEntryCount: Int64, pendingPageCount: Int?, processedPageCount: Int64?, errorCode: String? = nil, enumerationState: LibraryScanEnumerationState?, pageTransition: LibraryScanPageTransition?) throws",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV6runUID06sourceH04mode5state14checkpointJSON08coverageM07entries14compositeMedia12capabilities12coveredRoots24reconcileMissingEligible20discoveredEntryCount011pendingPageZ0013processedPageZ09errorCode16enumerationState14pageTransitionACSS_S5SSay0a6RemoteQ006RemoteY0VGSayAA0cd9CompositeQ0VGAU0Q18SourceCapabilitiesVSgSayAU13RemoteLocatorVGSbs5Int64VSiSgA7_SgSSSgAA0cD16EnumerationStateVSgAA0cD14PageTransitionVSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "init(runUID:sourceUID:mode:state:checkpointJSON:coverageJSON:entries:compositeMedia:capabilities:coveredRoots:reconcileMissingEligible:discoveredEntryCount:pendingPageCount:processedPageCount:errorCode:enumerationState:pageTransition:)"
+          ]
+        },
+        {
+          "declaration": "init(runUID: String, sourceUID: String, mode: String, state: String, checkpointJSON: String, coverageJSON: String, entries: [RemoteEntry], compositeMedia: [LibraryScanCompositeMedia], capabilities: MediaSourceCapabilities?, coveredRoots: [RemoteLocator] = [], reconcileMissingEligible: Bool = false, discoveredEntryCount: Int64, errorCode: String? = nil) throws",
+          "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV6runUID06sourceH04mode5state14checkpointJSON08coverageM07entries14compositeMedia12capabilities12coveredRoots24reconcileMissingEligible20discoveredEntryCount9errorCodeACSS_S5SSay0a6RemoteQ006RemoteY0VGSayAA0cd9CompositeQ0VGAQ0Q18SourceCapabilitiesVSgSayAQ13RemoteLocatorVGSbs5Int64VSSSgtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryScanPersistenceBatch",
+            "init(runUID:sourceUID:mode:state:checkpointJSON:coverageJSON:entries:compositeMedia:capabilities:coveredRoots:reconcileMissingEligible:discoveredEntryCount:errorCode:)"
+          ]
+        },
+        {
           "declaration": "let runUID: String",
           "identifier": "s:14StellarStorage27LibraryScanPersistenceBatchV6runUIDSSvp",
           "kind": "swift.property",
@@ -13396,6 +14193,289 @@
           "path": [
             "LibraryScanPersistenceBatch",
             "sourceUID"
+          ]
+        },
+        {
+          "declaration": "struct LibraryMissingRetentionPolicy",
+          "identifier": "s:14StellarStorage29LibraryMissingRetentionPolicyV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryMissingRetentionPolicy"
+          ]
+        },
+        {
+          "declaration": "let requiredMissingScanCount: Int",
+          "identifier": "s:14StellarStorage29LibraryMissingRetentionPolicyV08requiredD9ScanCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryMissingRetentionPolicy",
+            "requiredMissingScanCount"
+          ]
+        },
+        {
+          "declaration": "static func recommended(for kind: LibrarySourceKind) -> LibraryMissingRetentionPolicy",
+          "identifier": "s:14StellarStorage29LibraryMissingRetentionPolicyV11recommended3forAcA0C10SourceKindO_tFZ",
+          "kind": "swift.type.method",
+          "path": [
+            "LibraryMissingRetentionPolicy",
+            "recommended(for:)"
+          ]
+        },
+        {
+          "declaration": "let protectsEmptyResult: Bool",
+          "identifier": "s:14StellarStorage29LibraryMissingRetentionPolicyV19protectsEmptyResultSbvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryMissingRetentionPolicy",
+            "protectsEmptyResult"
+          ]
+        },
+        {
+          "declaration": "init(gracePeriodMilliseconds: Int64, requiredMissingScanCount: Int = 2, protectsEmptyResult: Bool = true, suspiciousDropPercentage: Int = 80, suspiciousDropMinimumCount: Int = 100) throws",
+          "identifier": "s:14StellarStorage29LibraryMissingRetentionPolicyV23gracePeriodMilliseconds08requiredD9ScanCount19protectsEmptyResult24suspiciousDropPercentage0pq7MinimumL0ACs5Int64V_SiSbS2itKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryMissingRetentionPolicy",
+            "init(gracePeriodMilliseconds:requiredMissingScanCount:protectsEmptyResult:suspiciousDropPercentage:suspiciousDropMinimumCount:)"
+          ]
+        },
+        {
+          "declaration": "let gracePeriodMilliseconds: Int64",
+          "identifier": "s:14StellarStorage29LibraryMissingRetentionPolicyV23gracePeriodMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryMissingRetentionPolicy",
+            "gracePeriodMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let suspiciousDropPercentage: Int",
+          "identifier": "s:14StellarStorage29LibraryMissingRetentionPolicyV24suspiciousDropPercentageSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryMissingRetentionPolicy",
+            "suspiciousDropPercentage"
+          ]
+        },
+        {
+          "declaration": "let suspiciousDropMinimumCount: Int",
+          "identifier": "s:14StellarStorage29LibraryMissingRetentionPolicyV26suspiciousDropMinimumCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryMissingRetentionPolicy",
+            "suspiciousDropMinimumCount"
+          ]
+        },
+        {
+          "declaration": "struct LibraryGarbageCollectionPolicy",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionPolicyV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryGarbageCollectionPolicy"
+          ]
+        },
+        {
+          "declaration": "static let recommended: LibraryGarbageCollectionPolicy",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionPolicyV11recommendedACvpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "LibraryGarbageCollectionPolicy",
+            "recommended"
+          ]
+        },
+        {
+          "declaration": "let fileTombstoneRetentionMilliseconds: Int64",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionPolicyV34fileTombstoneRetentionMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionPolicy",
+            "fileTombstoneRetentionMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let deletionMarkGracePeriodMilliseconds: Int64",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionPolicyV35deletionMarkGracePeriodMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionPolicy",
+            "deletionMarkGracePeriodMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init(metadataOrphanGracePeriodMilliseconds: Int64 = 604_800_000, deletionMarkGracePeriodMilliseconds: Int64 = 86_400_000, fileTombstoneRetentionMilliseconds: Int64 = 86_400_000, batchSize: Int = 200) throws",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionPolicyV37metadataOrphanGracePeriodMilliseconds012deletionMarkijK0022fileTombstoneRetentionK09batchSizeACs5Int64V_A2ISitKcfc",
+          "kind": "swift.init",
+          "path": [
+            "LibraryGarbageCollectionPolicy",
+            "init(metadataOrphanGracePeriodMilliseconds:deletionMarkGracePeriodMilliseconds:fileTombstoneRetentionMilliseconds:batchSize:)"
+          ]
+        },
+        {
+          "declaration": "let metadataOrphanGracePeriodMilliseconds: Int64",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionPolicyV37metadataOrphanGracePeriodMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionPolicy",
+            "metadataOrphanGracePeriodMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let batchSize: Int",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionPolicyV9batchSizeSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionPolicy",
+            "batchSize"
+          ]
+        },
+        {
+          "declaration": "struct LibraryGarbageCollectionResult",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionResultV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryGarbageCollectionResult"
+          ]
+        },
+        {
+          "declaration": "let purgedFileCount: Int",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionResultV15purgedFileCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionResult",
+            "purgedFileCount"
+          ]
+        },
+        {
+          "declaration": "let markedEntityCount: Int",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionResultV17markedEntityCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionResult",
+            "markedEntityCount"
+          ]
+        },
+        {
+          "declaration": "let purgedEntityCount: Int",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionResultV17purgedEntityCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionResult",
+            "purgedEntityCount"
+          ]
+        },
+        {
+          "declaration": "let restoredEntityCount: Int",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionResultV19restoredEntityCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionResult",
+            "restoredEntityCount"
+          ]
+        },
+        {
+          "declaration": "let softDeletedFileCount: Int",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionResultV20softDeletedFileCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionResult",
+            "softDeletedFileCount"
+          ]
+        },
+        {
+          "declaration": "let newlyOrphanedEntityCount: Int",
+          "identifier": "s:14StellarStorage30LibraryGarbageCollectionResultV24newlyOrphanedEntityCountSivp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryGarbageCollectionResult",
+            "newlyOrphanedEntityCount"
+          ]
+        },
+        {
+          "declaration": "struct LibraryCollectionThumbnailMember",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailMemberV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryCollectionThumbnailMember"
+          ]
+        },
+        {
+          "declaration": "let materialRevision: Int64",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailMemberV16materialRevisions5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryCollectionThumbnailMember",
+            "materialRevision"
+          ]
+        },
+        {
+          "declaration": "let fileUID: String",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailMemberV7fileUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryCollectionThumbnailMember",
+            "fileUID"
+          ]
+        },
+        {
+          "declaration": "let locator: RemoteLocator",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailMemberV7locator0A11RemoteMedia0H7LocatorVvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryCollectionThumbnailMember",
+            "locator"
+          ]
+        },
+        {
+          "declaration": "let entityUID: String",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailMemberV9entityUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryCollectionThumbnailMember",
+            "entityUID"
+          ]
+        },
+        {
+          "declaration": "struct LibraryCollectionThumbnailTarget",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailTargetV",
+          "kind": "swift.struct",
+          "path": [
+            "LibraryCollectionThumbnailTarget"
+          ]
+        },
+        {
+          "declaration": "let currentThumbnail: LibraryGeneratedThumbnail?",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailTargetV07currentE0AA0c9GeneratedE0VSgvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryCollectionThumbnailTarget",
+            "currentThumbnail"
+          ]
+        },
+        {
+          "declaration": "let collectionUID: String",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailTargetV13collectionUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryCollectionThumbnailTarget",
+            "collectionUID"
+          ]
+        },
+        {
+          "declaration": "let inputSignature: String",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailTargetV14inputSignatureSSvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryCollectionThumbnailTarget",
+            "inputSignature"
+          ]
+        },
+        {
+          "declaration": "let members: [LibraryCollectionThumbnailMember]",
+          "identifier": "s:14StellarStorage32LibraryCollectionThumbnailTargetV7membersSayAA0cdE6MemberVGvp",
+          "kind": "swift.property",
+          "path": [
+            "LibraryCollectionThumbnailTarget",
+            "members"
           ]
         },
         {
@@ -13554,6 +14634,14 @@
           ]
         },
         {
+          "declaration": "typealias OpticalDiscMediaScanClassifier = OpticalDiscMediaScanClassifier",
+          "identifier": "s:19StellarUserMediaSDK011OpticalDiscC14ScanClassifiera",
+          "kind": "swift.typealias",
+          "path": [
+            "OpticalDiscMediaScanClassifier"
+          ]
+        },
+        {
           "declaration": "typealias TraverseAllMediaScanDirectories = TraverseAllMediaScanDirectories",
           "identifier": "s:19StellarUserMediaSDK011TraverseAllC15ScanDirectoriesa",
           "kind": "swift.typealias",
@@ -13578,6 +14666,14 @@
           ]
         },
         {
+          "declaration": "typealias NoopMediaScanDirectoryClassifier = NoopMediaScanDirectoryClassifier",
+          "identifier": "s:19StellarUserMediaSDK04NoopC23ScanDirectoryClassifiera",
+          "kind": "swift.typealias",
+          "path": [
+            "NoopMediaScanDirectoryClassifier"
+          ]
+        },
+        {
           "declaration": "typealias LocalMediaSourceSession = LocalMediaSourceSession",
           "identifier": "s:19StellarUserMediaSDK05LocalC13SourceSessiona",
           "kind": "swift.typealias",
@@ -13599,6 +14695,30 @@
           "kind": "swift.typealias",
           "path": [
             "LocalMediaSourceConfiguration"
+          ]
+        },
+        {
+          "declaration": "typealias FFmpegMediaTechnicalProbe = FFmpegMediaTechnicalProbe",
+          "identifier": "s:19StellarUserMediaSDK06FFmpegC14TechnicalProbea",
+          "kind": "swift.typealias",
+          "path": [
+            "FFmpegMediaTechnicalProbe"
+          ]
+        },
+        {
+          "declaration": "typealias FFmpegMediaScreenshotGenerator = FFmpegMediaScreenshotGenerator",
+          "identifier": "s:19StellarUserMediaSDK06FFmpegC19ScreenshotGeneratora",
+          "kind": "swift.typealias",
+          "path": [
+            "FFmpegMediaScreenshotGenerator"
+          ]
+        },
+        {
+          "declaration": "typealias FFmpegMediaPlaylistThumbnailGenerator = FFmpegMediaPlaylistThumbnailGenerator",
+          "identifier": "s:19StellarUserMediaSDK06FFmpegC26PlaylistThumbnailGeneratora",
+          "kind": "swift.typealias",
+          "path": [
+            "FFmpegMediaPlaylistThumbnailGenerator"
           ]
         },
         {
@@ -13647,6 +14767,54 @@
           "kind": "swift.typealias",
           "path": [
             "ScoredMediaMetadataCandidate"
+          ]
+        },
+        {
+          "declaration": "typealias CompositeMediaConfidence = CompositeMediaConfidence",
+          "identifier": "s:19StellarUserMediaSDK09CompositeC10Confidencea",
+          "kind": "swift.typealias",
+          "path": [
+            "CompositeMediaConfidence"
+          ]
+        },
+        {
+          "declaration": "typealias CompositeMediaDescriptor = CompositeMediaDescriptor",
+          "identifier": "s:19StellarUserMediaSDK09CompositeC10Descriptora",
+          "kind": "swift.typealias",
+          "path": [
+            "CompositeMediaDescriptor"
+          ]
+        },
+        {
+          "declaration": "typealias CompositeMediaDirectorySnapshot = CompositeMediaDirectorySnapshot",
+          "identifier": "s:19StellarUserMediaSDK09CompositeC17DirectorySnapshota",
+          "kind": "swift.typealias",
+          "path": [
+            "CompositeMediaDirectorySnapshot"
+          ]
+        },
+        {
+          "declaration": "typealias CompositeMediaKind = CompositeMediaKind",
+          "identifier": "s:19StellarUserMediaSDK09CompositeC4Kinda",
+          "kind": "swift.typealias",
+          "path": [
+            "CompositeMediaKind"
+          ]
+        },
+        {
+          "declaration": "typealias CompositeMediaContainer = CompositeMediaContainer",
+          "identifier": "s:19StellarUserMediaSDK09CompositeC9Containera",
+          "kind": "swift.typealias",
+          "path": [
+            "CompositeMediaContainer"
+          ]
+        },
+        {
+          "declaration": "typealias CompositeMediaDetection = CompositeMediaDetection",
+          "identifier": "s:19StellarUserMediaSDK09CompositeC9Detectiona",
+          "kind": "swift.typealias",
+          "path": [
+            "CompositeMediaDetection"
           ]
         },
         {
@@ -13866,6 +15034,14 @@
           ]
         },
         {
+          "declaration": "typealias MediaScreenshotResult = MediaScreenshotResult",
+          "identifier": "s:19StellarUserMediaSDK0C16ScreenshotResulta",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScreenshotResult"
+          ]
+        },
+        {
           "declaration": "typealias MediaSourceCapability = MediaSourceCapability",
           "identifier": "s:19StellarUserMediaSDK0C16SourceCapabilitya",
           "kind": "swift.typealias",
@@ -13927,6 +15103,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaMetadataProviding"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScreenshotRequest = MediaScreenshotRequest",
+          "identifier": "s:19StellarUserMediaSDK0C17ScreenshotRequesta",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScreenshotRequest"
           ]
         },
         {
@@ -14010,6 +15194,14 @@
           ]
         },
         {
+          "declaration": "typealias MediaScreenshotGenerating = MediaScreenshotGenerating",
+          "identifier": "s:19StellarUserMediaSDK0C20ScreenshotGeneratinga",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScreenshotGenerating"
+          ]
+        },
+        {
           "declaration": "typealias MediaSourceConnectionMode = MediaSourceConnectionMode",
           "identifier": "s:19StellarUserMediaSDK0C20SourceConnectionModea",
           "kind": "swift.typealias",
@@ -14050,6 +15242,22 @@
           ]
         },
         {
+          "declaration": "typealias MediaPlaylistThumbnailItem = MediaPlaylistThumbnailItem",
+          "identifier": "s:19StellarUserMediaSDK0C21PlaylistThumbnailItema",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaPlaylistThumbnailItem"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScreenshotImageFormat = MediaScreenshotImageFormat",
+          "identifier": "s:19StellarUserMediaSDK0C21ScreenshotImageFormata",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScreenshotImageFormat"
+          ]
+        },
+        {
           "declaration": "typealias MediaTechnicalProbeRequest = MediaTechnicalProbeRequest",
           "identifier": "s:19StellarUserMediaSDK0C21TechnicalProbeRequesta",
           "kind": "swift.typealias",
@@ -14071,6 +15279,38 @@
           "kind": "swift.typealias",
           "path": [
             "MediaMetadataCandidateScorer"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScanDirectoryClassifier = MediaScanDirectoryClassifier",
+          "identifier": "s:19StellarUserMediaSDK0C23ScanDirectoryClassifiera",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanDirectoryClassifier"
+          ]
+        },
+        {
+          "declaration": "typealias MediaPlaylistThumbnailRequest = MediaPlaylistThumbnailRequest",
+          "identifier": "s:19StellarUserMediaSDK0C24PlaylistThumbnailRequesta",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaPlaylistThumbnailRequest"
+          ]
+        },
+        {
+          "declaration": "typealias MediaPlaylistThumbnailGenerating = MediaPlaylistThumbnailGenerating",
+          "identifier": "s:19StellarUserMediaSDK0C27PlaylistThumbnailGeneratinga",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaPlaylistThumbnailGenerating"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScanDirectoryClassification = MediaScanDirectoryClassification",
+          "identifier": "s:19StellarUserMediaSDK0C27ScanDirectoryClassificationa",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanDirectoryClassification"
           ]
         },
         {
@@ -14850,6 +16090,14 @@
           ]
         },
         {
+          "declaration": "typealias LibraryGeneratedThumbnail = LibraryGeneratedThumbnail",
+          "identifier": "s:19StellarUserMediaSDK25LibraryGeneratedThumbnaila",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryGeneratedThumbnail"
+          ]
+        },
+        {
           "declaration": "typealias LibraryRemoteMetadataKind = LibraryRemoteMetadataKind",
           "identifier": "s:19StellarUserMediaSDK25LibraryRemoteMetadataKinda",
           "kind": "swift.typealias",
@@ -14938,6 +16186,14 @@
           ]
         },
         {
+          "declaration": "typealias OpticalDiscCandidateDetector = OpticalDiscCandidateDetector",
+          "identifier": "s:19StellarUserMediaSDK28OpticalDiscCandidateDetectora",
+          "kind": "swift.typealias",
+          "path": [
+            "OpticalDiscCandidateDetector"
+          ]
+        },
+        {
           "declaration": "typealias PosterWallArtworkCacheRecord = PosterWallArtworkCacheRecord",
           "identifier": "s:19StellarUserMediaSDK28PosterWallArtworkCacheRecorda",
           "kind": "swift.typealias",
@@ -14959,6 +16215,30 @@
           "kind": "swift.typealias",
           "path": [
             "PosterWallAvailabilityFilter"
+          ]
+        },
+        {
+          "declaration": "typealias LibraryMissingRetentionPolicy = LibraryMissingRetentionPolicy",
+          "identifier": "s:19StellarUserMediaSDK29LibraryMissingRetentionPolicya",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryMissingRetentionPolicy"
+          ]
+        },
+        {
+          "declaration": "typealias LibraryGarbageCollectionPolicy = LibraryGarbageCollectionPolicy",
+          "identifier": "s:19StellarUserMediaSDK30LibraryGarbageCollectionPolicya",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryGarbageCollectionPolicy"
+          ]
+        },
+        {
+          "declaration": "typealias LibraryGarbageCollectionResult = LibraryGarbageCollectionResult",
+          "identifier": "s:19StellarUserMediaSDK30LibraryGarbageCollectionResulta",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryGarbageCollectionResult"
           ]
         },
         {
@@ -14991,6 +16271,22 @@
           "kind": "swift.typealias",
           "path": [
             "PosterWallArtworkVariantRequest"
+          ]
+        },
+        {
+          "declaration": "typealias LibraryCollectionThumbnailMember = LibraryCollectionThumbnailMember",
+          "identifier": "s:19StellarUserMediaSDK32LibraryCollectionThumbnailMembera",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryCollectionThumbnailMember"
+          ]
+        },
+        {
+          "declaration": "typealias LibraryCollectionThumbnailTarget = LibraryCollectionThumbnailTarget",
+          "identifier": "s:19StellarUserMediaSDK32LibraryCollectionThumbnailTargeta",
+          "kind": "swift.typealias",
+          "path": [
+            "LibraryCollectionThumbnailTarget"
           ]
         },
         {

@@ -10,15 +10,19 @@ Apple Swift SDK 采用 SQLite 作为本地事实库。iOS/iPadOS、macOS 与 tvO
 - [`account-v1.sql`](sql/account-v1.sql)：来源配置、凭据记录、冲突、outbox 与 cursor；
 - [`metadata-cache-v1.sql`](sql/metadata-cache-v1.sql)：3 张可删除缓存表。
 
-当前 `library.sqlite` 版本为 v7；[`schema-migrations.json`](schema-migrations.json) 固定
+当前 `library.sqlite` 版本为 v10；[`schema-migrations.json`](schema-migrations.json) 固定
 [`library-v2.sql`](sql/library-v2.sql)、[`library-v3.sql`](sql/library-v3.sql) 与
 [`library-v4.sql`](sql/library-v4.sql)、[`library-v5.sql`](sql/library-v5.sql) 与
-[`library-v6.sql`](sql/library-v6.sql)、[`library-v7.sql`](sql/library-v7.sql) 的 checksum。
+[`library-v6.sql`](sql/library-v6.sql)、[`library-v7.sql`](sql/library-v7.sql)、
+[`library-v8.sql`](sql/library-v8.sql)、[`library-v9.sql`](sql/library-v9.sql) 与
+[`library-v10.sql`](sql/library-v10.sql) 的 checksum。
 v2 增加 `scan_frontier` 与 `scan_seen`，v3 增加 per-run `scan_discovery` staging 和
 单来源 active run 唯一约束，v4 增加文件 material revision 与可回收、可 CAS 写回的 worker
 lease，v5 增加小批 worker claim 的顺序索引，避免反复全队列排序；v6 增加事务级
 `library_revision` 计数器，使游标校验无需逐行哈希整库；v7 将终态失败从 worker 的热 claim
-顺序索引中移除，避免永久失败积累拖慢后续小批领取；现行媒体库共 31 张业务表。
+顺序索引中移除，避免永久失败积累拖慢后续小批领取；v8 持久化复合媒体 descriptor，v9 增加
+片单缩略图索引，v10 增加来源特定 missing retention、异常结果保护、offline overlay 和两阶段
+实体垃圾回收状态；现行媒体库共 32 张业务表。
 account 与 metadata cache 仍为 v1。
 
 研究文档中的 SQL 只保留设计推导与数据字典；若与上述可执行合同冲突，以 `specs/storage/sql/` 为准。数据库身份、GRDB 采用方式、连接参数和迁移失败策略见 [ADR-0004](../../docs/decisions/0004-sqlite-storage-and-migrations.md)。
@@ -27,7 +31,7 @@ account 与 metadata cache 仍为 v1。
 
 - 平台安全存储：每台设备独立的 Stellar OAuth token；不是 SQLite。默认访问策略不要求每次读取时进行生物识别或用户在场验证。
 - `account.sqlite`：账号资料、可同步媒体源配置、应用层明文第三方凭据记录，以及各自的同步 outbox。v1 DDL 不保存 Stellar OAuth token，也不计入媒体库业务表；应用沙箱和平台 data-protection 不改变 payload 可被应用读取的事实。
-- `library.sqlite`：31 张媒体库核心表，包括扫描 frontier/seen/discovery staging、文件、影视实体、用户状态、媒体库 revision 和同步状态。
+- `library.sqlite`：32 张媒体库核心表，包括扫描 frontier/seen/discovery staging、文件、影视实体、片单缩略图、用户状态、媒体库 revision 和同步状态。
 - `metadata_cache.sqlite`：3 张可删除、可重建的供应商响应、匹配候选和图片文件缓存表。
 
 数据库之间不建立外键；使用跨库 UID 和应用层约束。这样可以清空缓存或重建媒体索引，而不损坏登录、远程配置和安全凭据。

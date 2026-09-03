@@ -49,7 +49,7 @@ struct StorageMigrationTests {
     #expect(try await database.verify().isValid)
   }
 
-  @Test("An existing library v1 database migrates in place to v7")
+  @Test("An existing library v1 database migrates in place to v10")
   func existingLibraryV1MigratesInPlace() async throws {
     let directory = temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -78,8 +78,8 @@ struct StorageMigrationTests {
 
     let migrated = try await StorageDatabase.open(kind: .library, at: url)
     let report = try await migrated.verify()
-    #expect(report.userVersion == 7)
-    #expect(report.businessTableCount == 31)
+    #expect(report.userVersion == 10)
+    #expect(report.businessTableCount == 32)
     #expect(report.isValid)
     let preserved = try await migrated.read { database in
       try String.fetchOne(
@@ -94,6 +94,26 @@ struct StorageMigrationTests {
       )
     }
     #expect(claimIndexSQL?.contains("'failed'") == false)
+    let lifecycleDefaults = try await migrated.read { database in
+      let row = try Row.fetchOne(
+        database,
+        sql: """
+          SELECT missing_grace_ms, missing_required_scan_count, missing_empty_root_guard,
+                 offline_since_ms
+          FROM library_source WHERE uid = 'preserved'
+          """
+      )
+      return (
+        row?["missing_grace_ms"] as Int64?,
+        row?["missing_required_scan_count"] as Int?,
+        row?["missing_empty_root_guard"] as Int?,
+        row?["offline_since_ms"] as Int64?
+      )
+    }
+    #expect(lifecycleDefaults.0 == 604_800_000)
+    #expect(lifecycleDefaults.1 == 2)
+    #expect(lifecycleDefaults.2 == 1)
+    #expect(lifecycleDefaults.3 == nil)
   }
 
   @Test("An existing library v2 database preserves data and normalizes overlapping active runs")
@@ -157,8 +177,8 @@ struct StorageMigrationTests {
 
     let migrated = try await StorageDatabase.open(kind: .library, at: url)
     let report = try await migrated.verify()
-    #expect(report.userVersion == 7)
-    #expect(report.businessTableCount == 31)
+    #expect(report.userVersion == 10)
+    #expect(report.businessTableCount == 32)
     #expect(report.isValid)
     let states = try await migrated.read { database in
       try Row.fetchAll(
@@ -316,7 +336,7 @@ struct StorageMigrationTests {
       )
     }
     #expect(checksum == "corrupt")
-    #expect(tableCount == 31)
+    #expect(tableCount == 32)
     #expect(try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == sizeBefore)
   }
 
@@ -346,7 +366,7 @@ struct StorageMigrationTests {
   private func expectedTableCount(_ kind: StorageDatabaseKind) -> Int {
     switch kind {
     case .account: 6
-    case .library: 31
+    case .library: 32
     case .metadataCache: 3
     }
   }

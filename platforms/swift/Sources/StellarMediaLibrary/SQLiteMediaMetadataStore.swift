@@ -91,6 +91,23 @@ public struct SQLiteMediaMetadataStore: Sendable {
     }
   }
 
+  /// Persists one optional technical probe and completes its claimed queue item atomically.
+  public func persistTechnicalProbe(
+    _ result: MediaTechnicalProbeResult,
+    completing lease: LibraryScanWorkLease
+  ) async throws {
+    do {
+      try await store.commitTechnicalProbe(
+        try makeProbeRecord(result),
+        completing: lease
+      )
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "technical probe persistence failed")
+    }
+  }
+
   private func makeParseRecord(_ analysis: MediaFilenameAnalysis) throws
     -> LibraryFilenameParseRecord
   {

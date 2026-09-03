@@ -38,19 +38,26 @@ Infuse 8.5.1 对媒体缩略图采用“专用 decoder → 解码 video frame �
 
 ## 对 SDK 的映射
 
-SDK 的首版实现位于：
+SDK 的实现位于：
 
 - `CStellarFFmpegScreenshot`：libavformat 打开/seek，libavcodec 解码，libswscale 转 BGRA8；
-- `StellarMediaImaging`：请求校验、Swift cancellation、远端暂存、ImageIO PNG/JPEG 编码；
+- `StellarMediaImaging`：请求校验、Swift cancellation、seekable range AVIO、ImageIO
+  PNG/JPEG 编码，以及片单缩略图合成；
 - `FFmpegMediaScreenshotGenerator`：本地文件与任意 `MediaSourceSession` 的公共入口。
 
 时间点按毫秒输入。decoder 从目标时间之前的关键帧开始解码，返回目标时间点或之后的第一帧；最大像素边可选，并保持像素宽高比。FFmpegKit 固定构建没有启用 image muxer/PNG/JPEG encoder，因此没有走 CLI 输出文件，而是直接消费 libav 解码帧。这也减少了命令行全局状态和凭据泄漏面。
 
-远端媒体首版通过来源无关的 range-read seam 以 4 MiB 块暂存到系统临时文件，随后复用本地路径。它不会生成带 SMB 用户名/密码的 URL。正常、错误和取消退出都会清理临时文件。
+远端媒体通过来源无关的 `MediaSourceSession.read(range:)` 接入 FFmpeg custom AVIO。seek
+由 AVIO 映射到远端 offset；读取使用 256 KiB 对齐块和最多 2 MiB 的 LRU，单次远端读取有
+超时和取消边界。实现不会生成带 SMB 用户名/密码的 URL，也不会把完整远端媒体暂存到本地。
+
+逆向字符串还存在 `loadPlaylistsWithoutThumbnails`、`set(thumbnailState:playlistId:)`、
+`PLThumbnailsDAO` 和 `FCUpNextThumbnailOperation`，因此 Infuse 的 thumbnail 子系统不能只解释为
+海报墙缺图兜底。SDK 对此采用 clean-room 映射：实体帧可作为 PosterWall fallback，也可按片单
+顺序取最多四帧生成独立片单缩略图；片单成员或输入文件 revision 变化时使缓存签名失效。
 
 ## 已知差距
 
-- 远端文件目前需要完整暂存；下一步应实现基于 `MediaSourceSession` 的 seekable custom AVIO/cache。
 - 当前没有应用 container display matrix、sample aspect ratio 校正和 HDR tone mapping。
 - 还需要真实 H.264/H.265、旋转视频、VFR、HDR、损坏输入和超长 GOP fixture。
 - 静态分析无法证明 Infuse 的精确 seek 容差、缩放 filter、色彩管理或硬件/软件 fallback 权重；这些不应被描述为已复刻。

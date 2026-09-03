@@ -50,11 +50,7 @@ public struct PosterWallStore: Sendable {
           identity: identity,
           revision: revision
         )
-        var roots = try Self.loadRoots(
-          locale: query.locale,
-          profileUID: query.profileUID,
-          database: database
-        )
+        var roots = try Self.loadRoots(query: query, database: database)
         roots = Self.filter(roots, query: query)
         roots.sort { Self.isOrderedBefore($0, $1, query: query) }
         return LoadedPosterWallProjection(revision: revision, roots: roots)
@@ -93,12 +89,14 @@ public struct PosterWallStore: Sendable {
     do {
       return try await database.read { database in
         let revision = try Self.libraryRevision(database)
-        let roots = try Self.loadRoots(
-          locale: locale,
-          profileUID: profileUID,
-          database: database
-        )
-        guard let root = roots.first(where: { $0.item.mediaUID == mediaUID }) else {
+        guard
+          var root = try Self.loadRoot(
+            mediaUID: mediaUID,
+            locale: locale,
+            profileUID: profileUID,
+            database: database
+          )
+        else {
           throw SDKError(code: .metadataNotFound, message: "PosterWall media was not found")
         }
         let metadata = try Self.localizedDetails(
@@ -122,8 +120,25 @@ public struct PosterWallStore: Sendable {
             value: row["external_value"]
           )
         }
-        let artwork = try Self.artwork(entityID: root.entityID, database: database)
+        let artwork = try Self.artwork(
+          entityID: root.entityID,
+          locale: locale,
+          database: database
+        )
+        root.item = Self.replacing(
+          root.item,
+          poster: artwork.poster,
+          backdrop: artwork.backdrop
+        )
         let fileRecords = try Self.files(rootEntityID: root.entityID, database: database)
+        let primaryAvailabilities = fileRecords.compactMap { record in
+          record.bindingRole == "primary" || record.bindingRole == "version"
+            ? record.availability : nil
+        }
+        root.item = Self.replacing(
+          root.item,
+          availability: Self.aggregateAvailability(primaryAvailabilities)
+        )
         let streams = try Self.streams(
           fileIDs: fileRecords.map(\.fileID),
           database: database
@@ -151,7 +166,7 @@ public struct PosterWallStore: Sendable {
           contentRating: metadata.contentRating,
           genres: root.genres.sorted(),
           externalIDs: externalIDs,
-          artwork: artwork,
+          artwork: artwork.items,
           playableFiles: rootFiles,
           seasons: seasons
         )
@@ -218,62 +233,48 @@ public struct PosterWallStore: Sendable {
   }
 
   private static func loadRoots(
-    locale: String,
-    profileUID: String?,
+    query: PosterWallQuery,
     database: Database
   ) throws -> [RootProjection] {
-    let rows = try Row.fetchAll(
+    let locale = query.locale
+    let searchProjection: String
+    let searchJoin: String
+    if query.searchText == nil {
+      searchProjection = "''"
+      searchJoin = ""
+    } else {
+      searchProjection = """
+        COALESCE(sd.title, '') || ' ' || COALESCE(sd.aliases, '') || ' '
+          || COALESCE(sd.people, '') || ' ' || COALESCE(sd.genres, '') || ' '
+          || COALESCE(sd.romanized, '')
+        """
+      searchJoin = "LEFT JOIN search_document sd ON sd.entity_id = e.id"
+    }
+    let rootRows = try Row.fetchCursor(
       database,
       sql: """
-        SELECT e.id, e.uid, e.kind, e.original_title, e.year, e.release_date,
-               e.created_at_ms, e.updated_at_ms,
-               COALESCE(
-                 (SELECT lm.title FROM localized_metadata lm
-                  WHERE lm.entity_id = e.id AND lm.locale = ?),
-                 (SELECT lm.title FROM localized_metadata lm
-                  WHERE lm.entity_id = e.id AND lm.locale = 'und'),
-                 e.canonical_title
-               ) AS display_title,
-               COALESCE(sd.title, '') || ' ' || COALESCE(sd.aliases, '') || ' '
-                 || COALESCE(sd.people, '') || ' ' || COALESCE(sd.genres, '') || ' '
-                 || COALESCE(sd.romanized, '') AS search_text
-        FROM media_entity e
-        LEFT JOIN search_document sd ON sd.entity_id = e.id
-        WHERE e.kind IN ('movie', 'series')
-          AND e.status = 'active' AND e.deleted_at_ms IS NULL
-        ORDER BY e.uid
+          SELECT e.id, e.uid, e.kind, e.original_title, e.year, e.release_date,
+                 e.created_at_ms, e.updated_at_ms,
+                 COALESCE(
+                   (SELECT lm.title FROM localized_metadata lm
+                    WHERE lm.entity_id = e.id AND lm.locale = ?),
+                   (SELECT lm.title FROM localized_metadata lm
+                    WHERE lm.entity_id = e.id AND lm.locale = 'und'),
+                   e.canonical_title
+                   ) AS display_title,
+                 \(searchProjection) AS search_text
+          FROM media_entity e
+          \(searchJoin)
+          WHERE e.kind IN ('movie', 'series')
+            AND e.status = 'active' AND e.deleted_at_ms IS NULL
+          ORDER BY e.uid
         """,
       arguments: [locale]
     )
-    var roots = rows.map { row in
-      let kindValue: String = row["kind"]
-      return RootProjection(
-        entityID: row["id"],
-        item: PosterWallItem(
-          mediaUID: row["uid"],
-          kind: kindValue == "movie" ? .movie : .series,
-          title: row["display_title"],
-          subtitle: nil,
-          year: row["year"],
-          poster: nil,
-          backdrop: nil,
-          progress: nil,
-          unwatchedEpisodeCount: nil,
-          availability: .unavailable,
-          metadataRevision: row["updated_at_ms"]
-        ),
-        originalTitle: row["original_title"],
-        releaseDate: row["release_date"],
-        addedAtMilliseconds: row["created_at_ms"],
-        lastPlayedAtMilliseconds: nil,
-        sourceUIDs: [],
-        genres: [],
-        collectionUIDs: [],
-        searchText: row["search_text"],
-        hasPlaybackState: false,
-        isCompleted: false,
-        totalEpisodeCount: 0
-      )
+    var roots: [RootProjection] = []
+    roots.reserveCapacity(1_024)
+    while let row = try rootRows.next() {
+      roots.append(makeRoot(row))
     }
     var rootIndex = Dictionary(uniqueKeysWithValues: roots.indices.map { (roots[$0].entityID, $0) })
 
@@ -295,37 +296,41 @@ public struct PosterWallStore: Sendable {
       )
     }
 
-    let genreRows = try Row.fetchAll(
-      database,
-      sql: """
-        SELECT eg.entity_id, gn.name
-        FROM entity_genre eg
-        JOIN genre_name gn ON gn.genre_id = eg.genre_id
-        WHERE gn.locale = ? OR gn.locale = 'und'
-        ORDER BY eg.entity_id, CASE WHEN gn.locale = ? THEN 0 ELSE 1 END, eg.position, gn.name
-        """,
-      arguments: [locale, locale]
-    )
-    for row in genreRows {
-      let entityID: Int64 = row["entity_id"]
-      guard let index = rootIndex[entityID] else { continue }
-      roots[index].genres.insert(row["name"])
+    if !query.filter.genres.isEmpty || query.searchText != nil {
+      let genreRows = try Row.fetchAll(
+        database,
+        sql: """
+          SELECT eg.entity_id, gn.name
+          FROM entity_genre eg
+          JOIN genre_name gn ON gn.genre_id = eg.genre_id
+          WHERE gn.locale = ? OR gn.locale = 'und'
+          ORDER BY eg.entity_id, CASE WHEN gn.locale = ? THEN 0 ELSE 1 END, eg.position, gn.name
+          """,
+        arguments: [locale, locale]
+      )
+      for row in genreRows {
+        let entityID: Int64 = row["entity_id"]
+        guard let index = rootIndex[entityID] else { continue }
+        roots[index].genres.insert(row["name"])
+      }
     }
 
-    let collectionRows = try Row.fetchAll(
-      database,
-      sql: """
-        SELECT ci.entity_id, c.uid
-        FROM collection_item ci
-        JOIN media_collection c ON c.id = ci.collection_id
-        WHERE c.deleted_at_ms IS NULL
-        ORDER BY ci.entity_id, c.uid
-        """
-    )
-    for row in collectionRows {
-      let entityID: Int64 = row["entity_id"]
-      guard let index = rootIndex[entityID] else { continue }
-      roots[index].collectionUIDs.insert(row["uid"])
+    if query.section == .collection {
+      let collectionRows = try Row.fetchAll(
+        database,
+        sql: """
+          SELECT ci.entity_id, c.uid
+          FROM collection_item ci
+          JOIN media_collection c ON c.id = ci.collection_id
+          WHERE c.deleted_at_ms IS NULL
+          ORDER BY ci.entity_id, c.uid
+          """
+      )
+      for row in collectionRows {
+        let entityID: Int64 = row["entity_id"]
+        guard let index = rootIndex[entityID] else { continue }
+        roots[index].collectionUIDs.insert(row["uid"])
+      }
     }
 
     let artworkRows = try Row.fetchAll(
@@ -340,12 +345,14 @@ public struct PosterWallStore: Sendable {
     let groupedArtwork = Dictionary(grouping: artworkRows) { row -> Int64 in row["entity_id"] }
     for (entityID, candidates) in groupedArtwork {
       guard let index = rootIndex[entityID] else { continue }
-      let poster = selectArtwork(kind: "poster", locale: locale, rows: candidates)
+      let poster =
+        selectArtwork(kind: "poster", locale: locale, rows: candidates)
+        ?? selectArtwork(kind: "thumbnail", locale: "und", rows: candidates)
       let backdrop = selectArtwork(kind: "backdrop", locale: locale, rows: candidates)
       roots[index].item = replacing(roots[index].item, poster: poster, backdrop: backdrop)
     }
 
-    if let profileUID {
+    if let profileUID = query.profileUID {
       let playbackRows = try Row.fetchAll(
         database,
         sql: rootPlaybackSQL,
@@ -394,21 +401,7 @@ public struct PosterWallStore: Sendable {
       }
       for (rootID, values) in playbackByRoot {
         guard let index = rootIndex[rootID] else { continue }
-        roots[index].hasPlaybackState = true
-        roots[index].lastPlayedAtMilliseconds = values.compactMap(\.lastPlayedAtMilliseconds).max()
-        if roots[index].item.kind == .movie {
-          roots[index].isCompleted = values.contains(where: \.isCompleted)
-        }
-        let resumable = values.filter {
-          !$0.isCompleted && $0.positionMilliseconds > 0 && ($0.durationMilliseconds ?? 0) > 0
-        }.sorted {
-          ($0.lastPlayedAtMilliseconds ?? 0) > ($1.lastPlayedAtMilliseconds ?? 0)
-        }.first
-        let progress = resumable.flatMap { value -> Double? in
-          guard let duration = value.durationMilliseconds, duration > 0 else { return nil }
-          return roundedProgress(Double(value.positionMilliseconds) / Double(duration))
-        }
-        roots[index].item = replacing(roots[index].item, progress: progress)
+        applyPlayback(values, to: &roots[index])
       }
     }
 
@@ -416,10 +409,188 @@ public struct PosterWallStore: Sendable {
     return roots
   }
 
+  /// Loads only the selected root and its list-level projection. Details must not materialize the
+  /// entire PosterWall merely to find one entity.
+  private static func loadRoot(
+    mediaUID: String,
+    locale: String,
+    profileUID: String?,
+    database: Database
+  ) throws -> RootProjection? {
+    guard
+      let row = try Row.fetchOne(
+        database,
+        sql: """
+          SELECT e.id, e.uid, e.kind, e.original_title, e.year, e.release_date,
+                 e.created_at_ms, e.updated_at_ms,
+                 COALESCE(
+                   (SELECT lm.title FROM localized_metadata lm
+                    WHERE lm.entity_id = e.id AND lm.locale = ?),
+                   (SELECT lm.title FROM localized_metadata lm
+                    WHERE lm.entity_id = e.id AND lm.locale = 'und'),
+                   e.canonical_title
+                 ) AS display_title,
+                 '' AS search_text
+          FROM media_entity e
+          WHERE e.uid = ? AND e.kind IN ('movie', 'series')
+            AND e.status = 'active' AND e.deleted_at_ms IS NULL
+          LIMIT 1
+          """,
+        arguments: [locale, mediaUID]
+      )
+    else {
+      return nil
+    }
+
+    var root = makeRoot(row)
+    root.genres = Set(
+      try String.fetchAll(
+        database,
+        sql: """
+          SELECT gn.name
+          FROM entity_genre eg
+          JOIN genre_name gn ON gn.genre_id = eg.genre_id
+          WHERE eg.entity_id = ? AND (gn.locale = ? OR gn.locale = 'und')
+          ORDER BY CASE WHEN gn.locale = ? THEN 0 ELSE 1 END, eg.position, gn.name
+          """,
+        arguments: [root.entityID, locale, locale]
+      )
+    )
+
+    if let profileUID {
+      let playbackRows = try Row.fetchAll(
+        database,
+        sql: """
+          WITH RECURSIVE descendants(id) AS (
+            SELECT ?
+            UNION ALL
+            SELECT child.id
+            FROM media_entity child
+            JOIN descendants parent ON child.parent_id = parent.id
+            WHERE child.deleted_at_ms IS NULL
+          )
+          SELECT state.position_ms, state.duration_ms, state.completed, state.last_played_at_ms
+          FROM descendants
+          JOIN media_entity bound ON bound.id = descendants.id
+          JOIN playback_state state ON state.entity_id = bound.id
+          JOIN playback_profile profile ON profile.id = state.profile_id
+          WHERE profile.uid = ? AND bound.deleted_at_ms IS NULL
+          ORDER BY state.last_played_at_ms DESC, bound.uid
+          """,
+        arguments: [root.entityID, profileUID]
+      ).map { playbackRow in
+        PlaybackProjection(
+          positionMilliseconds: playbackRow["position_ms"],
+          durationMilliseconds: playbackRow["duration_ms"],
+          isCompleted: (playbackRow["completed"] as Int) == 1,
+          lastPlayedAtMilliseconds: playbackRow["last_played_at_ms"]
+        )
+      }
+      if !playbackRows.isEmpty {
+        applyPlayback(playbackRows, to: &root)
+      }
+
+      if root.item.kind == .series,
+        let episodeRow = try Row.fetchOne(
+          database,
+          sql: """
+            SELECT COUNT(episode.id) AS episode_count,
+                   SUM(CASE WHEN ps.completed = 1 THEN 0 ELSE 1 END) AS unwatched_count
+            FROM media_entity season
+            JOIN media_entity episode
+              ON episode.parent_id = season.id AND episode.kind = 'episode'
+            LEFT JOIN playback_profile profile ON profile.uid = ?
+            LEFT JOIN playback_state ps
+              ON ps.profile_id = profile.id AND ps.entity_id = episode.id
+            WHERE season.parent_id = ? AND season.kind = 'season'
+              AND season.deleted_at_ms IS NULL AND episode.deleted_at_ms IS NULL
+            HAVING COUNT(episode.id) > 0
+            """,
+          arguments: [profileUID, root.entityID]
+        )
+      {
+        let episodeCount: Int = episodeRow["episode_count"]
+        let unwatchedCount: Int = episodeRow["unwatched_count"]
+        root.totalEpisodeCount = episodeCount
+        root.isCompleted = unwatchedCount == 0
+        root.item = replacing(root.item, unwatchedEpisodeCount: unwatchedCount)
+      }
+    }
+    return root
+  }
+
+  private static func makeRoot(_ row: Row) -> RootProjection {
+    let kindValue: String = row["kind"]
+    let displayTitle: String = row["display_title"]
+    return RootProjection(
+      entityID: row["id"],
+      item: PosterWallItem(
+        mediaUID: row["uid"],
+        kind: kindValue == "movie" ? .movie : .series,
+        title: displayTitle,
+        subtitle: nil,
+        year: row["year"],
+        poster: nil,
+        backdrop: nil,
+        progress: nil,
+        unwatchedEpisodeCount: nil,
+        availability: .unavailable,
+        metadataRevision: row["updated_at_ms"]
+      ),
+      originalTitle: row["original_title"],
+      releaseDate: row["release_date"],
+      addedAtMilliseconds: row["created_at_ms"],
+      lastPlayedAtMilliseconds: nil,
+      sourceUIDs: [],
+      genres: [],
+      collectionUIDs: [],
+      searchText: row["search_text"],
+      titleSortKey: normalizeText(displayTitle),
+      hasPlaybackState: false,
+      isCompleted: false,
+      totalEpisodeCount: 0
+    )
+  }
+
+  private static func applyPlayback(_ values: [PlaybackProjection], to root: inout RootProjection) {
+    root.hasPlaybackState = true
+    var lastPlayedAt: Int64?
+    var isCompleted = false
+    var resumable: PlaybackProjection?
+    for value in values {
+      if let timestamp = value.lastPlayedAtMilliseconds,
+        lastPlayedAt.map({ timestamp > $0 }) ?? true
+      {
+        lastPlayedAt = timestamp
+      }
+      isCompleted = isCompleted || value.isCompleted
+      guard !value.isCompleted, value.positionMilliseconds > 0,
+        (value.durationMilliseconds ?? 0) > 0
+      else {
+        continue
+      }
+      if resumable == nil
+        || (value.lastPlayedAtMilliseconds ?? 0)
+          > (resumable?.lastPlayedAtMilliseconds ?? 0)
+      {
+        resumable = value
+      }
+    }
+    root.lastPlayedAtMilliseconds = lastPlayedAt
+    if root.item.kind == .movie { root.isCompleted = isCompleted }
+    let progress = resumable.flatMap { value -> Double? in
+      guard let duration = value.durationMilliseconds, duration > 0 else { return nil }
+      return roundedProgress(Double(value.positionMilliseconds) / Double(duration))
+    }
+    root.item = replacing(root.item, progress: progress)
+  }
+
   private static func filter(_ roots: [RootProjection], query: PosterWallQuery)
     -> [RootProjection]
   {
-    roots.filter { root in
+    let requestedGenres = Set(query.filter.genres.map(normalizeText))
+    let searchNeedle = query.searchText.map(normalizeText)
+    return roots.filter { root in
       switch query.section {
       case .movies where root.item.kind != .movie:
         return false
@@ -444,10 +615,9 @@ public struct PosterWallStore: Sendable {
       {
         return false
       }
-      if !query.filter.genres.isEmpty {
+      if !requestedGenres.isEmpty {
         let available = Set(root.genres.map(normalizeText))
-        let requested = Set(query.filter.genres.map(normalizeText))
-        if !requested.isSubset(of: available) { return false }
+        if !requestedGenres.isSubset(of: available) { return false }
       }
       if let yearFrom = query.filter.yearFrom, (root.item.year ?? Int.min) < yearFrom {
         return false
@@ -473,8 +643,7 @@ public struct PosterWallStore: Sendable {
       default:
         break
       }
-      if let searchText = query.searchText {
-        let needle = normalizeText(searchText)
+      if let searchNeedle {
         let haystack = normalizeText(
           [
             root.item.title, root.originalTitle, root.searchText,
@@ -482,7 +651,7 @@ public struct PosterWallStore: Sendable {
           ]
           .compactMap { $0 }.joined(separator: " ")
         )
-        if !haystack.contains(needle) { return false }
+        if !haystack.contains(searchNeedle) { return false }
       }
       return true
     }
@@ -521,9 +690,7 @@ public struct PosterWallStore: Sendable {
       let right = stableRandom(mediaUID: rhs.item.mediaUID, seed: query.randomSeed)
       if left != right { return left < right }
     case .title, .unknown:
-      let left = normalizeText(lhs.item.title)
-      let right = normalizeText(rhs.item.title)
-      if left != right { return left < right }
+      if lhs.titleSortKey != rhs.titleSortKey { return lhs.titleSortKey < rhs.titleSortKey }
     }
     return lhs.item.mediaUID < rhs.item.mediaUID
   }
@@ -584,44 +751,53 @@ public struct PosterWallStore: Sendable {
     )
   }
 
-  private static func artwork(entityID: Int64, database: Database) throws
-    -> [PosterWallArtwork]
-  {
-    try Row.fetchAll(
+  private static func artwork(
+    entityID: Int64,
+    locale: String,
+    database: Database
+  ) throws -> LoadedArtwork {
+    let rows = try Row.fetchAll(
       database,
       sql: """
-        SELECT uid, kind, provider, remote_url, local_relative_path, width, height
+        SELECT uid, kind, locale, provider, remote_url, local_relative_path,
+               width, height, score, is_selected
         FROM artwork
         WHERE entity_id = ?
         ORDER BY kind, is_selected DESC, score DESC, uid
         """,
       arguments: [entityID]
-    ).map(makeArtwork)
+    )
+    return LoadedArtwork(
+      items: rows.map(makeArtwork),
+      poster: selectArtwork(kind: "poster", locale: locale, rows: rows)
+        ?? selectArtwork(kind: "thumbnail", locale: "und", rows: rows),
+      backdrop: selectArtwork(kind: "backdrop", locale: locale, rows: rows)
+    )
   }
 
   private static func files(rootEntityID: Int64, database: Database) throws -> [FileRecord] {
     try Row.fetchAll(
       database,
       sql: """
+        WITH RECURSIVE descendants(id) AS (
+          SELECT ?
+          UNION ALL
+          SELECT child.id
+          FROM media_entity child
+          JOIN descendants parent ON child.parent_id = parent.id
+          WHERE child.deleted_at_ms IS NULL
+        )
         SELECT f.id AS file_id, f.uid AS file_uid, s.uid AS source_uid, f.relative_path,
                f.availability, f.size_bytes, b.binding_role,
                bound.id AS bound_entity_id, bound.kind AS bound_kind,
                ts.duration_ms, ts.video_codec, ts.width, ts.height
-        FROM file_binding b
+        FROM descendants
+        JOIN file_binding b ON b.entity_id = descendants.id
         JOIN media_file f ON f.id = b.media_file_id
         JOIN library_source s ON s.id = f.source_id
         JOIN media_entity bound ON bound.id = b.entity_id
-        LEFT JOIN media_entity parent ON parent.id = bound.parent_id
-        LEFT JOIN media_entity grandparent ON grandparent.id = parent.parent_id
         LEFT JOIN technical_summary ts ON ts.media_file_id = f.id
-        WHERE CASE
-          WHEN bound.kind IN ('movie', 'series') THEN bound.id
-          WHEN bound.kind = 'season' THEN bound.parent_id
-          WHEN bound.kind = 'episode' THEN parent.parent_id
-          WHEN bound.kind = 'extra' AND parent.kind = 'season' THEN parent.parent_id
-          WHEN bound.kind = 'extra' THEN bound.parent_id
-        END = ?
-          AND f.deleted_at_ms IS NULL AND bound.deleted_at_ms IS NULL
+        WHERE f.deleted_at_ms IS NULL AND bound.deleted_at_ms IS NULL
         ORDER BY bound.kind, COALESCE(bound.season_number, -1),
                  COALESCE(bound.episode_number, -1), b.binding_role, f.uid
         """,
@@ -761,23 +937,31 @@ public struct PosterWallStore: Sendable {
     locale: String,
     rows: [Row]
   ) -> PosterWallArtwork? {
-    rows.filter { ($0["kind"] as String) == kind }.sorted { lhs, rhs in
-      let lhsSelected = (lhs["is_selected"] as Int) == 1
-      let rhsSelected = (rhs["is_selected"] as Int) == 1
-      if lhsSelected != rhsSelected { return lhsSelected }
-      let lhsLocale: String = lhs["locale"]
-      let rhsLocale: String = rhs["locale"]
-      let lhsLocaleRank = lhsLocale == locale ? 0 : (lhsLocale == "und" ? 1 : 2)
-      let rhsLocaleRank = rhsLocale == locale ? 0 : (rhsLocale == "und" ? 1 : 2)
-      if lhsLocaleRank != rhsLocaleRank { return lhsLocaleRank < rhsLocaleRank }
-      let lhsScore: Double = lhs["score"] ?? 0
-      let rhsScore: Double = rhs["score"] ?? 0
-      if lhsScore != rhsScore { return lhsScore > rhsScore }
-      let lhsArea = Int64(lhs["width"] ?? 0) * Int64(lhs["height"] ?? 0)
-      let rhsArea = Int64(rhs["width"] ?? 0) * Int64(rhs["height"] ?? 0)
-      if lhsArea != rhsArea { return lhsArea > rhsArea }
-      return (lhs["uid"] as String) < (rhs["uid"] as String)
-    }.first.map(makeArtwork)
+    var best: Row?
+    for row in rows where (row["kind"] as String) == kind {
+      if best.map({ isPreferredArtwork(row, over: $0, locale: locale) }) ?? true {
+        best = row
+      }
+    }
+    return best.map(makeArtwork)
+  }
+
+  private static func isPreferredArtwork(_ lhs: Row, over rhs: Row, locale: String) -> Bool {
+    let lhsSelected = (lhs["is_selected"] as Int) == 1
+    let rhsSelected = (rhs["is_selected"] as Int) == 1
+    if lhsSelected != rhsSelected { return lhsSelected }
+    let lhsLocale: String = lhs["locale"]
+    let rhsLocale: String = rhs["locale"]
+    let lhsLocaleRank = lhsLocale == locale ? 0 : (lhsLocale == "und" ? 1 : 2)
+    let rhsLocaleRank = rhsLocale == locale ? 0 : (rhsLocale == "und" ? 1 : 2)
+    if lhsLocaleRank != rhsLocaleRank { return lhsLocaleRank < rhsLocaleRank }
+    let lhsScore: Double = lhs["score"] ?? 0
+    let rhsScore: Double = rhs["score"] ?? 0
+    if lhsScore != rhsScore { return lhsScore > rhsScore }
+    let lhsArea = Int64(lhs["width"] ?? 0) * Int64(lhs["height"] ?? 0)
+    let rhsArea = Int64(rhs["width"] ?? 0) * Int64(rhs["height"] ?? 0)
+    if lhsArea != rhsArea { return lhsArea > rhsArea }
+    return (lhs["uid"] as String) < (rhs["uid"] as String)
   }
 
   private static func makeArtwork(_ row: Row) -> PosterWallArtwork {
@@ -870,22 +1054,42 @@ public struct PosterWallStore: Sendable {
   }
 
   private static let rootFileSQL = """
-    SELECT CASE
-             WHEN bound.kind IN ('movie', 'series') THEN bound.id
-             WHEN bound.kind = 'season' THEN bound.parent_id
-             WHEN bound.kind = 'episode' THEN parent.parent_id
-             WHEN bound.kind = 'extra' AND parent.kind = 'season' THEN parent.parent_id
-             WHEN bound.kind = 'extra' THEN bound.parent_id
-           END AS root_id,
-           source.uid AS source_uid, file.availability
-    FROM file_binding binding
-    JOIN media_file file ON file.id = binding.media_file_id
-    JOIN library_source source ON source.id = file.source_id
-    JOIN media_entity bound ON bound.id = binding.entity_id
-    LEFT JOIN media_entity parent ON parent.id = bound.parent_id
-    WHERE binding.binding_role IN ('primary', 'version')
-      AND file.deleted_at_ms IS NULL AND bound.deleted_at_ms IS NULL
-    ORDER BY root_id, source.uid, file.uid
+    WITH root_file AS (
+      SELECT CASE
+               WHEN bound.kind IN ('movie', 'series') THEN bound.id
+               WHEN bound.kind = 'season' THEN bound.parent_id
+               WHEN bound.kind = 'episode' THEN parent.parent_id
+               WHEN bound.kind = 'extra' AND parent.kind = 'season' THEN parent.parent_id
+               WHEN bound.kind = 'extra' THEN bound.parent_id
+             END AS root_id,
+             source.uid AS source_uid,
+             CASE
+               WHEN source.offline_since_ms IS NOT NULL
+                 AND file.availability = 'present' THEN 'offline'
+               ELSE file.availability
+             END AS availability
+      FROM file_binding binding
+      JOIN media_file file ON file.id = binding.media_file_id
+      JOIN library_source source ON source.id = file.source_id
+      JOIN media_entity bound ON bound.id = binding.entity_id
+      LEFT JOIN media_entity parent ON parent.id = bound.parent_id
+      WHERE binding.binding_role IN ('primary', 'version')
+        AND file.deleted_at_ms IS NULL AND bound.deleted_at_ms IS NULL
+    )
+    SELECT root_id, source_uid,
+           CASE MAX(CASE availability
+             WHEN 'present' THEN 4
+             WHEN 'offline' THEN 3
+             WHEN 'missing' THEN 2
+             ELSE 1 END)
+             WHEN 4 THEN 'present'
+             WHEN 3 THEN 'offline'
+             WHEN 2 THEN 'missing'
+             ELSE 'unavailable' END AS availability
+    FROM root_file
+    WHERE root_id IS NOT NULL
+    GROUP BY root_id, source_uid
+    ORDER BY root_id, source_uid
     """
 
   private static let rootPlaybackSQL = """
@@ -918,6 +1122,7 @@ private struct RootProjection: Sendable {
   var genres: Set<String>
   var collectionUIDs: Set<String>
   let searchText: String
+  let titleSortKey: String
   var hasPlaybackState: Bool
   var isCompleted: Bool
   var totalEpisodeCount: Int
@@ -1000,6 +1205,12 @@ private struct LocalizedDetails: Sendable {
   let overview: String?
   let tagline: String?
   let contentRating: String?
+}
+
+private struct LoadedArtwork: Sendable {
+  let items: [PosterWallArtwork]
+  let poster: PosterWallArtwork?
+  let backdrop: PosterWallArtwork?
 }
 
 private struct FileRecord: Sendable {

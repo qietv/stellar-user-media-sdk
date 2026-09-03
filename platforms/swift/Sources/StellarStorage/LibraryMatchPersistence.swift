@@ -347,6 +347,7 @@ extension LibraryStore {
             request.matchedQueryJSON, request.locked ? 1 : 0, now,
           ]
         )
+        try Self.reactivateEntityHierarchy(entityID: entityID, now: now, database: database)
         guard
           let snapshot = try Self.readIdentityBinding(
             mediaFileID: mediaFileID,
@@ -419,12 +420,14 @@ extension LibraryStore {
         ) {
           let entityID: Int64 = existing["id"]
           let existingLocked = (existing["locked"] as Int) == 1
+          try Self.reactivateEntityHierarchy(entityID: entityID, now: now, database: database)
           if !existingLocked || request.locked {
             try database.execute(
               sql: """
                 UPDATE media_entity SET
                   canonical_title = ?, sort_title = ?,
                   metadata_state = CASE WHEN ? = 1 THEN 'manual' ELSE metadata_state END,
+                  orphaned_at_ms = NULL, gc_marked_at_ms = NULL,
                   updated_at_ms = ?
                 WHERE id = ?
                 """,
@@ -508,6 +511,7 @@ extension LibraryStore {
             request.locked ? 1 : 0, now,
           ]
         )
+        try Self.reactivateEntityHierarchy(entityID: entityID, now: now, database: database)
         guard
           let snapshot = try Self.readExtraBinding(
             mediaFileID: mediaFileID,
@@ -579,6 +583,8 @@ extension LibraryStore {
               WHEN metadata_state = 'manual' OR locked_fields_json IS NOT NULL
               THEN year ELSE ? END,
             status = 'active',
+            orphaned_at_ms = NULL,
+            gc_marked_at_ms = NULL,
             updated_at_ms = ?
           WHERE id = ?
           """,
@@ -645,6 +651,7 @@ extension LibraryStore {
         """,
       arguments: [parentID, seasonNumber]
     ) {
+      try reactivateEntityHierarchy(entityID: existing, now: now, database: database)
       return existing
     }
     let title = "Season \(seasonNumber)"
@@ -676,6 +683,7 @@ extension LibraryStore {
         """,
       arguments: [parentID, episodeNumber]
     ) {
+      try reactivateEntityHierarchy(entityID: existing, now: now, database: database)
       return existing
     }
     let title = "Episode \(episodeNumber)"

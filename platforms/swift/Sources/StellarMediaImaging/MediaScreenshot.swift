@@ -86,13 +86,10 @@ public protocol MediaScreenshotGenerating: Sendable {
 
 /// FFmpegKit-backed screenshot generator.
 ///
-/// Remote sources are materialized in bounded chunks for the initial implementation.
-/// This keeps SMB/WebDAV credentials and URLs outside FFmpeg while preserving a future
-/// migration path to custom AVIO without changing the public API.
+/// Remote sources use source-independent range reads through a seekable custom AVIO bridge.
+/// SMB/WebDAV credentials and URLs stay outside FFmpeg, and a screenshot never stages the
+/// complete remote media file.
 public struct FFmpegMediaScreenshotGenerator: MediaScreenshotGenerating {
-  private static let remoteReadChunkSize = 4 * 1_024 * 1_024
-  private static let maximumRemoteFileSize: Int64 = 128 * 1_024 * 1_024 * 1_024
-
   public init() {}
 
   public func capture(
@@ -146,56 +143,43 @@ public struct FFmpegMediaScreenshotGenerator: MediaScreenshotGenerating {
     guard locator.sourceUID == session.sourceUID else {
       throw SDKError(code: .invalidConfiguration, message: "screenshot source UID does not match")
     }
+    let capabilities = await session.capabilities
+    guard capabilities.supportsRangeReads else {
+      throw SDKError(
+        code: .invalidConfiguration,
+        message: "screenshot source does not support seekable range reads"
+      )
+    }
     let entry = try await session.stat(locator)
     guard entry.kind == .file, let size = entry.size, size > 0 else {
       throw SDKError(code: .parseFailure, message: "screenshot source is not a sized media file")
     }
-    guard size <= Self.maximumRemoteFileSize else {
-      throw SDKError(
-        code: .invalidConfiguration, message: "remote media file is too large to stage")
+    let reader = RemoteFFmpegRangeReader(session: session, locator: locator, size: size)
+    guard let job = FFmpegRemoteFrameDecodeJob(reader: reader) else {
+      throw SDKError(code: .unknown, message: "FFmpeg capture context could not be created")
     }
-
-    let stagedURL = temporaryURL(fileExtension: safePathExtension(locator.path.relativePath))
-    guard FileManager.default.createFile(atPath: stagedURL.path, contents: nil) else {
-      throw SDKError(
-        code: .storageFailure, message: "remote media staging file could not be created")
-    }
-    defer { try? FileManager.default.removeItem(at: stagedURL) }
-
-    let handle: FileHandle
+    let decodedFrame: FFmpegDecodedFrame
     do {
-      handle = try FileHandle(forWritingTo: stagedURL)
-    } catch {
-      throw SDKError(
-        code: .storageFailure, message: "remote media staging file could not be opened")
-    }
-    defer { try? handle.close() }
-
-    var offset: Int64 = 0
-    while offset < size {
-      try checkCancellation()
-      let length = Int(min(Int64(Self.remoteReadChunkSize), size - offset))
-      let data = try await session.read(
-        at: locator,
-        range: RemoteByteRange(offset: offset, length: length)
+      decodedFrame = try await job.decode(
+        filenameHint: locator.path.name,
+        timestampMilliseconds: request.timestampMilliseconds,
+        maximumPixelDimension: request.maximumPixelDimension
       )
-      guard !data.isEmpty, data.count <= length else {
-        throw SDKError(code: .parseFailure, message: "remote media read returned invalid data")
-      }
-      do {
-        try handle.write(contentsOf: data)
-      } catch {
-        throw SDKError(code: .storageFailure, message: "remote media staging write failed")
-      }
-      offset += Int64(data.count)
-    }
-    do {
-      try handle.synchronize()
-      try handle.close()
+    } catch is CancellationError {
+      throw SDKError(code: .cancelled, message: "screenshot generation cancelled")
+    } catch let error as SDKError {
+      throw error
     } catch {
-      throw SDKError(code: .storageFailure, message: "remote media staging flush failed")
+      throw SDKError(code: .unknown, message: "screenshot execution failed")
     }
-    return try await capture(fileAt: stagedURL, request: request)
+    try checkCancellation()
+    let data = try encode(decodedFrame, request: request)
+    return try MediaScreenshotResult(
+      data: data,
+      format: request.format,
+      width: decodedFrame.width,
+      height: decodedFrame.height
+    )
   }
 
   private func encode(
@@ -242,28 +226,215 @@ public struct FFmpegMediaScreenshotGenerator: MediaScreenshotGenerating {
     return output as Data
   }
 
-  private func safePathExtension(_ path: String) -> String {
-    let pathExtension = (path as NSString).pathExtension.lowercased()
-    guard (1...16).contains(pathExtension.count),
-      pathExtension.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) })
-    else {
-      return "media"
-    }
-    return pathExtension
-  }
-
-  private func temporaryURL(fileExtension: String) -> URL {
-    FileManager.default.temporaryDirectory
-      .appendingPathComponent("stellar-screenshot-\(UUID().uuidString)")
-      .appendingPathExtension(fileExtension)
-  }
-
   private func checkCancellation() throws {
     guard !Task.isCancelled else {
       throw SDKError(code: .cancelled, message: "screenshot generation cancelled")
     }
   }
 }
+
+final class RemoteFFmpegRangeReader: @unchecked Sendable {
+  private static let avSeekSize: Int32 = 0x10000
+  private static let avSeekForce: Int32 = 0x20000
+  private static let cacheBlockSize = 256 * 1_024
+  private static let maximumCachedBlocks = 8
+  private static let readTimeoutSeconds = 30
+
+  private let session: any MediaSourceSession
+  private let locator: RemoteLocator
+  private let size: Int64
+  private let operationLock = NSLock()
+  private let stateLock = NSLock()
+  private var position: Int64 = 0
+  private var cancelled = false
+  private var cachedBlocks: [Int64: Data] = [:]
+  private var cachedBlockOrder: [Int64] = []
+
+  init(session: any MediaSourceSession, locator: RemoteLocator, size: Int64) {
+    self.session = session
+    self.locator = locator
+    self.size = size
+  }
+
+  func read(into buffer: UnsafeMutablePointer<UInt8>?, capacity: Int32) -> Int32 {
+    guard capacity > 0, let buffer else { return capacity == 0 ? 0 : -1 }
+    operationLock.lock()
+    defer { operationLock.unlock() }
+    guard !isCancelled else { return -1 }
+    guard position < size else { return 0 }
+
+    let requestedLength = Int(min(Int64(capacity), size - position))
+    let offset = position
+    guard case .success(let data) = cachedRead(offset: offset, length: requestedLength) else {
+      return -1
+    }
+    guard !isCancelled else { return -1 }
+    let count = min(requestedLength, data.count)
+    data.withUnsafeBytes { bytes in
+      guard let source = bytes.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+      buffer.update(from: source, count: count)
+    }
+    position = offset + Int64(count)
+    return Int32(count)
+  }
+
+  func seek(offset: Int64, whence rawWhence: Int32) -> Int64 {
+    operationLock.lock()
+    defer { operationLock.unlock() }
+    guard !isCancelled else { return -1 }
+    let whence = rawWhence & ~Self.avSeekForce
+    if whence == Self.avSeekSize { return size }
+    let target: Int64
+    switch whence {
+    case SEEK_SET:
+      target = offset
+    case SEEK_CUR:
+      let (value, overflow) = position.addingReportingOverflow(offset)
+      guard !overflow else { return -1 }
+      target = value
+    case SEEK_END:
+      let (value, overflow) = size.addingReportingOverflow(offset)
+      guard !overflow else { return -1 }
+      target = value
+    default:
+      return -1
+    }
+    guard (0...size).contains(target) else { return -1 }
+    position = target
+    return target
+  }
+
+  func cancel() {
+    stateLock.lock()
+    cancelled = true
+    stateLock.unlock()
+  }
+
+  private var isCancelled: Bool {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+    return cancelled
+  }
+
+  private func cachedRead(offset: Int64, length: Int) -> Result<Data, any Error> {
+    var result = Data()
+    result.reserveCapacity(length)
+    while result.count < length {
+      let nextOffset = offset + Int64(result.count)
+      let blockSize = Int64(Self.cacheBlockSize)
+      let blockOffset = (nextOffset / blockSize) * blockSize
+      let block: Data
+      if let cached = cachedBlocks[blockOffset] {
+        block = cached
+        touchCachedBlock(at: blockOffset)
+      } else {
+        let fetchLength = Int(min(blockSize, size - blockOffset))
+        switch blockingRemoteRead(offset: blockOffset, length: fetchLength) {
+        case .success(let fetched):
+          block = fetched
+          cache(fetched, at: blockOffset)
+        case .failure(let error):
+          return .failure(error)
+        }
+      }
+
+      let blockIndex = Int(nextOffset - blockOffset)
+      guard blockIndex < block.count else { break }
+      let accepted = min(length - result.count, block.count - blockIndex)
+      result.append(block[blockIndex..<(blockIndex + accepted)])
+      guard accepted > 0 else { break }
+    }
+    return .success(result)
+  }
+
+  private func cache(_ data: Data, at offset: Int64) {
+    cachedBlocks[offset] = data
+    touchCachedBlock(at: offset)
+    while cachedBlockOrder.count > Self.maximumCachedBlocks {
+      let evicted = cachedBlockOrder.removeFirst()
+      cachedBlocks.removeValue(forKey: evicted)
+    }
+  }
+
+  private func touchCachedBlock(at offset: Int64) {
+    cachedBlockOrder.removeAll { $0 == offset }
+    cachedBlockOrder.append(offset)
+  }
+
+  private func blockingRemoteRead(offset: Int64, length: Int) -> Result<Data, any Error> {
+    let semaphore = DispatchSemaphore(value: 0)
+    let resultBox = RemoteScreenshotReadResultBox()
+    let task = Task.detached(priority: .utility) { [session, locator] in
+      do {
+        var result = Data()
+        result.reserveCapacity(length)
+        var nextOffset = offset
+        while result.count < length {
+          try Task.checkCancellation()
+          let remaining = length - result.count
+          let chunk = try await session.read(
+            at: locator,
+            range: RemoteByteRange(offset: nextOffset, length: remaining)
+          )
+          guard !chunk.isEmpty else { break }
+          let accepted = min(remaining, chunk.count)
+          result.append(chunk.prefix(accepted))
+          nextOffset += Int64(accepted)
+        }
+        resultBox.store(.success(result))
+      } catch {
+        resultBox.store(.failure(error))
+      }
+      semaphore.signal()
+    }
+    let deadline = DispatchTime.now() + .seconds(Self.readTimeoutSeconds)
+    while semaphore.wait(timeout: .now() + .milliseconds(25)) == .timedOut {
+      if isCancelled {
+        task.cancel()
+        return .failure(SDKError(code: .cancelled, message: "remote screenshot read cancelled"))
+      }
+      if DispatchTime.now() >= deadline {
+        task.cancel()
+        return .failure(
+          SDKError(code: .remoteUnavailable, message: "remote screenshot read timed out"))
+      }
+    }
+    return resultBox.take()
+      ?? .failure(SDKError(code: .remoteUnavailable, message: "remote screenshot read failed"))
+  }
+}
+
+private final class RemoteScreenshotReadResultBox: @unchecked Sendable {
+  private let lock = NSLock()
+  private var result: Result<Data, any Error>?
+
+  func store(_ result: Result<Data, any Error>) {
+    lock.lock()
+    self.result = result
+    lock.unlock()
+  }
+
+  func take() -> Result<Data, any Error>? {
+    lock.lock()
+    defer { lock.unlock() }
+    return result
+  }
+}
+
+let remoteFFmpegReadCallback:
+  @convention(c) (UnsafeMutableRawPointer?, UnsafeMutablePointer<UInt8>?, Int32) -> Int32 =
+    { opaque, buffer, capacity in
+      guard let opaque else { return -1 }
+      return Unmanaged<RemoteFFmpegRangeReader>.fromOpaque(opaque).takeUnretainedValue()
+        .read(into: buffer, capacity: capacity)
+    }
+
+let remoteFFmpegSeekCallback: @convention(c) (UnsafeMutableRawPointer?, Int64, Int32) -> Int64 =
+  { opaque, offset, whence in
+    guard let opaque else { return -1 }
+    return Unmanaged<RemoteFFmpegRangeReader>.fromOpaque(opaque).takeUnretainedValue()
+      .seek(offset: offset, whence: whence)
+  }
 
 private struct FFmpegDecodedFrame: Sendable {
   let data: Data
@@ -352,6 +523,101 @@ private final class FFmpegFrameDecodeJob: @unchecked Sendable {
         message = "media does not contain a frame at the requested timestamp"
       default:
         message = "FFmpeg could not decode a screenshot (code \(status))"
+      }
+      throw SDKError(code: .parseFailure, message: message)
+    }
+    return FFmpegDecodedFrame(
+      data: Data(bytes: bytes, count: frame.byte_count),
+      width: Int(frame.width),
+      height: Int(frame.height),
+      bytesPerRow: Int(frame.bytes_per_row)
+    )
+  }
+}
+
+private final class FFmpegRemoteFrameDecodeJob: @unchecked Sendable {
+  private let context: OpaquePointer
+  private let reader: RemoteFFmpegRangeReader
+
+  init?(reader: RemoteFFmpegRangeReader) {
+    guard let context = stellar_ffmpeg_capture_context_create() else { return nil }
+    self.context = context
+    self.reader = reader
+  }
+
+  deinit {
+    reader.cancel()
+    stellar_ffmpeg_capture_context_destroy(context)
+  }
+
+  func cancel() {
+    reader.cancel()
+    stellar_ffmpeg_capture_context_cancel(context)
+  }
+
+  func decode(
+    filenameHint: String,
+    timestampMilliseconds: Int64,
+    maximumPixelDimension: Int?
+  ) async throws -> FFmpegDecodedFrame {
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        DispatchQueue.global(qos: .utility).async { [self] in
+          do {
+            continuation.resume(
+              returning: try decodeSynchronously(
+                filenameHint: filenameHint,
+                timestampMilliseconds: timestampMilliseconds,
+                maximumPixelDimension: maximumPixelDimension
+              ))
+          } catch {
+            continuation.resume(throwing: error)
+          }
+        }
+      }
+    } onCancel: {
+      self.cancel()
+    }
+  }
+
+  private func decodeSynchronously(
+    filenameHint: String,
+    timestampMilliseconds: Int64,
+    maximumPixelDimension: Int?
+  ) throws -> FFmpegDecodedFrame {
+    var frame = StellarFFmpegDecodedFrame()
+    defer { stellar_ffmpeg_decoded_frame_destroy(&frame) }
+    let opaque = Unmanaged.passUnretained(reader).toOpaque()
+    let status = filenameHint.withCString { hint in
+      stellar_ffmpeg_capture_frame_with_io(
+        context,
+        opaque,
+        remoteFFmpegReadCallback,
+        remoteFFmpegSeekCallback,
+        hint,
+        timestampMilliseconds,
+        Int32(maximumPixelDimension ?? 0),
+        &frame
+      )
+    }
+    if status == Int32(STELLAR_FFMPEG_CAPTURE_CANCELLED) {
+      throw CancellationError()
+    }
+    guard status == Int32(STELLAR_FFMPEG_CAPTURE_OK),
+      let bytes = frame.bytes,
+      frame.byte_count > 0,
+      frame.width > 0,
+      frame.height > 0,
+      frame.bytes_per_row > 0
+    else {
+      let message: String
+      switch status {
+      case Int32(STELLAR_FFMPEG_CAPTURE_NO_VIDEO):
+        message = "media does not contain a decodable video stream"
+      case Int32(STELLAR_FFMPEG_CAPTURE_NO_FRAME):
+        message = "media does not contain a frame at the requested timestamp"
+      default:
+        message = "FFmpeg could not decode a remote screenshot (code \(status))"
       }
       throw SDKError(code: .parseFailure, message: message)
     }

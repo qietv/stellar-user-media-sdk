@@ -48,6 +48,30 @@
       "file": "sql/library-v7.sql",
       "business_table_count": 31,
       "sha256": "c4cf15ae1df490991498be3540abe99d7c3c215eb92f84d3b9dd09868651e62c"
+    },
+    {
+      "name": "library",
+      "from_version": 7,
+      "to_version": 8,
+      "file": "sql/library-v8.sql",
+      "business_table_count": 31,
+      "sha256": "adef120a578fc8f6f0130050cf15dbdd5fcfb02659e9e83e85c187e67dcaaaa3"
+    },
+    {
+      "name": "library",
+      "from_version": 8,
+      "to_version": 9,
+      "file": "sql/library-v9.sql",
+      "business_table_count": 32,
+      "sha256": "deb1d5ad6380a36458e168abf82f69a1ea95143731fa8470f3114ccb6190d733"
+    },
+    {
+      "name": "library",
+      "from_version": 9,
+      "to_version": 10,
+      "file": "sql/library-v10.sql",
+      "business_table_count": 32,
+      "sha256": "33b1b503158af3683c6bc4b9a5adec8a67b55980f7cc6c88d7280569b03e0889"
     }
   ]
 }

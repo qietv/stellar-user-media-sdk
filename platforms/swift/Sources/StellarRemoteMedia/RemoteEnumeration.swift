@@ -87,7 +87,10 @@ public struct RemotePath: Codable, Equatable, Hashable, Sendable, CustomStringCo
   }
 
   package init(validatedRelativePath: String) {
-    relativePath = validatedRelativePath
+    // Adapter paths often originate as Foundation-backed strings (URL, XML, SMB attributes).
+    // Keep the validated fast path native and contiguous so later sorting, hashing, and SQLite
+    // binding do not repeatedly bridge the same path through Objective-C.
+    relativePath = String(decoding: validatedRelativePath.utf8, as: UTF8.self)
   }
 
   /// Whether this path identifies the configured source root.

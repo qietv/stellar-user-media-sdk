@@ -683,6 +683,9 @@ extension StorageDatabaseKind {
     case (.library, 5): "6b3cd6c8c46bba16eab0335a2ed745bcd375537332df568066a18d434848f44b"
     case (.library, 6): "4ca1fec9442db3e1ddb03b1e56094b903e2e1179abf8147a9c8fc65b76ac42c7"
     case (.library, 7): "c4cf15ae1df490991498be3540abe99d7c3c215eb92f84d3b9dd09868651e62c"
+    case (.library, 8): "adef120a578fc8f6f0130050cf15dbdd5fcfb02659e9e83e85c187e67dcaaaa3"
+    case (.library, 9): "deb1d5ad6380a36458e168abf82f69a1ea95143731fa8470f3114ccb6190d733"
+    case (.library, 10): "33b1b503158af3683c6bc4b9a5adec8a67b55980f7cc6c88d7280569b03e0889"
     default: nil
     }
   }
@@ -841,6 +844,131 @@ extension StorageDatabaseKind {
           WHERE state IN ('queued', 'running', 'retry');
 
       PRAGMA user_version = 7;
+      """#
+    case (.library, 7):
+      #"""
+      -- Preserve scanner-level compound-media classification with the staged file fact so publishing
+      -- remains atomic. The JSON value is a versioned array because one malformed directory may expose
+      -- more than one structural candidate until the authoritative parser resolves it.
+      ALTER TABLE scan_discovery
+      ADD COLUMN composite_media_json TEXT
+          CHECK (
+              composite_media_json IS NULL
+              OR (
+                  length(composite_media_json) <= 262144
+                  AND json_valid(composite_media_json)
+                  AND json_type(composite_media_json) = 'array'
+              )
+          );
+
+      ALTER TABLE media_file
+      ADD COLUMN composite_media_json TEXT
+          CHECK (
+              composite_media_json IS NULL
+              OR (
+                  length(composite_media_json) <= 262144
+                  AND json_valid(composite_media_json)
+                  AND json_type(composite_media_json) = 'array'
+              )
+          );
+
+      PRAGMA user_version = 8;
+      """#
+    case (.library, 8):
+      #"""
+      -- Playlist thumbnails are derived visual assets. Keep them separate from entity artwork so a
+      -- collection can be invalidated by its ordered membership without pretending it is a media entity.
+      CREATE TABLE collection_thumbnail (
+          collection_id INTEGER PRIMARY KEY
+              REFERENCES media_collection(id) ON DELETE CASCADE,
+          provider TEXT NOT NULL CHECK (provider <> ''),
+          input_signature TEXT NOT NULL
+              CHECK (length(input_signature) = 64 AND input_signature NOT GLOB '*[^0-9a-f]*'),
+          sha256 TEXT NOT NULL
+              CHECK (length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'),
+          local_relative_path TEXT NOT NULL CHECK (local_relative_path <> ''),
+          mime_type TEXT NOT NULL CHECK (mime_type IN ('image/jpeg', 'image/png')),
+          width INTEGER NOT NULL CHECK (width > 0),
+          height INTEGER NOT NULL CHECK (height > 0),
+          updated_at_ms INTEGER NOT NULL CHECK (updated_at_ms >= 0)
+      ) STRICT;
+
+      PRAGMA user_version = 9;
+      """#
+    case (.library, 9):
+      #"""
+      -- Missing-file retention is source-specific. A completed authoritative scan may mark a file
+      -- missing, but physical cleanup is delayed and suspended while the source is offline.
+      ALTER TABLE library_source
+      ADD COLUMN last_successful_scan_at_ms INTEGER
+          CHECK (last_successful_scan_at_ms IS NULL OR last_successful_scan_at_ms >= 0);
+
+      ALTER TABLE library_source
+      ADD COLUMN offline_since_ms INTEGER
+          CHECK (offline_since_ms IS NULL OR offline_since_ms >= 0);
+
+      ALTER TABLE library_source
+      ADD COLUMN last_error_code TEXT;
+
+      ALTER TABLE library_source
+      ADD COLUMN missing_grace_ms INTEGER NOT NULL DEFAULT 604800000
+          CHECK (missing_grace_ms >= 0);
+
+      ALTER TABLE library_source
+      ADD COLUMN missing_required_scan_count INTEGER NOT NULL DEFAULT 2
+          CHECK (missing_required_scan_count > 0);
+
+      ALTER TABLE library_source
+      ADD COLUMN missing_empty_root_guard INTEGER NOT NULL DEFAULT 1
+          CHECK (missing_empty_root_guard IN (0, 1));
+
+      ALTER TABLE library_source
+      ADD COLUMN missing_drop_guard_percent INTEGER NOT NULL DEFAULT 80
+          CHECK (missing_drop_guard_percent BETWEEN 0 AND 100);
+
+      ALTER TABLE library_source
+      ADD COLUMN missing_drop_guard_minimum_count INTEGER NOT NULL DEFAULT 100
+          CHECK (missing_drop_guard_minimum_count > 0);
+
+      -- Local storage normally has stronger availability guarantees than a network share. Existing
+      -- sources receive the recommended per-kind defaults during migration; callers may override them.
+      UPDATE library_source
+      SET missing_grace_ms = CASE kind
+          WHEN 'local_folder' THEN 86400000
+          WHEN 'device_media' THEN 86400000
+          WHEN 'cloud_drive' THEN 2592000000
+          ELSE 604800000
+      END;
+
+      -- Retain the observed file count so a suspicious empty or sharply reduced result must be repeated
+      -- before it is accepted as authoritative deletion evidence.
+      ALTER TABLE scan_run
+      ADD COLUMN observed_file_count INTEGER NOT NULL DEFAULT 0
+          CHECK (observed_file_count >= 0);
+
+      -- Metadata garbage collection is independent from file availability. The first timestamp starts
+      -- the seven-day orphan clock; the second is an Infuse-style reversible deletion mark.
+      ALTER TABLE media_entity
+      ADD COLUMN orphaned_at_ms INTEGER
+          CHECK (orphaned_at_ms IS NULL OR orphaned_at_ms >= 0);
+
+      ALTER TABLE media_entity
+      ADD COLUMN gc_marked_at_ms INTEGER
+          CHECK (gc_marked_at_ms IS NULL OR gc_marked_at_ms >= 0);
+
+      CREATE INDEX idx_media_file_missing_retention
+          ON media_file(source_id, missing_since_ms, missing_scan_count, id)
+          WHERE availability = 'missing' AND deleted_at_ms IS NULL;
+
+      CREATE INDEX idx_media_file_deleted_retention
+          ON media_file(deleted_at_ms, id)
+          WHERE availability = 'deleted' AND deleted_at_ms IS NOT NULL;
+
+      CREATE INDEX idx_media_entity_gc
+          ON media_entity(orphaned_at_ms, gc_marked_at_ms, id)
+          WHERE deleted_at_ms IS NULL;
+
+      PRAGMA user_version = 10;
       """#
     default: nil
     }

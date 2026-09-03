@@ -30,24 +30,39 @@ def portable_identifier(identifier: str) -> str:
     return identifier.replace("20FoundationEssentials", "10Foundation")
 
 
-def has_only_ignorable_test_bundle_failures(output: str, modules: tuple[str, ...]) -> bool:
-    """Recognize SwiftPM failures for synthetic test bundles outside the reviewed API."""
+def has_only_ignorable_symbol_graph_failures(output: str, modules: tuple[str, ...]) -> bool:
+    """Recognize known extractor-only failures outside the reviewed API set."""
     error_lines = [
         line.strip() for line in output.splitlines() if line.strip().startswith("error:")
     ]
     if not error_lines:
         return False
 
-    pattern = re.compile(
+    failed_module_pattern = re.compile(
+        r"error: Failed to emit symbol graph for '([^']+)': "
+        r".*"
+    )
+    missing_module_pattern = re.compile(
         r"error: Failed to emit symbol graph for '([^']+)': "
         r"Couldn't load module '[^']+' in the current SDK and search paths\."
     )
     for line in error_lines:
-        match = pattern.fullmatch(line)
+        match = failed_module_pattern.fullmatch(line)
         if not match:
             return False
         module = match.group(1)
-        if module in modules or not module.endswith(("PackageTests", "PackageDiscoveredTests")):
+        if module in modules:
+            return False
+        if module == "StellarDiscMedia":
+            if not (
+                "error: 'Libavcodec/avcodec.h' file not found" in output
+                and "could not build Objective-C module 'FFmpegKit'" in output
+            ):
+                return False
+        elif not (
+            module.endswith(("PackageTests", "PackageDiscoveredTests"))
+            and missing_module_pattern.fullmatch(line)
+        ):
             return False
     return True
 
@@ -80,7 +95,7 @@ def emit_symbol_graphs(package_root: Path, modules: tuple[str, ...]) -> Path:
             raise RuntimeError(output.strip() or "SwiftPM did not create a symbol graph directory")
         graph_dir = candidates[-1].resolve()
 
-    if completed.returncode != 0 and not has_only_ignorable_test_bundle_failures(output, modules):
+    if completed.returncode != 0 and not has_only_ignorable_symbol_graph_failures(output, modules):
         raise RuntimeError(output.strip() or "swift package dump-symbol-graph failed")
     return graph_dir
 

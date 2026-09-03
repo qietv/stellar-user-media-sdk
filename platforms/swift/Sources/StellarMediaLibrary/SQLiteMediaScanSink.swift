@@ -35,6 +35,10 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
         checkpointJSON: checkpointJSON,
         coverageJSON: coverageJSON,
         entries: batch.entries,
+        compositeMedia: try Self.persistenceCompositeMedia(
+          batch.compositeMedia,
+          encoder: encoder
+        ),
         capabilities: batch.checkpoint.capabilities,
         coveredRoots: batch.completion?.coveredRoots ?? [],
         reconcileMissingEligible: batch.completion?.reconcileMissingEligible ?? false,
@@ -51,6 +55,34 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
     } catch {
       throw SDKError(code: .storageFailure, message: "scanner checkpoint encoding failed")
     }
+  }
+
+  private static func persistenceCompositeMedia(
+    _ detections: [CompositeMediaDetection],
+    encoder: JSONEncoder
+  ) throws -> [LibraryScanCompositeMedia] {
+    let grouped = Dictionary(grouping: detections, by: { $0.descriptor.locator })
+    return try grouped.keys.sorted(by: {
+      $0.path.relativePath < $1.path.relativePath
+    }).map { locator in
+      let descriptors = grouped[locator, default: []].map(\.descriptor).sorted {
+        Self.descriptorSortKey($0) < Self.descriptorSortKey($1)
+      }
+      return try LibraryScanCompositeMedia(
+        locator: locator,
+        descriptorsJSON: String(decoding: try encoder.encode(descriptors), as: UTF8.self)
+      )
+    }
+  }
+
+  private static func descriptorSortKey(_ descriptor: CompositeMediaDescriptor) -> String {
+    [
+      descriptor.kind.rawValue,
+      descriptor.container.rawValue,
+      descriptor.confidence.rawValue,
+      descriptor.logicalRoot.path.relativePath,
+      descriptor.entryPoint?.path.relativePath ?? "",
+    ].joined(separator: "\0")
   }
 
   /// Loads a previously committed scanner checkpoint for resumable enumeration.

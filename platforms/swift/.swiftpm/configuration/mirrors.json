@@ -1,0 +1,9 @@
+{
+  "object" : [
+    {
+      "mirror" : "https://github.com/TracyPlayer/KSPlayer.git",
+      "original" : "git@github.com:TracyPlayer/KSPlayer.git"
+    }
+  ],
+  "version" : 1
+}

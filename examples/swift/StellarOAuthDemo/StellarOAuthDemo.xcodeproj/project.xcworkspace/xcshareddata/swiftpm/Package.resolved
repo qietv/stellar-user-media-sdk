@@ -11,6 +11,14 @@
       }
     },
     {
+      "identity" : "bdmviocontext",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/TracyPlayer/BDMVIOContext.git",
+      "state" : {
+        "revision" : "639c793ff0cac9a9e3601db49e5790b5ba18f321"
+      }
+    },
+    {
       "identity" : "ffmpegkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/TracyPlayer/FFmpegKit.git",
@@ -25,6 +33,14 @@
       "state" : {
         "revision" : "b83108d10f42680d78f23fe4d4d80fc88dab3212",
         "version" : "7.11.1"
+      }
+    },
+    {
+      "identity" : "ksplayer",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/TracyPlayer/KSPlayer.git",
+      "state" : {
+        "revision" : "da62452393eac406176605e6cceac8aeae265e9d"
       }
     }
   ],

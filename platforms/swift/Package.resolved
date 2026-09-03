@@ -1,5 +1,5 @@
 {
-  "originHash" : "0a1b290e62068e9a4e28eb193cd019f39713835ac7602ea283ae425b7b079c7f",
+  "originHash" : "7aeea421ea0037a339e8578665bc0ab8cc594c9208938e3341c32b539eb4ed5e",
   "pins" : [
     {
       "identity" : "amsmb2",
@@ -8,6 +8,14 @@
       "state" : {
         "revision" : "1726aaaf7adf63d7d1d2a0c5d1b0e635028215c0",
         "version" : "4.0.3"
+      }
+    },
+    {
+      "identity" : "bdmviocontext",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/TracyPlayer/BDMVIOContext.git",
+      "state" : {
+        "revision" : "639c793ff0cac9a9e3601db49e5790b5ba18f321"
       }
     },
     {
@@ -25,6 +33,14 @@
       "state" : {
         "revision" : "b83108d10f42680d78f23fe4d4d80fc88dab3212",
         "version" : "7.11.1"
+      }
+    },
+    {
+      "identity" : "ksplayer",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:TracyPlayer/KSPlayer.git",
+      "state" : {
+        "revision" : "da62452393eac406176605e6cceac8aeae265e9d"
       }
     }
   ],

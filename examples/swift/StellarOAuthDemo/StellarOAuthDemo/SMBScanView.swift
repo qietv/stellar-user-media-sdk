@@ -35,6 +35,11 @@ struct SMBScanView: View {
           .textFieldStyle(.roundedBorder)
           .disabled(model.credentialInputIsDisabled)
 
+        Toggle("Prefetch video thumbnails while idle", isOn: $model.prefetchVideoThumbnailsWhenIdle)
+          .disabled(model.credentialInputIsDisabled)
+        Toggle("Inspect technical metadata (low priority)", isOn: $model.enableTechnicalProbe)
+          .disabled(model.credentialInputIsDisabled)
+
         HStack(spacing: 10) {
           Button(model.primaryActionTitle) {
             model.password = password
@@ -48,6 +53,13 @@ struct SMBScanView: View {
           }
           .buttonStyle(.bordered)
           .disabled(!model.canPause)
+
+          Button("Repair failed metadata") {
+            model.password = password
+            model.repairFailedMetadata()
+          }
+          .buttonStyle(.bordered)
+          .disabled(!model.canRepair)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
 

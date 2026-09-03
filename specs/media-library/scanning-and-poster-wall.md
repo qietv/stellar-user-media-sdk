@@ -118,6 +118,11 @@ Infuse 行为与参考脚本的已知边界见[匹配器一致性审计](../../d
 - 扫描前把目标范围写入临时快照或本次发现表；遍历完整成功后才与正式库存量做差分。
 - 超时、权限错误、认证失败、分页中断、离线、用户取消或目录仅部分完成时，MUST NOT 把未发现项判定为已删除。
 - 首次缺失先标记 `missing_since_ms` 和不可播放；可配置宽限期或第二次成功扫描后再清理派生记录。
+- 来源离线只记录 source-level 状态，不累计文件 missing；异常空根或大幅数量骤降首次必须暂停
+  missing 发布，并由相同范围、计数与 stable identity 集合的下一次权威结果复核。
+- 文件达到来源特定 grace 与连续权威缺失次数后先变为可恢复墓碑；逻辑实体在 7 天 orphan grace
+  后先标记、再复查删除。手工数据、播放状态、marker、手工片单、锁定关系和未上传 outbox
+  均阻止物理清理。
 - 删除媒体源配置只清理本地索引、关系和缓存，不触碰远端实体。
 - 播放历史、收藏、用户匹配和观看进度应按逻辑媒体 ID 保留，使文件重新出现后可恢复。
 - 图片、字幕缓存和孤立元数据由垃圾回收任务处理，不在扫描事务内做大规模删除。
@@ -172,6 +177,13 @@ v1 固定以下 section：
 列表选图按 `is_selected`、请求 locale、`und` fallback、provider score、像素面积、`artwork_uid` 的顺序确定。人工 selected 图必须胜过 provider 分数更高的未选图；详情仍返回全部候选。带 query、签名或短期 token 的下载 URL 不得作为稳定 `remote_reference` 写入核心库。
 
 每个缓存 variant identity MUST 包含 artwork UID、provider、稳定 remote reference、目标像素宽高和 transform version。缓存索引与 prefetch 是可替换异步接口；平台实现负责网络、电量、磁盘预算和 LRU，SDK 的内存实现只用于测试或短生命周期宿主。缓存相对路径拒绝绝对路径、空段、`.`、`..` 与 NUL。
+
+视频帧缩略图属于可复用 visual asset，不只用于无 provider poster 时的 PosterWall fallback。
+片单可从最多四个有序成员生成一个拼图缩略图；每个远端素材帧 MUST 经 source session 的
+seekable range read 解码，不得向 FFmpeg 暴露带凭据 URL，也不得完整暂存远端文件。片单产物
+存入 `collection_thumbnail`，不得伪装为某个 `media_entity` 的 artwork。其 `input_signature`
+MUST 覆盖完整有序成员关系、后代绑定文件和 `material_revision`；提交时重新计算并用 CAS
+拒绝 stale 结果。派生片单缩略图可由 LRU 删除，下一次查询按相同签名重新生成。
 
 ## 事件与一致性
 

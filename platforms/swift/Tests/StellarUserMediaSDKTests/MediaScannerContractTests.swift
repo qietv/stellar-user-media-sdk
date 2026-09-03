@@ -523,6 +523,64 @@ struct MediaScannerContractTests {
     #expect(result.checkpoint.processedPageCount == 1)
   }
 
+  @Test("Traversal policy filters files before durable discovery work")
+  func traversalPolicyFiltersFiles() async throws {
+    let fixture = try loadFixture()
+    let root = try RemoteLocator(sourceUID: fixture.sourceUID, path: RemotePath())
+    let movie = try RemoteEntry(
+      locator: RemoteLocator(
+        sourceUID: fixture.sourceUID,
+        path: RemotePath("Arrival.mkv")
+      ),
+      kind: .file,
+      stableID: "file-arrival"
+    )
+    let sidecar = try RemoteEntry(
+      locator: RemoteLocator(
+        sourceUID: fixture.sourceUID,
+        path: RemotePath("Arrival.srt")
+      ),
+      kind: .file,
+      stableID: "file-arrival-subtitle"
+    )
+    let connector = FixtureScanConnector(
+      sourceUID: fixture.sourceUID,
+      capabilities: fixture.capabilities,
+      pages: [
+        FixtureScanPage(
+          request: try RemoteDirectoryPageRequest(directory: root, limit: 10),
+          response: try CursorPage(items: [movie, sidecar], nextCursor: nil)
+        )
+      ],
+      failureRequest: nil
+    )
+    let request = try MediaScanRequest(
+      runUID: "scan-filtered-files",
+      sourceUID: fixture.sourceUID,
+      mode: .full,
+      roots: [root]
+    )
+    let scanner = MediaScanner(
+      configuration: try MediaScannerConfiguration(
+        pageSize: 10,
+        maxConcurrentDirectoryRequests: 1
+      )
+    )
+    let sink = RecordingScanSink()
+
+    let result = try await scanner.scan(
+      request,
+      using: connector,
+      sink: sink,
+      traversalPolicy: VideoOnlyTraversalPolicy()
+    )
+
+    #expect(result.checkpoint.discoveredEntryCount == 1)
+    #expect(await sink.entryIdentityKeys == ["stable:file-arrival"])
+    let state = try #require(await sink.loadEnumerationState(runUID: request.runUID))
+    #expect(state.seenEntryIdentityKeys == ["stable:file-arrival"])
+  }
+
   @Test("Coverage overlap and changed root identity fail before enumeration")
   func preflightSafety() async throws {
     let fixture = try loadFixture()
@@ -678,6 +736,14 @@ private struct RejectSystemCacheTraversalPolicy: MediaScanTraversalPolicy {
   func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool {
     entry.locator.path.name != "System Cache"
   }
+}
+
+private struct VideoOnlyTraversalPolicy: MediaScanTraversalPolicy {
+  func shouldIndexFile(_ entry: RemoteEntry) -> Bool {
+    entry.locator.path.name.hasSuffix(".mkv")
+  }
+
+  func shouldTraverseDirectory(_: RemoteEntry) -> Bool { true }
 }
 
 private struct ScannerFixture: Decodable, Sendable {

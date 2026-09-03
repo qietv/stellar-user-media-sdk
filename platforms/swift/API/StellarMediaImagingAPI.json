@@ -3,6 +3,50 @@
     "StellarMediaImaging": {
       "symbols": [
         {
+          "declaration": "struct FFmpegMediaTechnicalProbe",
+          "identifier": "s:19StellarMediaImaging06FFmpegB14TechnicalProbeV",
+          "kind": "swift.struct",
+          "path": [
+            "FFmpegMediaTechnicalProbe"
+          ]
+        },
+        {
+          "declaration": "func probe(_ request: MediaTechnicalProbeRequest, using session: any MediaSourceSession) async throws -> MediaTechnicalProbeResult",
+          "identifier": "s:19StellarMediaImaging06FFmpegB14TechnicalProbeV5probe_5using0aB7Library0beF6ResultVAF0beF7RequestV_0a6RemoteB00B13SourceSession_ptYaKF",
+          "kind": "swift.method",
+          "path": [
+            "FFmpegMediaTechnicalProbe",
+            "probe(_:using:)"
+          ]
+        },
+        {
+          "declaration": "static let version: Int",
+          "identifier": "s:19StellarMediaImaging06FFmpegB14TechnicalProbeV7versionSivpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "FFmpegMediaTechnicalProbe",
+            "version"
+          ]
+        },
+        {
+          "declaration": "static let provider: String",
+          "identifier": "s:19StellarMediaImaging06FFmpegB14TechnicalProbeV8providerSSvpZ",
+          "kind": "swift.type.property",
+          "path": [
+            "FFmpegMediaTechnicalProbe",
+            "provider"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaImaging06FFmpegB14TechnicalProbeVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "FFmpegMediaTechnicalProbe",
+            "init()"
+          ]
+        },
+        {
           "declaration": "struct FFmpegMediaScreenshotGenerator",
           "identifier": "s:19StellarMediaImaging06FFmpegB19ScreenshotGeneratorV",
           "kind": "swift.struct",
@@ -34,6 +78,41 @@
           "kind": "swift.init",
           "path": [
             "FFmpegMediaScreenshotGenerator",
+            "init()"
+          ]
+        },
+        {
+          "declaration": "struct FFmpegMediaPlaylistThumbnailGenerator",
+          "identifier": "s:19StellarMediaImaging06FFmpegB26PlaylistThumbnailGeneratorV",
+          "kind": "swift.struct",
+          "path": [
+            "FFmpegMediaPlaylistThumbnailGenerator"
+          ]
+        },
+        {
+          "declaration": "func capture(_ items: [MediaPlaylistThumbnailItem], using sessions: [String : any MediaSourceSession], request: MediaPlaylistThumbnailRequest) async throws -> MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging06FFmpegB26PlaylistThumbnailGeneratorV7capture_5using7requestAA0B16ScreenshotResultVSayAA0beF4ItemVG_SDySS0a6RemoteB00B13SourceSession_pGAA0beF7RequestVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "FFmpegMediaPlaylistThumbnailGenerator",
+            "capture(_:using:request:)"
+          ]
+        },
+        {
+          "declaration": "func compose(_ frames: [MediaScreenshotResult], request: MediaPlaylistThumbnailRequest) throws -> MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging06FFmpegB26PlaylistThumbnailGeneratorV7compose_7requestAA0B16ScreenshotResultVSayAGG_AA0beF7RequestVtKF",
+          "kind": "swift.method",
+          "path": [
+            "FFmpegMediaPlaylistThumbnailGenerator",
+            "compose(_:request:)"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaImaging06FFmpegB26PlaylistThumbnailGeneratorVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "FFmpegMediaPlaylistThumbnailGenerator",
             "init()"
           ]
         },
@@ -179,6 +258,41 @@
           ]
         },
         {
+          "declaration": "struct MediaPlaylistThumbnailItem",
+          "identifier": "s:19StellarMediaImaging0B21PlaylistThumbnailItemV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaPlaylistThumbnailItem"
+          ]
+        },
+        {
+          "declaration": "let timestampMilliseconds: Int64",
+          "identifier": "s:19StellarMediaImaging0B21PlaylistThumbnailItemV21timestampMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaPlaylistThumbnailItem",
+            "timestampMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let locator: RemoteLocator",
+          "identifier": "s:19StellarMediaImaging0B21PlaylistThumbnailItemV7locator0a6RemoteB00H7LocatorVvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaPlaylistThumbnailItem",
+            "locator"
+          ]
+        },
+        {
+          "declaration": "init(locator: RemoteLocator, timestampMilliseconds: Int64 = 0) throws",
+          "identifier": "s:19StellarMediaImaging0B21PlaylistThumbnailItemV7locator21timestampMillisecondsAC0a6RemoteB00J7LocatorV_s5Int64VtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaPlaylistThumbnailItem",
+            "init(locator:timestampMilliseconds:)"
+          ]
+        },
+        {
           "declaration": "enum MediaScreenshotImageFormat",
           "identifier": "s:19StellarMediaImaging0B21ScreenshotImageFormatO",
           "kind": "swift.enum",
@@ -220,6 +334,103 @@
           "path": [
             "MediaScreenshotImageFormat",
             "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "struct MediaPlaylistThumbnailRequest",
+          "identifier": "s:19StellarMediaImaging0B24PlaylistThumbnailRequestV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaPlaylistThumbnailRequest"
+          ]
+        },
+        {
+          "declaration": "let jpegQuality: Double",
+          "identifier": "s:19StellarMediaImaging0B24PlaylistThumbnailRequestV11jpegQualitySdvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaPlaylistThumbnailRequest",
+            "jpegQuality"
+          ]
+        },
+        {
+          "declaration": "let maximumItems: Int",
+          "identifier": "s:19StellarMediaImaging0B24PlaylistThumbnailRequestV12maximumItemsSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaPlaylistThumbnailRequest",
+            "maximumItems"
+          ]
+        },
+        {
+          "declaration": "let maximumConcurrentCaptures: Int",
+          "identifier": "s:19StellarMediaImaging0B24PlaylistThumbnailRequestV25maximumConcurrentCapturesSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaPlaylistThumbnailRequest",
+            "maximumConcurrentCaptures"
+          ]
+        },
+        {
+          "declaration": "init(width: Int = 640, height: Int = 360, format: MediaScreenshotImageFormat = .jpeg, jpegQuality: Double = 0.9, maximumItems: Int = 4, maximumConcurrentCaptures: Int = 2) throws",
+          "identifier": "s:19StellarMediaImaging0B24PlaylistThumbnailRequestV5width6height6format11jpegQuality12maximumItems0L18ConcurrentCapturesACSi_SiAA0B21ScreenshotImageFormatOSdS2itKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaPlaylistThumbnailRequest",
+            "init(width:height:format:jpegQuality:maximumItems:maximumConcurrentCaptures:)"
+          ]
+        },
+        {
+          "declaration": "let width: Int",
+          "identifier": "s:19StellarMediaImaging0B24PlaylistThumbnailRequestV5widthSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaPlaylistThumbnailRequest",
+            "width"
+          ]
+        },
+        {
+          "declaration": "let format: MediaScreenshotImageFormat",
+          "identifier": "s:19StellarMediaImaging0B24PlaylistThumbnailRequestV6formatAA0B21ScreenshotImageFormatOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaPlaylistThumbnailRequest",
+            "format"
+          ]
+        },
+        {
+          "declaration": "let height: Int",
+          "identifier": "s:19StellarMediaImaging0B24PlaylistThumbnailRequestV6heightSivp",
+          "kind": "swift.property",
+          "path": [
+            "MediaPlaylistThumbnailRequest",
+            "height"
+          ]
+        },
+        {
+          "declaration": "protocol MediaPlaylistThumbnailGenerating : Sendable",
+          "identifier": "s:19StellarMediaImaging0B27PlaylistThumbnailGeneratingP",
+          "kind": "swift.protocol",
+          "path": [
+            "MediaPlaylistThumbnailGenerating"
+          ]
+        },
+        {
+          "declaration": "func capture(_ items: [MediaPlaylistThumbnailItem], using sessions: [String : any MediaSourceSession], request: MediaPlaylistThumbnailRequest) async throws -> MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging0B27PlaylistThumbnailGeneratingP7capture_5using7requestAA0B16ScreenshotResultVSayAA0bdE4ItemVG_SDySS0a6RemoteB00B13SourceSession_pGAA0bdE7RequestVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaPlaylistThumbnailGenerating",
+            "capture(_:using:request:)"
+          ]
+        },
+        {
+          "declaration": "func compose(_ frames: [MediaScreenshotResult], request: MediaPlaylistThumbnailRequest) throws -> MediaScreenshotResult",
+          "identifier": "s:19StellarMediaImaging0B27PlaylistThumbnailGeneratingP7compose_7requestAA0B16ScreenshotResultVSayAGG_AA0bdE7RequestVtKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaPlaylistThumbnailGenerating",
+            "compose(_:request:)"
           ]
         }
       ]

@@ -1,6 +1,7 @@
 import StellarAuth
 import StellarCore
 import StellarLocalMedia
+import StellarMediaImaging
 import StellarMediaLibrary
 import StellarPosterWall
 import StellarRemoteMedia
@@ -188,6 +189,32 @@ public typealias MediaScanTraversalPolicy = StellarMediaLibrary.MediaScanTravers
 /// Compatibility alias for traversing every discovered directory.
 public typealias TraverseAllMediaScanDirectories =
   StellarMediaLibrary.TraverseAllMediaScanDirectories
+/// Compatibility alias for a scanner page's compound-directory projection.
+public typealias MediaScanDirectoryClassification =
+  StellarMediaLibrary.MediaScanDirectoryClassification
+/// Compatibility alias for asynchronous compound-directory detection.
+public typealias MediaScanDirectoryClassifier = StellarMediaLibrary.MediaScanDirectoryClassifier
+/// Compatibility alias for scans that do not classify compound directories.
+public typealias NoopMediaScanDirectoryClassifier =
+  StellarMediaLibrary.NoopMediaScanDirectoryClassifier
+/// Compatibility alias for optical-disc directory and image candidate detection.
+public typealias OpticalDiscMediaScanClassifier =
+  StellarMediaLibrary.OpticalDiscMediaScanClassifier
+/// Compatibility alias for a source-independent compound-media container.
+public typealias CompositeMediaContainer = StellarMediaLibrary.CompositeMediaContainer
+/// Compatibility alias for a source-independent compound-media kind.
+public typealias CompositeMediaKind = StellarMediaLibrary.CompositeMediaKind
+/// Compatibility alias for compound-media classification confidence.
+public typealias CompositeMediaConfidence = StellarMediaLibrary.CompositeMediaConfidence
+/// Compatibility alias for a versioned compound-media descriptor.
+public typealias CompositeMediaDescriptor = StellarMediaLibrary.CompositeMediaDescriptor
+/// Compatibility alias for a detected compound-media leaf and its suppressed descendants.
+public typealias CompositeMediaDetection = StellarMediaLibrary.CompositeMediaDetection
+/// Compatibility alias for an observed compound-media directory snapshot.
+public typealias CompositeMediaDirectorySnapshot =
+  StellarMediaLibrary.CompositeMediaDirectorySnapshot
+/// Compatibility alias for the pure optical-disc candidate detector.
+public typealias OpticalDiscCandidateDetector = StellarMediaLibrary.OpticalDiscCandidateDetector
 /// Compatibility alias for bounded scanner configuration.
 public typealias MediaScannerConfiguration = StellarMediaLibrary.MediaScannerConfiguration
 /// Compatibility alias for a completed scanner result.
@@ -244,6 +271,29 @@ public typealias MediaTechnicalStream = StellarMediaLibrary.MediaTechnicalStream
 public typealias MediaTechnicalProbeResult = StellarMediaLibrary.MediaTechnicalProbeResult
 /// Compatibility alias for the injectable technical probing boundary.
 public typealias MediaTechnicalProbing = StellarMediaLibrary.MediaTechnicalProbing
+/// Compatibility alias for a validated video-frame capture request.
+public typealias MediaScreenshotRequest = StellarMediaImaging.MediaScreenshotRequest
+/// Compatibility alias for encoded video-frame output.
+public typealias MediaScreenshotResult = StellarMediaImaging.MediaScreenshotResult
+/// Compatibility alias for screenshot output formats.
+public typealias MediaScreenshotImageFormat = StellarMediaImaging.MediaScreenshotImageFormat
+/// Compatibility alias for local and range-backed remote screenshot generation.
+public typealias MediaScreenshotGenerating = StellarMediaImaging.MediaScreenshotGenerating
+/// Compatibility alias for the FFmpeg range-backed screenshot generator.
+public typealias FFmpegMediaScreenshotGenerator =
+  StellarMediaImaging.FFmpegMediaScreenshotGenerator
+/// Compatibility alias for one playlist thumbnail input.
+public typealias MediaPlaylistThumbnailItem = StellarMediaImaging.MediaPlaylistThumbnailItem
+/// Compatibility alias for validated playlist thumbnail output and work limits.
+public typealias MediaPlaylistThumbnailRequest = StellarMediaImaging.MediaPlaylistThumbnailRequest
+/// Compatibility alias for the injectable playlist thumbnail boundary.
+public typealias MediaPlaylistThumbnailGenerating =
+  StellarMediaImaging.MediaPlaylistThumbnailGenerating
+/// Compatibility alias for the FFmpeg range-backed playlist thumbnail generator.
+public typealias FFmpegMediaPlaylistThumbnailGenerator =
+  StellarMediaImaging.FFmpegMediaPlaylistThumbnailGenerator
+/// Compatibility alias for the opt-in FFmpeg technical probe.
+public typealias FFmpegMediaTechnicalProbe = StellarMediaImaging.FFmpegMediaTechnicalProbe
 /// Compatibility alias for a season/episode coordinate used during provider matching.
 public typealias MediaEpisodeCoordinate = StellarMediaLibrary.MediaEpisodeCoordinate
 /// Compatibility alias for a normalized metadata provider query.
@@ -369,6 +419,12 @@ public typealias LibrarySourceKind = StellarStorage.LibrarySourceKind
 public typealias LibrarySourceDefinition = StellarStorage.LibrarySourceDefinition
 /// Compatibility alias for the scanner-oriented library repository.
 public typealias LibraryStore = StellarStorage.LibraryStore
+/// Compatibility alias for source-specific missing retention and anomaly protection.
+public typealias LibraryMissingRetentionPolicy = StellarStorage.LibraryMissingRetentionPolicy
+/// Compatibility alias for bounded file and metadata garbage-collection policy.
+public typealias LibraryGarbageCollectionPolicy = StellarStorage.LibraryGarbageCollectionPolicy
+/// Compatibility alias for one garbage-collection pass result.
+public typealias LibraryGarbageCollectionResult = StellarStorage.LibraryGarbageCollectionResult
 /// Compatibility alias for a deterministic library database projection.
 public typealias LibrarySnapshot = StellarStorage.LibrarySnapshot
 /// Compatibility alias for one normalized persisted file fact.
@@ -393,6 +449,14 @@ public typealias LibraryRemoteMetadata = StellarStorage.LibraryRemoteMetadata
 public typealias LibraryRemoteArtworkTarget = StellarStorage.LibraryRemoteArtworkTarget
 /// Compatibility alias for one selected remote poster.
 public typealias LibraryRemoteArtwork = StellarStorage.LibraryRemoteArtwork
+/// Compatibility alias for a generated local video thumbnail.
+public typealias LibraryGeneratedThumbnail = StellarStorage.LibraryGeneratedThumbnail
+/// Compatibility alias for one selected collection thumbnail media input.
+public typealias LibraryCollectionThumbnailMember =
+  StellarStorage.LibraryCollectionThumbnailMember
+/// Compatibility alias for a revision-safe collection thumbnail target.
+public typealias LibraryCollectionThumbnailTarget =
+  StellarStorage.LibraryCollectionThumbnailTarget
 
 /// The public namespace for SDK-wide information.
 public enum StellarUserMediaSDK: Sendable {
