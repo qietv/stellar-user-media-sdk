@@ -13,13 +13,42 @@ struct SMBScanView: View {
         }
         .padding()
       }
+      .scrollDismissesKeyboard(.interactively)
       .navigationTitle("SMB Scan")
+      .onAppear {
+        demoLaunchLogger.notice("phase=smb-scan-appeared")
+      }
     }
   }
 
   private var connectionCard: some View {
     GroupBox("Source") {
       VStack(spacing: 12) {
+        if model.inputsAreDisabled {
+          VStack(alignment: .leading, spacing: 8) {
+            Label(
+              model.scanState == .paused
+                ? "Source locked for a paused scan"
+                : "Source locked while scanning",
+              systemImage: "lock.fill"
+            )
+            .font(.subheadline.weight(.medium))
+            if model.canEditSource {
+              Text("Enter your username and password to resume, or edit the source. Saved progress is kept.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Button("Edit source") { model.editSource() }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("smb.editSource")
+            }
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        } else if model.isEditingSource {
+          Text("Saved progress is kept. Starting the same source resumes its unfinished scan.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
         HStack(spacing: 12) {
           field("Server", text: $model.server)
           field("Port (optional)", text: $model.port, keyboard: .numberPad)
@@ -27,17 +56,22 @@ struct SMBScanView: View {
         }
         field("Share", text: $model.share)
         field("Root path (optional)", text: $model.rootPath)
-        field("Username", text: $model.username)
-        SecureField("Password", text: $password)
-          // SMB credentials are not web credentials. This prevents Password AutoFill from
-          // doing an associated-domain lookup when the field first becomes focused.
-          .textContentType(.oneTimeCode)
-          .textFieldStyle(.roundedBorder)
-          .disabled(model.credentialInputIsDisabled)
+        Toggle("Scan one subdirectory only", isOn: $model.scansIncrementalScope)
+          .disabled(model.inputsAreDisabled)
+        if model.scansIncrementalScope {
+          field("Incremental scope (root-relative)", text: $model.incrementalScope)
+        }
+        field("Username", text: $model.username, isCredential: true)
+          .textContentType(.username)
+        SMBPasswordField(text: $password, isEnabled: !model.credentialInputIsDisabled)
 
         Toggle("Prefetch video thumbnails while idle", isOn: $model.prefetchVideoThumbnailsWhenIdle)
           .disabled(model.credentialInputIsDisabled)
         Toggle("Inspect technical metadata (low priority)", isOn: $model.enableTechnicalProbe)
+          .disabled(model.credentialInputIsDisabled)
+        Toggle("Inspect optical-disc playlists", isOn: $model.enableDiscProbe)
+          .disabled(model.credentialInputIsDisabled)
+        Toggle("Rescan every 15 minutes while active", isOn: $model.automaticScanning)
           .disabled(model.credentialInputIsDisabled)
 
         HStack(spacing: 10) {
@@ -121,14 +155,15 @@ struct SMBScanView: View {
   private func field(
     _ title: String,
     text: Binding<String>,
-    keyboard: UIKeyboardType = .default
+    keyboard: UIKeyboardType = .default,
+    isCredential: Bool = false
   ) -> some View {
     TextField(title, text: text)
       .keyboardType(keyboard)
       .textInputAutocapitalization(.never)
       .autocorrectionDisabled()
       .textFieldStyle(.roundedBorder)
-      .disabled(model.inputsAreDisabled)
+      .disabled(isCredential ? model.credentialInputIsDisabled : model.inputsAreDisabled)
   }
 
   private func metric(title: String, value: Int64) -> some View {

@@ -14,22 +14,31 @@ final class RemoteRangeDownload: DownloadProtocol, CustomStringConvertible, @unc
   private let locator: RemoteLocator
   private let size: Int64
   private let timeoutMilliseconds: Int
+  private let readAheadBytes: Int
+  private let metrics: DiscProbeMetricsAccumulator?
+  private let failureRecorder: DiscProbeIOFailureRecorder?
   private let operationLock = NSLock()
   private let stateLock = NSLock()
   private var position: Int64 = 0
   private var isClosed = false
+  private var cachedOffset: Int64 = 0
+  private var cachedData = Data()
 
   init(
     session: any MediaSourceSession,
     entry: RemoteEntry,
     description suppliedDescription: String? = nil,
-    timeoutMilliseconds: Int = 30_000
+    timeoutMilliseconds: Int = 30_000,
+    readAheadBytes: Int = 0,
+    metrics: DiscProbeMetricsAccumulator? = nil,
+    failureRecorder: DiscProbeIOFailureRecorder? = nil
   ) throws {
     guard entry.kind == .file, let size = entry.size, size >= 0,
       (100...300_000).contains(timeoutMilliseconds),
       suppliedDescription?.isEmpty != true,
       suppliedDescription?.contains("\0") != true,
-      suppliedDescription?.contains("/") != true
+      suppliedDescription?.contains("/") != true,
+      (0...4 * 1_024 * 1_024).contains(readAheadBytes)
     else {
       throw SDKError(code: .invalidConfiguration, message: "remote disc file is invalid")
     }
@@ -37,6 +46,9 @@ final class RemoteRangeDownload: DownloadProtocol, CustomStringConvertible, @unc
     locator = entry.locator
     self.size = size
     self.timeoutMilliseconds = timeoutMilliseconds
+    self.readAheadBytes = readAheadBytes
+    self.metrics = metrics
+    self.failureRecorder = failureRecorder
     description = suppliedDescription ?? entry.locator.path.name
   }
 
@@ -56,8 +68,21 @@ final class RemoteRangeDownload: DownloadProtocol, CustomStringConvertible, @unc
     guard offset < size else { return 0 }
 
     let requestLength = Int(min(Int64(requestedSize), size - offset))
-    let result = blockingRead(offset: offset, length: requestLength)
-    guard case .success(let data) = result else { return -1 }
+    let data: Data
+    let cachedIndex = offset - cachedOffset
+    if cachedIndex >= 0, cachedIndex < Int64(cachedData.count),
+      Int64(cachedData.count) - cachedIndex >= Int64(requestLength)
+    {
+      let start = Int(cachedIndex)
+      data = cachedData[start..<(start + requestLength)]
+    } else {
+      let fetchLength = Int(min(size - offset, Int64(max(requestLength, readAheadBytes))))
+      let result = blockingRead(offset: offset, length: fetchLength)
+      guard case .success(let fetched) = result else { return -1 }
+      cachedOffset = offset
+      cachedData = fetched
+      data = fetched.prefix(requestLength)
+    }
 
     stateLock.lock()
     guard !isClosed else {
@@ -112,7 +137,10 @@ final class RemoteRangeDownload: DownloadProtocol, CustomStringConvertible, @unc
   private func blockingRead(offset: Int64, length: Int) -> Result<Data, any Error> {
     let semaphore = DispatchSemaphore(value: 0)
     let resultBox = RemoteReadResultBox()
-    let task = Task.detached(priority: .utility) { [session, locator] in
+    let metrics = self.metrics
+    let failureRecorder = self.failureRecorder
+    let task = Task.detached(priority: .utility) {
+      [session, locator, metrics, failureRecorder] in
       do {
         var result = Data()
         result.reserveCapacity(length)
@@ -122,6 +150,7 @@ final class RemoteRangeDownload: DownloadProtocol, CustomStringConvertible, @unc
           let remaining = length - result.count
           let range = try RemoteByteRange(offset: nextOffset, length: remaining)
           let chunk = try await session.read(at: locator, range: range)
+          metrics?.recordRangeRead(byteCount: chunk.count)
           guard !chunk.isEmpty else { break }
           let accepted = min(chunk.count, remaining)
           result.append(chunk.prefix(accepted))
@@ -129,6 +158,7 @@ final class RemoteRangeDownload: DownloadProtocol, CustomStringConvertible, @unc
         }
         resultBox.store(.success(result))
       } catch {
+        failureRecorder?.record(error)
         resultBox.store(.failure(error))
       }
       semaphore.signal()
@@ -141,16 +171,67 @@ final class RemoteRangeDownload: DownloadProtocol, CustomStringConvertible, @unc
       let cancelled = withUnsafeCurrentTask { $0?.isCancelled ?? false }
       if closed || cancelled || DispatchTime.now() >= deadline {
         task.cancel()
-        return .failure(
-          SDKError(
-            code: cancelled ? .cancelled : .remoteUnavailable,
-            message: cancelled ? "remote disc read was cancelled" : "remote disc read timed out"
-          )
+        let error = SDKError(
+          code: cancelled ? .cancelled : .remoteUnavailable,
+          message: cancelled ? "remote disc read was cancelled" : "remote disc read timed out"
         )
+        failureRecorder?.record(error)
+        return .failure(error)
       }
     }
     return resultBox.take()
       ?? .failure(SDKError(code: .remoteUnavailable, message: "remote disc read failed"))
+  }
+}
+
+final class DiscProbeIOFailureRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var firstFailure: (any Error)?
+
+  func record(_ error: any Error) {
+    lock.lock()
+    if firstFailure == nil { firstFailure = error }
+    lock.unlock()
+  }
+
+  func failure() -> (any Error)? {
+    lock.lock()
+    defer { lock.unlock() }
+    return firstFailure
+  }
+}
+
+final class DiscProbeMetricsAccumulator: @unchecked Sendable {
+  private let lock = NSLock()
+  private var directoryListRequestCount = 0
+  private var rangeReadRequestCount = 0
+  private var rangeBytesRead: Int64 = 0
+
+  func recordDirectoryListRequest() {
+    lock.lock()
+    directoryListRequestCount += 1
+    lock.unlock()
+  }
+
+  func recordRangeRead(byteCount: Int) {
+    lock.lock()
+    rangeReadRequestCount += 1
+    rangeBytesRead += Int64(max(0, byteCount))
+    lock.unlock()
+  }
+
+  func snapshot(elapsedMilliseconds: Int64) throws -> DiscMediaProbeMetrics {
+    lock.lock()
+    let lists = directoryListRequestCount
+    let reads = rangeReadRequestCount
+    let bytes = rangeBytesRead
+    lock.unlock()
+    return try DiscMediaProbeMetrics(
+      elapsedMilliseconds: elapsedMilliseconds,
+      directoryListRequestCount: lists,
+      rangeReadRequestCount: reads,
+      rangeBytesRead: bytes
+    )
   }
 }
 

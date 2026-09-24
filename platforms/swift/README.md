@@ -56,7 +56,8 @@ try screenshot.data.write(to: outputURL)
 
 `StellarMediaLibrary` 的 `OpticalDiscMediaScanClassifier` 以大小写不敏感的结构哨兵识别
 BDMV、AVCHD、DVD `VIDEO_TS` 与 ISO/IMG 候选，并将复合目录作为单一 Library 项持久化。可选
-`StellarDiscMedia` product 使用固定 revision 的 BDMVIOContext，通过本地文件或
+`StellarDiscMedia` product 使用仓库内的 [BDMVIOContext 修补版本](Vendor/BDMVIOContext/README.md)，
+在原固定 revision 上补充 MPLS 文件筛选、完整读取与边界校验，通过本地文件或
 `MediaSourceSession` range read 深度解析 UDF/BDMV/DVD；公共 probe 结果不会泄漏 BDMVIOContext、
 KSPlayer 或 FFmpeg 类型。该上游仓库当前缺少明确 LICENSE，完成许可证/NOTICE 审核前不得把此可选
 product 视为可分发依赖；详细状态见 [Demo PLAN](../../examples/swift/StellarOAuthDemo/PLAN.md#18-bdmvdvdvideo_ts-与光盘镜像实施计划)。

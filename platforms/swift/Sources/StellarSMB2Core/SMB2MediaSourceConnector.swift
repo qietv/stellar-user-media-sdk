@@ -172,6 +172,16 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
   public func listDirectory(_ request: RemoteDirectoryPageRequest) async throws
     -> CursorPage<RemoteEntry>
   {
+    try await listDirectory(
+      request,
+      options: RemoteDirectoryEnumerationOptions()
+    )
+  }
+
+  public func listDirectory(
+    _ request: RemoteDirectoryPageRequest,
+    options: RemoteDirectoryEnumerationOptions
+  ) async throws -> CursorPage<RemoteEntry> {
     try requireConnected()
     let directoryPath = try smbPath(for: request.directory)
     // A persisted cursor from the snapshot implementation must finish through the
@@ -190,6 +200,21 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
       if !hasLegacySnapshotCursor,
         let pagingSession = session as? any SMB2DirectoryPagingSession
       {
+        if request.cursor == nil, !options.exclusionMarkerFileNames.isEmpty {
+          for markerName in options.exclusionMarkerFileNames {
+            do {
+              let marker = try await session.stat(
+                directoryPath.appending(component: markerName)
+              )
+              if marker.kind == .file {
+                directorySessionIndices.removeValue(forKey: directoryPath)
+                return try CursorPage(items: [], nextCursor: nil)
+              }
+            } catch let error as SDKError where error.code == .metadataNotFound {
+              continue
+            }
+          }
+        }
         let page = try await pagingSession.listDirectoryPage(
           at: directoryPath,
           cursor: request.cursor,
@@ -205,7 +230,11 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
       }
       let entries = try await session.listDirectory(at: directoryPath).map(convert)
       directorySessionIndices.removeValue(forKey: directoryPath)
-      return try directoryPaginator.storeAndPage(entries, for: request)
+      return try directoryPaginator.storeAndPage(
+        entries,
+        for: request,
+        exclusionMarkerFileNames: options.exclusionMarkerFileNames
+      )
     } catch {
       directorySessionIndices.removeValue(forKey: directoryPath)
       throw error

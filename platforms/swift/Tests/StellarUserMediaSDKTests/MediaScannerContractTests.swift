@@ -581,6 +581,91 @@ struct MediaScannerContractTests {
     #expect(state.seenEntryIdentityKeys == ["stable:file-arrival"])
   }
 
+  @Test("Path filter prunes excluded scopes and nomedia directories before listing")
+  func pathFilterPrunesBeforeListing() async throws {
+    let fixture = try loadFixture()
+    let root = try RemoteLocator(sourceUID: fixture.sourceUID, path: RemotePath())
+    let movies = try RemoteEntry(
+      locator: RemoteLocator(sourceUID: fixture.sourceUID, path: RemotePath("Movies")),
+      kind: .directory,
+      stableID: "directory-movies"
+    )
+    let privateDirectory = try RemoteEntry(
+      locator: RemoteLocator(sourceUID: fixture.sourceUID, path: RemotePath("Private")),
+      kind: .directory,
+      stableID: "directory-private"
+    )
+    let hiddenMovie = try RemoteEntry(
+      locator: RemoteLocator(
+        sourceUID: fixture.sourceUID,
+        path: RemotePath("Movies/Hidden.mkv")
+      ),
+      kind: .file,
+      stableID: "file-hidden"
+    )
+    let marker = try RemoteEntry(
+      locator: RemoteLocator(
+        sourceUID: fixture.sourceUID,
+        path: RemotePath("Movies/.nomedia")
+      ),
+      kind: .file,
+      stableID: "file-nomedia"
+    )
+    let connector = FixtureScanConnector(
+      sourceUID: fixture.sourceUID,
+      capabilities: fixture.capabilities,
+      pages: [
+        FixtureScanPage(
+          request: try RemoteDirectoryPageRequest(directory: root, limit: 10),
+          response: try CursorPage(items: [movies, privateDirectory], nextCursor: nil)
+        ),
+        FixtureScanPage(
+          request: try RemoteDirectoryPageRequest(directory: movies.locator, limit: 10),
+          response: try CursorPage(items: [hiddenMovie], nextCursor: "movies:1")
+        ),
+        FixtureScanPage(
+          request: try RemoteDirectoryPageRequest(
+            directory: movies.locator,
+            cursor: "movies:1",
+            limit: 10
+          ),
+          response: try CursorPage(items: [marker], nextCursor: nil)
+        ),
+      ],
+      failureRequest: nil
+    )
+    let request = try MediaScanRequest(
+      runUID: "scan-path-filter",
+      sourceUID: fixture.sourceUID,
+      mode: .full,
+      roots: [root]
+    )
+    let filter = try MediaScanPathFilter(
+      pathSemantics: fixture.capabilities.pathSemantics,
+      includedRoots: [RemotePath("Movies")],
+      excludedRoots: [RemotePath("Private")],
+      allowedFileExtensions: ["mkv"],
+      exclusionMarkerFileNames: [".nomedia"]
+    )
+
+    let result = try await MediaScanner(
+      configuration: MediaScannerConfiguration(
+        pageSize: 10,
+        maxConcurrentDirectoryRequests: 1
+      )
+    ).scan(
+      request,
+      using: connector,
+      sink: RecordingScanSink(),
+      traversalPolicy: filter
+    )
+
+    #expect(result.checkpoint.processedPageCount == 2)
+    #expect(result.checkpoint.discoveredEntryCount == 2)
+    #expect(await connector.listRequestCount(for: movies.locator) == 0)
+    #expect(await connector.listRequestCount(for: privateDirectory.locator) == 0)
+  }
+
   @Test("Coverage overlap and changed root identity fail before enumeration")
   func preflightSafety() async throws {
     let fixture = try loadFixture()
@@ -966,6 +1051,10 @@ private actor FixtureScanConnector: MediaSourceConnector {
     connectionCount += 1
     return session
   }
+
+  func listRequestCount(for directory: RemoteLocator) async -> Int {
+    await session.listRequestCount(for: directory)
+  }
 }
 
 private actor FixtureScanSession: MediaSourceSession {
@@ -974,7 +1063,10 @@ private actor FixtureScanSession: MediaSourceSession {
   private let pages: [RemoteDirectoryPageRequest: CursorPage<RemoteEntry>]
   private let failureRequest: RemoteDirectoryPageRequest?
   private let rootStableID: String
+  private let knownDirectories: Set<RemoteLocator>
+  private let knownEntries: [RemoteLocator: RemoteEntry]
   private var hasFailed = false
+  private var listRequestCounts: [RemoteLocator: Int] = [:]
 
   init(
     sourceUID: String,
@@ -988,11 +1080,20 @@ private actor FixtureScanSession: MediaSourceSession {
     self.pages = Dictionary(uniqueKeysWithValues: pages.map { ($0.request, $0.response) })
     self.failureRequest = failureRequest
     self.rootStableID = rootStableID
+    knownDirectories = Set(pages.map(\.request.directory))
+    var entries: [RemoteLocator: RemoteEntry] = [:]
+    for page in pages {
+      for entry in page.response.items {
+        entries[entry.locator] = entry
+      }
+    }
+    knownEntries = entries
   }
 
   func listDirectory(_ request: RemoteDirectoryPageRequest) async throws
     -> CursorPage<RemoteEntry>
   {
+    listRequestCounts[request.directory, default: 0] += 1
     if request == failureRequest, !hasFailed {
       hasFailed = true
       throw SDKError(code: .remoteUnavailable, message: "injected page interruption")
@@ -1007,6 +1108,12 @@ private actor FixtureScanSession: MediaSourceSession {
     guard locator.sourceUID == sourceUID else {
       throw SDKError(code: .metadataNotFound, message: "fixture root not found")
     }
+    if let entry = knownEntries[locator] {
+      return entry
+    }
+    guard locator.path.isRoot || knownDirectories.contains(locator) else {
+      throw SDKError(code: .metadataNotFound, message: "fixture entry not found")
+    }
     return try RemoteEntry(
       locator: locator,
       kind: .directory,
@@ -1019,6 +1126,10 @@ private actor FixtureScanSession: MediaSourceSession {
   }
 
   func disconnect() async {}
+
+  func listRequestCount(for directory: RemoteLocator) -> Int {
+    listRequestCounts[directory, default: 0]
+  }
 }
 
 private actor BlockingScanConnector: MediaSourceConnector {

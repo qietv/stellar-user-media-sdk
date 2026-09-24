@@ -43,6 +43,23 @@ struct PosterWallContractTests {
     #expect(watchingPage.items.first?.unwatchedEpisodeCount == 1)
   }
 
+  @Test("Provider identity lookup finds local roots without materializing the wall")
+  func externalIdentityLookup() async throws {
+    let contract = try loadFixture()
+    let fixture = try await makeFixture(contract)
+    defer { fixture.remove() }
+    let details = try await fixture.store.details(mediaUID: contract.cases.details.mediaUID)
+    for identity in details.externalIDs {
+      let uid = try await fixture.store.mediaUID(
+        provider: identity.provider, namespace: identity.namespace, value: identity.value)
+      #expect(uid == details.item.mediaUID)
+    }
+    #expect(try await fixture.store.mediaUID(provider: "missing", namespace: "movie", value: "1") == nil)
+    await #expect(throws: SDKError.self) {
+      try await fixture.store.mediaUID(provider: "", namespace: "movie", value: "1")
+    }
+  }
+
   @Test("Details expose series hierarchy, playable files, artwork, and stream summaries")
   func detailsFixture() async throws {
     let contract = try loadFixture()

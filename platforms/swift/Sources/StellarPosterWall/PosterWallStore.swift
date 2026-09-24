@@ -74,6 +74,26 @@ public struct PosterWallStore: Sendable {
     }
   }
 
+  /// Resolves a provider identity to a live local movie or series without loading the wall.
+  public func mediaUID(provider: String, namespace: String, value: String) async throws -> String? {
+    guard [provider, namespace, value].allSatisfy({ !$0.isEmpty && !$0.contains("\0") }) else {
+      throw SDKError(code: .invalidConfiguration, message: "PosterWall external identity is invalid")
+    }
+    do {
+      return try await database.read { database in
+        try String.fetchOne(database, sql: """
+          SELECT entity.uid
+          FROM external_id identity
+          JOIN media_entity entity ON entity.id = identity.entity_id
+          WHERE identity.provider = ? AND identity.namespace = ? AND identity.external_value = ?
+            AND entity.kind IN ('movie', 'series') AND entity.deleted_at_ms IS NULL
+            AND entity.status != 'deleted'
+          """, arguments: [provider, namespace, value])
+      }
+    } catch let error as SDKError { throw error }
+    catch { throw SDKError(code: .storageFailure, message: "PosterWall identity lookup failed") }
+  }
+
   /// Returns logical media, artwork, playable versions, technical streams, and series hierarchy.
   public func details(
     mediaUID: String,

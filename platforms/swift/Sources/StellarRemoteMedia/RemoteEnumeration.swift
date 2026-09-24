@@ -527,6 +527,27 @@ public struct RemoteDirectoryPageRequest: Codable, Equatable, Hashable, Sendable
   }
 }
 
+/// Optional source-independent behavior applied while producing a directory page.
+public struct RemoteDirectoryEnumerationOptions: Equatable, Sendable {
+  /// File names that suppress the directory's entire logical contents when present.
+  public let exclusionMarkerFileNames: Set<String>
+
+  public init(exclusionMarkerFileNames: Set<String> = []) throws {
+    guard exclusionMarkerFileNames.allSatisfy(Self.validPathComponent) else {
+      throw SDKError(
+        code: .invalidConfiguration,
+        message: "directory enumeration options are invalid"
+      )
+    }
+    self.exclusionMarkerFileNames = exclusionMarkerFileNames
+  }
+
+  private static func validPathComponent(_ value: String) -> Bool {
+    !value.isEmpty && value != "." && value != ".."
+      && !value.utf8.contains(0) && !value.utf8.contains(47)
+  }
+}
+
 /// A validated byte range for a source-independent read operation.
 public struct RemoteByteRange: Codable, Equatable, Sendable {
   public let offset: Int64
@@ -561,9 +582,43 @@ public protocol MediaSourceSession: Sendable {
   var capabilities: MediaSourceCapabilities { get async }
   func listDirectory(_ request: RemoteDirectoryPageRequest) async throws
     -> CursorPage<RemoteEntry>
+  func listDirectory(
+    _ request: RemoteDirectoryPageRequest,
+    options: RemoteDirectoryEnumerationOptions
+  ) async throws -> CursorPage<RemoteEntry>
   func stat(_ locator: RemoteLocator) async throws -> RemoteEntry
   func read(at locator: RemoteLocator, range: RemoteByteRange) async throws -> Data
   func disconnect() async
+}
+
+extension MediaSourceSession {
+  /// Compatibility implementation for sessions that have not specialized marker handling.
+  ///
+  /// Snapshot and server-query adapters should override this method so marker discovery can reuse
+  /// their directory response. A true cursor adapter can retain this bounded `stat` fallback; it
+  /// deliberately checks before returning the first page so a marker on a later page cannot leak
+  /// partial discovery results.
+  public func listDirectory(
+    _ request: RemoteDirectoryPageRequest,
+    options: RemoteDirectoryEnumerationOptions
+  ) async throws -> CursorPage<RemoteEntry> {
+    if request.cursor == nil {
+      for markerName in options.exclusionMarkerFileNames {
+        let marker = try RemoteLocator(
+          sourceUID: request.directory.sourceUID,
+          path: request.directory.path.appending(component: markerName)
+        )
+        do {
+          if try await stat(marker).kind == .file {
+            return try CursorPage(items: [], nextCursor: nil)
+          }
+        } catch let error as SDKError where error.code == .metadataNotFound {
+          continue
+        }
+      }
+    }
+    return try await listDirectory(request)
+  }
 }
 
 /// Injectable connection boundary shared by local, SMB, WebDAV, and fake connectors.

@@ -999,6 +999,12 @@ package struct LibraryMetadataIntakeSnapshot: Equatable, Sendable {
   public let technicalProbe: LibraryTechnicalProbeRecord?
 }
 
+/// The identity and serialized state of the newest scan that may still be resumed.
+package struct LibraryRecoverableScan: Equatable, Sendable {
+  public let runUID: String
+  public let checkpointJSON: String
+}
+
 /// Scanner-oriented repository over a migrated `library.sqlite` database.
 public struct LibraryStore: Sendable {
   public let database: StorageDatabase
@@ -1113,19 +1119,19 @@ public struct LibraryStore: Sendable {
       try await database.write { database in
         try database.execute(
           sql: """
-            INSERT INTO library_source(
-              uid, kind, display_name, root_uri, scan_policy, enabled,
-              missing_grace_ms, missing_required_scan_count, missing_empty_root_guard,
-              missing_drop_guard_percent, missing_drop_guard_minimum_count,
-              created_at_ms, updated_at_ms
-            ) VALUES (?, ?, ?, ?, 'incremental', 1, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(uid) DO UPDATE SET
-              kind = excluded.kind,
-              display_name = excluded.display_name,
-              root_uri = excluded.root_uri,
-              updated_at_ms = excluded.updated_at_ms,
-              deleted_at_ms = NULL
-          """,
+              INSERT INTO library_source(
+                uid, kind, display_name, root_uri, scan_policy, enabled,
+                missing_grace_ms, missing_required_scan_count, missing_empty_root_guard,
+                missing_drop_guard_percent, missing_drop_guard_minimum_count,
+                created_at_ms, updated_at_ms
+              ) VALUES (?, ?, ?, ?, 'incremental', 1, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(uid) DO UPDATE SET
+                kind = excluded.kind,
+                display_name = excluded.display_name,
+                root_uri = excluded.root_uri,
+                updated_at_ms = excluded.updated_at_ms,
+                deleted_at_ms = NULL
+            """,
           arguments: [
             source.uid, source.kind.rawValue, source.displayName, source.rootURI,
             missingPolicy.gracePeriodMilliseconds, missingPolicy.requiredMissingScanCount,
@@ -1396,7 +1402,8 @@ public struct LibraryStore: Sendable {
             arguments: [sourceID, runID, Self.missingReconciliationWithheldCode]
           )
         } else if batch.state == "failed" {
-          let marksOffline = batch.errorCode == SDKErrorCode.networkUnavailable.rawValue
+          let marksOffline =
+            batch.errorCode == SDKErrorCode.networkUnavailable.rawValue
             || batch.errorCode == SDKErrorCode.remoteUnavailable.rawValue
           try database.execute(
             sql: """
@@ -1436,36 +1443,75 @@ public struct LibraryStore: Sendable {
   ///
   /// Selecting the newest run before filtering its state prevents an older failed run
   /// from being revived after a newer run has already completed successfully.
-  package func latestRecoverableCheckpointJSON(sourceUID: String) async throws -> String? {
+  package func latestRecoverableScan(sourceUID: String) async throws -> LibraryRecoverableScan? {
     guard !sourceUID.isEmpty, !sourceUID.contains("\0") else {
       throw SDKError(code: .invalidConfiguration, message: "scan recovery source is invalid")
     }
     do {
-      return try await database.read { database in
-        try String.fetchOne(
-          database,
-          sql: """
-            SELECT run.checkpoint_json
-            FROM scan_run run
-            JOIN library_source source ON source.id = run.source_id
-            WHERE source.uid = ?
-              AND source.deleted_at_ms IS NULL
-              AND run.id = (
-                SELECT MAX(latest.id)
-                FROM scan_run latest
-                WHERE latest.source_id = source.id
-              )
-              AND run.state IN (
-                'queued', 'enumerating', 'processing', 'finalizing', 'cancelled', 'failed'
-              )
-            """,
-          arguments: [sourceUID]
+      return try await database.read { database -> LibraryRecoverableScan? in
+        guard
+          let row = try Row.fetchOne(
+            database,
+            sql: """
+              SELECT run.uid, run.checkpoint_json
+              FROM scan_run run
+              JOIN library_source source ON source.id = run.source_id
+              WHERE source.uid = ?
+                AND source.deleted_at_ms IS NULL
+                AND run.id = (
+                  SELECT MAX(latest.id)
+                  FROM scan_run latest
+                  WHERE latest.source_id = source.id
+                )
+                AND run.state IN (
+                  'queued', 'enumerating', 'processing', 'finalizing', 'cancelled', 'failed'
+                )
+              """,
+            arguments: [sourceUID]
+          )
+        else { return nil }
+        return LibraryRecoverableScan(
+          runUID: row["uid"],
+          checkpointJSON: row["checkpoint_json"]
         )
       }
     } catch let error as SDKError {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "recoverable scan checkpoint read failed")
+    }
+  }
+
+  /// Deletes one unfinished or failed scan and its private recovery state.
+  ///
+  /// Published library rows are retained. Foreign keys remove the run's frontier,
+  /// discovery, seen, and queued-work rows, while completed runs are never eligible.
+  @discardableResult
+  package func discardRecoverableScan(
+    runUID: String,
+    checkpointJSON: String
+  ) async throws -> Bool {
+    guard !runUID.isEmpty, !runUID.contains("\0") else {
+      throw SDKError(code: .invalidConfiguration, message: "scan run identity is invalid")
+    }
+    do {
+      return try await database.write { database in
+        try database.execute(
+          sql: """
+            DELETE FROM scan_run
+            WHERE uid = ? AND checkpoint_json = ?
+              AND state IN (
+                'queued', 'enumerating', 'processing', 'finalizing', 'cancelled', 'failed'
+              )
+            """,
+          arguments: [runUID, checkpointJSON]
+        )
+        return database.changesCount == 1
+      }
+    } catch let error as SDKError {
+      throw error
+    } catch {
+      throw SDKError(code: .storageFailure, message: "invalid scan recovery cleanup failed")
     }
   }
 
@@ -1804,6 +1850,7 @@ public struct LibraryStore: Sendable {
             LEFT JOIN technical_summary summary ON summary.media_file_id = file.id
             WHERE source.uid = ? AND source.deleted_at_ms IS NULL
               AND file.deleted_at_ms IS NULL AND file.availability = 'present'
+              AND file.composite_media_json IS NULL
               AND (file.probe_version IS NULL OR file.probe_version <> ?
                    OR summary.probe_version IS NULL OR summary.probe_version <> ?)
             ORDER BY file.path_compare_key, file.id
@@ -4008,7 +4055,7 @@ public struct LibraryStore: Sendable {
     }
   }
 
-  private static func enqueueOptionalScanWork(
+  package static func enqueueOptionalScanWork(
     runID: Int64,
     mediaFileID: Int64,
     inputRevision: Int64,
@@ -4036,7 +4083,7 @@ public struct LibraryStore: Sendable {
     )
   }
 
-  private static func requireActiveScanWorkLease(
+  package static func requireActiveScanWorkLease(
     _ lease: LibraryScanWorkLease,
     expectedMediaFileID: Int64? = nil,
     now: Int64,

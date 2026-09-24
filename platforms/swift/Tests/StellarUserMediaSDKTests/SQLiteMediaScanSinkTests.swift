@@ -444,6 +444,231 @@ struct SQLiteMediaScanSinkTests {
     #expect(try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == nil)
   }
 
+  @Test("Legacy checkpoints are discarded without clearing the published library")
+  func legacyCheckpointStartsFreshScan() async throws {
+    let fixture = try SQLiteScanFixture()
+    defer { fixture.remove() }
+    let sourceUID = "sqlite-legacy-recovery-source"
+    let database = try await StorageDatabase.open(
+      kind: .library,
+      at: fixture.databaseURL
+    )
+    let store = try LibraryStore(database: database)
+    try await store.registerSource(
+      LibrarySourceDefinition(
+        uid: sourceUID,
+        kind: .localFolder,
+        displayName: "Legacy Recovery Fixture",
+        rootURI: "file://legacy-recovery-source"
+      )
+    )
+    let connector = LocalMediaSourceConnector(
+      configuration: try LocalMediaSourceConfiguration(
+        sourceUID: sourceUID,
+        rootURL: fixture.mediaURL,
+        pathSemantics: RemotePathSemantics(
+          caseSensitivity: .sensitive,
+          unicodeNormalization: .preserve
+        )
+      )
+    )
+    let scanner = MediaScanner(
+      configuration: try MediaScannerConfiguration(
+        pageSize: 1,
+        maxConcurrentDirectoryRequests: 1
+      )
+    )
+    let sink = SQLiteMediaScanSink(store: store)
+    let root = try RemoteLocator(sourceUID: sourceUID, path: RemotePath())
+
+    _ = try await scanner.scan(
+      MediaScanRequest(
+        runUID: "legacy-recovery-published",
+        sourceUID: sourceUID,
+        mode: .full,
+        roots: [root]
+      ),
+      using: connector,
+      sink: sink
+    )
+    let publishedFiles = try await store.snapshot().files
+
+    let interruptedRunUID = "legacy-recovery-interrupted"
+    await #expect(throws: SDKError.self) {
+      _ = try await scanner.scan(
+        MediaScanRequest(
+          runUID: interruptedRunUID,
+          sourceUID: sourceUID,
+          mode: .full,
+          roots: [root]
+        ),
+        using: try InterruptingSQLiteConnector(sourceUID: sourceUID),
+        sink: sink
+      )
+    }
+    let interruptedRunID = try #require(
+      try await database.read { database in
+        try Int64.fetchOne(
+          database,
+          sql: "SELECT id FROM scan_run WHERE uid = ?",
+          arguments: [interruptedRunUID]
+        )
+      }
+    )
+    try await database.write { database in
+      try database.execute(
+        sql: "UPDATE scan_run SET checkpoint_json = ? WHERE id = ?",
+        arguments: [#"{"schema_version":1,"phase":"failed"}"#, interruptedRunID]
+      )
+    }
+
+    #expect(try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == nil)
+    let discardedCounts: (Int, Int, Int, Int) = try await database.read { database in
+      (
+        try Int.fetchOne(
+          database,
+          sql: "SELECT COUNT(*) FROM scan_run WHERE id = ?",
+          arguments: [interruptedRunID]
+        ) ?? -1,
+        try Int.fetchOne(
+          database,
+          sql: "SELECT COUNT(*) FROM scan_frontier WHERE run_id = ?",
+          arguments: [interruptedRunID]
+        ) ?? -1,
+        try Int.fetchOne(
+          database,
+          sql: "SELECT COUNT(*) FROM scan_seen WHERE run_id = ?",
+          arguments: [interruptedRunID]
+        ) ?? -1,
+        try Int.fetchOne(
+          database,
+          sql: "SELECT COUNT(*) FROM scan_discovery WHERE run_id = ?",
+          arguments: [interruptedRunID]
+        ) ?? -1
+      )
+    }
+    #expect(discardedCounts.0 == 0)
+    #expect(discardedCounts.1 == 0)
+    #expect(discardedCounts.2 == 0)
+    #expect(discardedCounts.3 == 0)
+    #expect(try await store.snapshot().files == publishedFiles)
+
+    let freshResult = try await scanner.scan(
+      MediaScanRequest(
+        runUID: "legacy-recovery-fresh",
+        sourceUID: sourceUID,
+        mode: .full,
+        roots: [root]
+      ),
+      using: connector,
+      sink: sink
+    )
+    #expect(freshResult.checkpoint.phase == .completed)
+  }
+
+  @Test("A checkpoint with a missing frontier is discarded and starts fresh")
+  func missingFrontierStartsFreshScan() async throws {
+    let fixture = try SQLiteScanFixture()
+    defer { fixture.remove() }
+    let sourceUID = "sqlite-missing-frontier-source"
+    let database = try await StorageDatabase.open(
+      kind: .library,
+      at: fixture.databaseURL
+    )
+    let store = try LibraryStore(database: database)
+    try await store.registerSource(
+      LibrarySourceDefinition(
+        uid: sourceUID,
+        kind: .localFolder,
+        displayName: "Missing Frontier Fixture",
+        rootURI: "file://missing-frontier-source"
+      )
+    )
+    let connector = LocalMediaSourceConnector(
+      configuration: try LocalMediaSourceConfiguration(
+        sourceUID: sourceUID,
+        rootURL: fixture.mediaURL,
+        pathSemantics: RemotePathSemantics(
+          caseSensitivity: .sensitive,
+          unicodeNormalization: .preserve
+        )
+      )
+    )
+    let scanner = MediaScanner(
+      configuration: try MediaScannerConfiguration(
+        pageSize: 1,
+        maxConcurrentDirectoryRequests: 1
+      )
+    )
+    let sink = SQLiteMediaScanSink(store: store)
+    let root = try RemoteLocator(sourceUID: sourceUID, path: RemotePath())
+
+    _ = try await scanner.scan(
+      MediaScanRequest(
+        runUID: "missing-frontier-published",
+        sourceUID: sourceUID,
+        mode: .full,
+        roots: [root]
+      ),
+      using: connector,
+      sink: sink
+    )
+    let publishedFiles = try await store.snapshot().files
+
+    let interruptedRunUID = "missing-frontier-interrupted"
+    await #expect(throws: SDKError.self) {
+      _ = try await scanner.scan(
+        MediaScanRequest(
+          runUID: interruptedRunUID,
+          sourceUID: sourceUID,
+          mode: .full,
+          roots: [root]
+        ),
+        using: try InterruptingSQLiteConnector(sourceUID: sourceUID),
+        sink: sink
+      )
+    }
+    let interruptedRunID = try #require(
+      try await database.read { database in
+        try Int64.fetchOne(
+          database,
+          sql: "SELECT id FROM scan_run WHERE uid = ?",
+          arguments: [interruptedRunUID]
+        )
+      }
+    )
+    try await database.write { database in
+      try database.execute(
+        sql: "DELETE FROM scan_frontier WHERE run_id = ?",
+        arguments: [interruptedRunID]
+      )
+    }
+
+    #expect(try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == nil)
+    #expect(
+      try await database.read { database in
+        try Int.fetchOne(
+          database,
+          sql: "SELECT COUNT(*) FROM scan_run WHERE id = ?",
+          arguments: [interruptedRunID]
+        )
+      } == 0
+    )
+    #expect(try await store.snapshot().files == publishedFiles)
+
+    let freshResult = try await scanner.scan(
+      MediaScanRequest(
+        runUID: "missing-frontier-fresh",
+        sourceUID: sourceUID,
+        mode: .full,
+        roots: [root]
+      ),
+      using: connector,
+      sink: sink
+    )
+    #expect(freshResult.checkpoint.phase == .completed)
+  }
+
   @Test("A failed later page cannot publish an observed move")
   func failedRunDoesNotPublishMove() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(

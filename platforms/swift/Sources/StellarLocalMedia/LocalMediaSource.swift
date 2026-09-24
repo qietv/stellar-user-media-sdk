@@ -137,6 +137,16 @@ public actor LocalMediaSourceSession: MediaSourceSession {
   public func listDirectory(_ request: RemoteDirectoryPageRequest) async throws
     -> CursorPage<RemoteEntry>
   {
+    try await listDirectory(
+      request,
+      options: RemoteDirectoryEnumerationOptions()
+    )
+  }
+
+  public func listDirectory(
+    _ request: RemoteDirectoryPageRequest,
+    options: RemoteDirectoryEnumerationOptions
+  ) async throws -> CursorPage<RemoteEntry> {
     try requireConnected()
     guard request.directory.sourceUID == sourceUID else {
       throw SDKError(code: .invalidConfiguration, message: "local source UID does not match")
@@ -153,7 +163,11 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     }
 
     let entries = try directoryEntries(at: directoryURL, locator: request.directory)
-    return try directoryPaginator.storeAndPage(entries, for: request)
+    return try directoryPaginator.storeAndPage(
+      entries,
+      for: request,
+      exclusionMarkerFileNames: options.exclusionMarkerFileNames
+    )
   }
 
   public func stat(_ locator: RemoteLocator) async throws -> RemoteEntry {

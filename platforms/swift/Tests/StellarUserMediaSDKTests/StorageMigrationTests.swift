@@ -36,6 +36,30 @@ struct StorageMigrationTests {
     }
   }
 
+  @Test("A closed WAL database reopens without existing sidecar files")
+  func reopenClosedWALDatabase() async throws {
+    let directory = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("metadata_cache.sqlite")
+    let schemaURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent()
+      .appendingPathComponent("specs/storage/sql/metadata-cache-v1.sql")
+    let schema = try String(contentsOf: schemaURL, encoding: .utf8)
+    let queue = try DatabaseQueue(path: url.path)
+    try await queue.writeWithoutTransaction { database in
+      try database.execute(sql: schema)
+      try database.execute(sql: "PRAGMA journal_mode = WAL")
+    }
+    try queue.close()
+    #expect(try Data(contentsOf: url)[18] == 2) // Header remains in WAL mode after close.
+    #expect(!FileManager.default.fileExists(atPath: url.path + "-wal"))
+    #expect(!FileManager.default.fileExists(atPath: url.path + "-shm"))
+    let database = try await StorageDatabase.open(kind: .metadataCache, at: url)
+    #expect(try await database.verify().isValid)
+  }
+
   @Test("An existing zero-byte database file is initialized as an empty database")
   func zeroByteDatabase() async throws {
     let directory = temporaryDirectory()
@@ -49,7 +73,7 @@ struct StorageMigrationTests {
     #expect(try await database.verify().isValid)
   }
 
-  @Test("An existing library v1 database migrates in place to v10")
+  @Test("An existing library v1 database migrates in place to v11")
   func existingLibraryV1MigratesInPlace() async throws {
     let directory = temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -78,8 +102,8 @@ struct StorageMigrationTests {
 
     let migrated = try await StorageDatabase.open(kind: .library, at: url)
     let report = try await migrated.verify()
-    #expect(report.userVersion == 10)
-    #expect(report.businessTableCount == 32)
+    #expect(report.userVersion == 11)
+    #expect(report.businessTableCount == 33)
     #expect(report.isValid)
     let preserved = try await migrated.read { database in
       try String.fetchOne(
@@ -177,8 +201,8 @@ struct StorageMigrationTests {
 
     let migrated = try await StorageDatabase.open(kind: .library, at: url)
     let report = try await migrated.verify()
-    #expect(report.userVersion == 10)
-    #expect(report.businessTableCount == 32)
+    #expect(report.userVersion == 11)
+    #expect(report.businessTableCount == 33)
     #expect(report.isValid)
     let states = try await migrated.read { database in
       try Row.fetchAll(
@@ -336,7 +360,7 @@ struct StorageMigrationTests {
       )
     }
     #expect(checksum == "corrupt")
-    #expect(tableCount == 32)
+    #expect(tableCount == 33)
     #expect(try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == sizeBefore)
   }
 
@@ -366,7 +390,7 @@ struct StorageMigrationTests {
   private func expectedTableCount(_ kind: StorageDatabaseKind) -> Int {
     switch kind {
     case .account: 6
-    case .library: 32
+    case .library: 33
     case .metadataCache: 3
     }
   }

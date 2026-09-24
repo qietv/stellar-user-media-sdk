@@ -1800,6 +1800,15 @@
           ]
         },
         {
+          "declaration": "func listDirectory(_ request: RemoteDirectoryPageRequest, options: RemoteDirectoryEnumerationOptions) async throws -> CursorPage<RemoteEntry>",
+          "identifier": "s:17StellarLocalMedia0bC13SourceSessionC13listDirectory_7options0A4Core10CursorPageVy0a6RemoteC00L5EntryVGAI0lgK7RequestV_AI0lG18EnumerationOptionsVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "LocalMediaSourceSession",
+            "listDirectory(_:options:)"
+          ]
+        },
+        {
           "declaration": "func listDirectory(_ request: RemoteDirectoryPageRequest) async throws -> CursorPage<RemoteEntry>",
           "identifier": "s:17StellarLocalMedia0bC13SourceSessionC13listDirectoryy0A4Core10CursorPageVy0a6RemoteC00K5EntryVGAH0kgJ7RequestVYaKF",
           "kind": "swift.method",
@@ -2848,6 +2857,41 @@
           ]
         },
         {
+          "declaration": "struct ScheduledMediaScan",
+          "identifier": "s:19StellarMediaLibrary09ScheduledB4ScanV",
+          "kind": "swift.struct",
+          "path": [
+            "ScheduledMediaScan"
+          ]
+        },
+        {
+          "declaration": "let firstSubmittedAtMilliseconds: Int64",
+          "identifier": "s:19StellarMediaLibrary09ScheduledB4ScanV28firstSubmittedAtMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "ScheduledMediaScan",
+            "firstSubmittedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let origins: Set<MediaScanTriggerOrigin>",
+          "identifier": "s:19StellarMediaLibrary09ScheduledB4ScanV7originsShyAA0bE13TriggerOriginOGvp",
+          "kind": "swift.property",
+          "path": [
+            "ScheduledMediaScan",
+            "origins"
+          ]
+        },
+        {
+          "declaration": "let request: MediaScanRequest",
+          "identifier": "s:19StellarMediaLibrary09ScheduledB4ScanV7requestAA0bE7RequestVvp",
+          "kind": "swift.property",
+          "path": [
+            "ScheduledMediaScan",
+            "request"
+          ]
+        },
+        {
           "declaration": "struct MediaMatchQuery",
           "identifier": "s:19StellarMediaLibrary0B10MatchQueryV",
           "kind": "swift.struct",
@@ -3248,6 +3292,68 @@
           ]
         },
         {
+          "declaration": "struct MediaScanTrigger",
+          "identifier": "s:19StellarMediaLibrary0B11ScanTriggerV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaScanTrigger"
+          ]
+        },
+        {
+          "declaration": "let submittedAtMilliseconds: Int64",
+          "identifier": "s:19StellarMediaLibrary0B11ScanTriggerV23submittedAtMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanTrigger",
+            "submittedAtMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let mode: MediaScanMode",
+          "identifier": "s:19StellarMediaLibrary0B11ScanTriggerV4modeAA0bD4ModeOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanTrigger",
+            "mode"
+          ]
+        },
+        {
+          "declaration": "let roots: [RemoteLocator]",
+          "identifier": "s:19StellarMediaLibrary0B11ScanTriggerV5rootsSay0a6RemoteB00G7LocatorVGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanTrigger",
+            "roots"
+          ]
+        },
+        {
+          "declaration": "let origin: MediaScanTriggerOrigin",
+          "identifier": "s:19StellarMediaLibrary0B11ScanTriggerV6originAA0bdE6OriginOvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanTrigger",
+            "origin"
+          ]
+        },
+        {
+          "declaration": "init(sourceUID: String, mode: MediaScanMode, roots: [RemoteLocator], origin: MediaScanTriggerOrigin, submittedAtMilliseconds: Int64) throws",
+          "identifier": "s:19StellarMediaLibrary0B11ScanTriggerV9sourceUID4mode5roots6origin23submittedAtMillisecondsACSS_AA0bD4ModeOSay0a6RemoteB00O7LocatorVGAA0bdE6OriginOs5Int64VtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanTrigger",
+            "init(sourceUID:mode:roots:origin:submittedAtMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "let sourceUID: String",
+          "identifier": "s:19StellarMediaLibrary0B11ScanTriggerV9sourceUIDSSvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanTrigger",
+            "sourceUID"
+          ]
+        },
+        {
           "declaration": "enum MediaSidecarKind",
           "identifier": "s:19StellarMediaLibrary0B11SidecarKindO",
           "kind": "swift.enum",
@@ -3529,6 +3635,77 @@
           "path": [
             "MediaScanEventKind",
             "completed"
+          ]
+        },
+        {
+          "declaration": "actor MediaScanScheduler",
+          "identifier": "s:19StellarMediaLibrary0B13ScanSchedulerC",
+          "kind": "swift.class",
+          "path": [
+            "MediaScanScheduler"
+          ]
+        },
+        {
+          "declaration": "let configuration: MediaScanSchedulerConfiguration",
+          "identifier": "s:19StellarMediaLibrary0B13ScanSchedulerC13configurationAA0bdE13ConfigurationVvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanScheduler",
+            "configuration"
+          ]
+        },
+        {
+          "declaration": "init(configuration: MediaScanSchedulerConfiguration = MediaScanSchedulerConfiguration())",
+          "identifier": "s:19StellarMediaLibrary0B13ScanSchedulerC13configurationAcA0bdE13ConfigurationV_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanScheduler",
+            "init(configuration:)"
+          ]
+        },
+        {
+          "declaration": "func pendingRunCount() -> Int",
+          "identifier": "s:19StellarMediaLibrary0B13ScanSchedulerC15pendingRunCountSiyF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanScheduler",
+            "pendingRunCount()"
+          ]
+        },
+        {
+          "declaration": "func nextReadyAtMilliseconds() -> Int64?",
+          "identifier": "s:19StellarMediaLibrary0B13ScanSchedulerC23nextReadyAtMillisecondss5Int64VSgyF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanScheduler",
+            "nextReadyAtMilliseconds()"
+          ]
+        },
+        {
+          "declaration": "func finish(runUID: String) throws",
+          "identifier": "s:19StellarMediaLibrary0B13ScanSchedulerC6finish6runUIDySS_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanScheduler",
+            "finish(runUID:)"
+          ]
+        },
+        {
+          "declaration": "func submit(_ trigger: MediaScanTrigger, pathSemantics: RemotePathSemantics) throws",
+          "identifier": "s:19StellarMediaLibrary0B13ScanSchedulerC6submit_13pathSemanticsyAA0bD7TriggerV_0a6RemoteB00j4PathH0VtKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanScheduler",
+            "submit(_:pathSemantics:)"
+          ]
+        },
+        {
+          "declaration": "func nextReady(atMilliseconds now: Int64) throws -> ScheduledMediaScan?",
+          "identifier": "s:19StellarMediaLibrary0B13ScanSchedulerC9nextReady14atMillisecondsAA09ScheduledbD0VSgs5Int64V_tKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanScheduler",
+            "nextReady(atMilliseconds:)"
           ]
         },
         {
@@ -3893,6 +4070,113 @@
           "path": [
             "MediaScanPageCursor",
             "init(directory:cursor:)"
+          ]
+        },
+        {
+          "declaration": "struct MediaScanPathFilter",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaScanPathFilter"
+          ]
+        },
+        {
+          "declaration": "let excludedRoots: [RemotePath]",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV13excludedRootsSay0a6RemoteB00iE0VGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanPathFilter",
+            "excludedRoots"
+          ]
+        },
+        {
+          "declaration": "let includedRoots: [RemotePath]",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV13includedRootsSay0a6RemoteB00iE0VGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanPathFilter",
+            "includedRoots"
+          ]
+        },
+        {
+          "declaration": "let pathSemantics: RemotePathSemantics",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV13pathSemantics0a6RemoteB00ieH0Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanPathFilter",
+            "pathSemantics"
+          ]
+        },
+        {
+          "declaration": "init(pathSemantics: RemotePathSemantics, includedRoots: [RemotePath] = [], excludedRoots: [RemotePath] = [], allowedFileExtensions: Set<String>? = nil, excludedDirectoryNames: Set<String> = [], ignoresHiddenDirectories: Bool = false, exclusionMarkerFileNames: [String] = []) throws",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV13pathSemantics13includedRoots08excludedJ021allowedFileExtensions0K14DirectoryNames24ignoresHiddenDirectories015exclusionMarkermP0AC0a6RemoteB00veH0V_SayAK0vE0VGAPShySSGSgAQSbSaySSGtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanPathFilter",
+            "init(pathSemantics:includedRoots:excludedRoots:allowedFileExtensions:excludedDirectoryNames:ignoresHiddenDirectories:exclusionMarkerFileNames:)"
+          ]
+        },
+        {
+          "declaration": "func shouldIndexFile(_ entry: RemoteEntry) -> Bool",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV15shouldIndexFileySb0a6RemoteB00J5EntryVF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanPathFilter",
+            "shouldIndexFile(_:)"
+          ]
+        },
+        {
+          "declaration": "let allowedFileExtensions: Set<String>?",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV21allowedFileExtensionsShySSGSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanPathFilter",
+            "allowedFileExtensions"
+          ]
+        },
+        {
+          "declaration": "let excludedDirectoryNames: Set<String>",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV22excludedDirectoryNamesShySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanPathFilter",
+            "excludedDirectoryNames"
+          ]
+        },
+        {
+          "declaration": "func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV23shouldTraverseDirectoryySb0a6RemoteB00J5EntryVF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanPathFilter",
+            "shouldTraverseDirectory(_:)"
+          ]
+        },
+        {
+          "declaration": "let exclusionMarkerFileNames: [String]",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV24exclusionMarkerFileNamesSaySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanPathFilter",
+            "exclusionMarkerFileNames"
+          ]
+        },
+        {
+          "declaration": "let ignoresHiddenDirectories: Bool",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV24ignoresHiddenDirectoriesSbvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanPathFilter",
+            "ignoresHiddenDirectories"
+          ]
+        },
+        {
+          "declaration": "var directoryExclusionMarkerFileNames: Set<String> { get }",
+          "identifier": "s:19StellarMediaLibrary0B14ScanPathFilterV33directoryExclusionMarkerFileNamesShySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanPathFilter",
+            "directoryExclusionMarkerFileNames"
           ]
         },
         {
@@ -4748,6 +5032,50 @@
           ]
         },
         {
+          "declaration": "enum MediaScanTriggerOrigin",
+          "identifier": "s:19StellarMediaLibrary0B17ScanTriggerOriginO",
+          "kind": "swift.enum",
+          "path": [
+            "MediaScanTriggerOrigin"
+          ]
+        },
+        {
+          "declaration": "case manual",
+          "identifier": "s:19StellarMediaLibrary0B17ScanTriggerOriginO6manualyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaScanTriggerOrigin",
+            "manual"
+          ]
+        },
+        {
+          "declaration": "case watcher",
+          "identifier": "s:19StellarMediaLibrary0B17ScanTriggerOriginO7watcheryA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaScanTriggerOrigin",
+            "watcher"
+          ]
+        },
+        {
+          "declaration": "init?(rawValue: String)",
+          "identifier": "s:19StellarMediaLibrary0B17ScanTriggerOriginO8rawValueACSgSS_tcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanTriggerOrigin",
+            "init(rawValue:)"
+          ]
+        },
+        {
+          "declaration": "case scheduled",
+          "identifier": "s:19StellarMediaLibrary0B17ScanTriggerOriginO9scheduledyA2CmF",
+          "kind": "swift.enum.case",
+          "path": [
+            "MediaScanTriggerOrigin",
+            "scheduled"
+          ]
+        },
+        {
           "declaration": "struct MediaSidecarClassifier",
           "identifier": "s:19StellarMediaLibrary0B17SidecarClassifierV",
           "kind": "swift.struct",
@@ -5021,12 +5349,30 @@
           ]
         },
         {
+          "declaration": "var directoryExclusionMarkerFileNames: Set<String> { get }",
+          "identifier": "s:19StellarMediaLibrary0B19ScanTraversalPolicyP33directoryExclusionMarkerFileNamesShySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanTraversalPolicy",
+            "directoryExclusionMarkerFileNames"
+          ]
+        },
+        {
           "declaration": "func shouldIndexFile(_: RemoteEntry) -> Bool",
           "identifier": "s:19StellarMediaLibrary0B19ScanTraversalPolicyPAAE15shouldIndexFileySb0a6RemoteB00J5EntryVF",
           "kind": "swift.method",
           "path": [
             "MediaScanTraversalPolicy",
             "shouldIndexFile(_:)"
+          ]
+        },
+        {
+          "declaration": "var directoryExclusionMarkerFileNames: Set<String> { get }",
+          "identifier": "s:19StellarMediaLibrary0B19ScanTraversalPolicyPAAE33directoryExclusionMarkerFileNamesShySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanTraversalPolicy",
+            "directoryExclusionMarkerFileNames"
           ]
         },
         {
@@ -5522,6 +5868,50 @@
           "path": [
             "MediaScanDirectoryClassifier",
             "classify(directory:entries:using:)"
+          ]
+        },
+        {
+          "declaration": "struct MediaScanSchedulerConfiguration",
+          "identifier": "s:19StellarMediaLibrary0B26ScanSchedulerConfigurationV",
+          "kind": "swift.struct",
+          "path": [
+            "MediaScanSchedulerConfiguration"
+          ]
+        },
+        {
+          "declaration": "init(watcherDebounceMilliseconds: Int64, watcherMaximumWaitMilliseconds: Int64) throws",
+          "identifier": "s:19StellarMediaLibrary0B26ScanSchedulerConfigurationV27watcherDebounceMilliseconds0g11MaximumWaitI0ACs5Int64V_AGtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanSchedulerConfiguration",
+            "init(watcherDebounceMilliseconds:watcherMaximumWaitMilliseconds:)"
+          ]
+        },
+        {
+          "declaration": "let watcherDebounceMilliseconds: Int64",
+          "identifier": "s:19StellarMediaLibrary0B26ScanSchedulerConfigurationV27watcherDebounceMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanSchedulerConfiguration",
+            "watcherDebounceMilliseconds"
+          ]
+        },
+        {
+          "declaration": "let watcherMaximumWaitMilliseconds: Int64",
+          "identifier": "s:19StellarMediaLibrary0B26ScanSchedulerConfigurationV30watcherMaximumWaitMillisecondss5Int64Vvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanSchedulerConfiguration",
+            "watcherMaximumWaitMilliseconds"
+          ]
+        },
+        {
+          "declaration": "init()",
+          "identifier": "s:19StellarMediaLibrary0B26ScanSchedulerConfigurationVACycfc",
+          "kind": "swift.init",
+          "path": [
+            "MediaScanSchedulerConfiguration",
+            "init()"
           ]
         },
         {
@@ -8170,6 +8560,15 @@
           ]
         },
         {
+          "declaration": "func mediaUID(provider: String, namespace: String, value: String) async throws -> String?",
+          "identifier": "s:17StellarPosterWall0bC5StoreV8mediaUID8provider9namespace5valueSSSgSS_S2StYaKF",
+          "kind": "swift.method",
+          "path": [
+            "PosterWallStore",
+            "mediaUID(provider:namespace:value:)"
+          ]
+        },
+        {
           "declaration": "struct PosterWallFilter",
           "identifier": "s:17StellarPosterWall0bC6FilterV",
           "kind": "swift.struct",
@@ -9142,6 +9541,32 @@
           ]
         },
         {
+          "declaration": "struct RemoteDirectoryEnumerationOptions",
+          "identifier": "s:18StellarRemoteMedia0B27DirectoryEnumerationOptionsV",
+          "kind": "swift.struct",
+          "path": [
+            "RemoteDirectoryEnumerationOptions"
+          ]
+        },
+        {
+          "declaration": "init(exclusionMarkerFileNames: Set<String> = []) throws",
+          "identifier": "s:18StellarRemoteMedia0B27DirectoryEnumerationOptionsV24exclusionMarkerFileNamesACShySSG_tKcfc",
+          "kind": "swift.init",
+          "path": [
+            "RemoteDirectoryEnumerationOptions",
+            "init(exclusionMarkerFileNames:)"
+          ]
+        },
+        {
+          "declaration": "let exclusionMarkerFileNames: Set<String>",
+          "identifier": "s:18StellarRemoteMedia0B27DirectoryEnumerationOptionsV24exclusionMarkerFileNamesShySSGvp",
+          "kind": "swift.property",
+          "path": [
+            "RemoteDirectoryEnumerationOptions",
+            "exclusionMarkerFileNames"
+          ]
+        },
+        {
           "declaration": "struct RemotePath",
           "identifier": "s:18StellarRemoteMedia0B4PathV",
           "kind": "swift.struct",
@@ -9908,6 +10333,15 @@
           ]
         },
         {
+          "declaration": "func listDirectory(_ request: RemoteDirectoryPageRequest, options: RemoteDirectoryEnumerationOptions) async throws -> CursorPage<RemoteEntry>",
+          "identifier": "s:18StellarRemoteMedia0C13SourceSessionP13listDirectory_7options0A4Core10CursorPageVyAA0B5EntryVGAA0bgK7RequestV_AA0bG18EnumerationOptionsVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaSourceSession",
+            "listDirectory(_:options:)"
+          ]
+        },
+        {
           "declaration": "func listDirectory(_ request: RemoteDirectoryPageRequest) async throws -> CursorPage<RemoteEntry>",
           "identifier": "s:18StellarRemoteMedia0C13SourceSessionP13listDirectoryy0A4Core10CursorPageVyAA0B5EntryVGAA0bgJ7RequestVYaKF",
           "kind": "swift.method",
@@ -9941,6 +10375,15 @@
           "path": [
             "MediaSourceSession",
             "sourceUID"
+          ]
+        },
+        {
+          "declaration": "func listDirectory(_ request: RemoteDirectoryPageRequest, options: RemoteDirectoryEnumerationOptions) async throws -> CursorPage<RemoteEntry>",
+          "identifier": "s:18StellarRemoteMedia0C13SourceSessionPAAE13listDirectory_7options0A4Core10CursorPageVyAA0B5EntryVGAA0bgK7RequestV_AA0bG18EnumerationOptionsVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaSourceSession",
+            "listDirectory(_:options:)"
           ]
         },
         {
@@ -11499,6 +11942,15 @@
           "path": [
             "SMB2MediaSourceSession",
             "capabilities"
+          ]
+        },
+        {
+          "declaration": "func listDirectory(_ request: RemoteDirectoryPageRequest, options: RemoteDirectoryEnumerationOptions) async throws -> CursorPage<RemoteEntry>",
+          "identifier": "s:15StellarSMB2Core0B18MediaSourceSessionC13listDirectory_7options0aC010CursorPageVy0a6RemoteD00L5EntryVGAI0lhK7RequestV_AI0lH18EnumerationOptionsVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SMB2MediaSourceSession",
+            "listDirectory(_:options:)"
           ]
         },
         {
@@ -14818,6 +15270,14 @@
           ]
         },
         {
+          "declaration": "typealias ScheduledMediaScan = ScheduledMediaScan",
+          "identifier": "s:19StellarUserMediaSDK09ScheduledC4Scana",
+          "kind": "swift.typealias",
+          "path": [
+            "ScheduledMediaScan"
+          ]
+        },
+        {
           "declaration": "typealias StellarOAuthConfiguration = StellarOAuthConfiguration",
           "identifier": "s:19StellarUserMediaSDK0A18OAuthConfigurationa",
           "kind": "swift.typealias",
@@ -14882,6 +15342,14 @@
           ]
         },
         {
+          "declaration": "typealias MediaScanTrigger = MediaScanTrigger",
+          "identifier": "s:19StellarUserMediaSDK0C11ScanTriggera",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanTrigger"
+          ]
+        },
+        {
           "declaration": "typealias MediaSidecarKind = MediaSidecarKind",
           "identifier": "s:19StellarUserMediaSDK0C11SidecarKinda",
           "kind": "swift.typealias",
@@ -14919,6 +15387,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaScanEventKind"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScanScheduler = MediaScanScheduler",
+          "identifier": "s:19StellarUserMediaSDK0C13ScanSchedulera",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanScheduler"
           ]
         },
         {
@@ -14967,6 +15443,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaScanPageCursor"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScanPathFilter = MediaScanPathFilter",
+          "identifier": "s:19StellarUserMediaSDK0C14ScanPathFiltera",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanPathFilter"
           ]
         },
         {
@@ -15103,6 +15587,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaMetadataProviding"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScanTriggerOrigin = MediaScanTriggerOrigin",
+          "identifier": "s:19StellarUserMediaSDK0C17ScanTriggerOrigina",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanTriggerOrigin"
           ]
         },
         {
@@ -15295,6 +15787,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaPlaylistThumbnailRequest"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScanSchedulerConfiguration = MediaScanSchedulerConfiguration",
+          "identifier": "s:19StellarUserMediaSDK0C26ScanSchedulerConfigurationa",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanSchedulerConfiguration"
           ]
         },
         {
@@ -16290,6 +16790,14 @@
           ]
         },
         {
+          "declaration": "typealias RemoteDirectoryEnumerationOptions = RemoteDirectoryEnumerationOptions",
+          "identifier": "s:19StellarUserMediaSDK33RemoteDirectoryEnumerationOptionsa",
+          "kind": "swift.typealias",
+          "path": [
+            "RemoteDirectoryEnumerationOptions"
+          ]
+        },
+        {
           "declaration": "typealias ClosureOAuthAuthorizationPresenter = ClosureOAuthAuthorizationPresenter",
           "identifier": "s:19StellarUserMediaSDK34ClosureOAuthAuthorizationPresentera",
           "kind": "swift.typealias",
@@ -16591,6 +17099,15 @@
           "path": [
             "WebDAVMediaSourceSession",
             "capabilities"
+          ]
+        },
+        {
+          "declaration": "func listDirectory(_ request: RemoteDirectoryPageRequest, options: RemoteDirectoryEnumerationOptions) async throws -> CursorPage<RemoteEntry>",
+          "identifier": "s:13StellarWebDAV0B21DAVMediaSourceSessionC13listDirectory_7options0A4Core10CursorPageVy0A11RemoteMedia0M5EntryVGAI0mhL7RequestV_AI0mH18EnumerationOptionsVtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "WebDAVMediaSourceSession",
+            "listDirectory(_:options:)"
           ]
         },
         {

@@ -71,7 +71,7 @@ public actor StorageDatabase {
     let existed = fileManager.fileExists(atPath: path)
     do {
       if existed {
-        try preflightExistingDatabase(kind: kind, path: path)
+        try preflightExistingDatabase(kind: kind, path: path, allowWALRecovery: true)
       } else {
         try fileManager.createDirectory(
           at: url.deletingLastPathComponent(),
@@ -217,10 +217,18 @@ public actor StorageDatabase {
 
   private static func preflightExistingDatabase(
     kind: StorageDatabaseKind,
-    path: String
+    path: String,
+    allowWALRecovery: Bool = false
   ) throws {
     var configuration = Configuration()
-    configuration.readonly = true
+    configuration.readonly = !allowWALRecovery
+    // A read-only SQLite handle cannot recreate absent WAL/SHM sidecars on some Apple
+    // runtimes. Allow that recovery while keeping the identity inspection SQL read-only.
+    if allowWALRecovery {
+      configuration.prepareDatabase { database in
+        try database.execute(sql: "PRAGMA query_only = ON")
+      }
+    }
     configuration.foreignKeysEnabled = true
     configuration.busyMode = .timeout(5)
     let queue = try DatabaseQueue(path: path, configuration: configuration)

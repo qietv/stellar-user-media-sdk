@@ -72,6 +72,14 @@
       "file": "sql/library-v10.sql",
       "business_table_count": 32,
       "sha256": "33b1b503158af3683c6bc4b9a5adec8a67b55980f7cc6c88d7280569b03e0889"
+    },
+    {
+      "name": "library",
+      "from_version": 10,
+      "to_version": 11,
+      "file": "sql/library-v11.sql",
+      "business_table_count": 33,
+      "sha256": "85741f44bd7e76b31b9df6ed96c1f9e288a412909500140ddcaea598501b6c64"
     }
   ]
 }

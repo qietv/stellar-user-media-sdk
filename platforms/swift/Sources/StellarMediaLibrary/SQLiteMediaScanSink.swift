@@ -90,24 +90,118 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
     guard let json = try await store.checkpointJSON(runUID: runUID) else {
       return nil
     }
-    return try Self.decodeCheckpoint(json)
+    return try await loadValidatedRecoverableCheckpoint(
+      runUID: runUID,
+      checkpointJSON: json
+    )
   }
 
   /// Loads the newest resumable checkpoint for a source after an app or worker restart.
   ///
   /// A completed newer run suppresses older failed or cancelled runs, so callers cannot
-  /// accidentally publish stale discovery state by reviving superseded work.
+  /// accidentally publish stale discovery state by reviving superseded work. An unreadable or
+  /// inconsistent recovery record is discarded with its private state so a fresh run can start.
   public func loadLatestRecoverableCheckpoint(
     sourceUID: String
   ) async throws -> MediaScanCheckpoint? {
-    guard let json = try await store.latestRecoverableCheckpointJSON(sourceUID: sourceUID) else {
+    guard let recoverable = try await store.latestRecoverableScan(sourceUID: sourceUID) else {
       return nil
     }
-    let checkpoint = try Self.decodeCheckpoint(json)
-    guard checkpoint.request.sourceUID == sourceUID, checkpoint.phase != .completed else {
-      throw SDKError(code: .storageFailure, message: "stored scan recovery checkpoint is invalid")
+    return try await loadValidatedRecoverableCheckpoint(
+      runUID: recoverable.runUID,
+      checkpointJSON: recoverable.checkpointJSON,
+      expectedSourceUID: sourceUID
+    )
+  }
+
+  private func loadValidatedRecoverableCheckpoint(
+    runUID: String,
+    checkpointJSON: String,
+    expectedSourceUID: String? = nil
+  ) async throws -> MediaScanCheckpoint? {
+    let checkpoint: MediaScanCheckpoint
+    do {
+      checkpoint = try Self.decodeCheckpoint(checkpointJSON)
+      guard checkpoint.request.runUID == runUID,
+        expectedSourceUID.map({ checkpoint.request.sourceUID == $0 }) ?? true,
+        expectedSourceUID == nil || checkpoint.phase != .completed
+      else {
+        throw SDKError(
+          code: .storageFailure,
+          message: "stored scan recovery checkpoint is invalid"
+        )
+      }
+    } catch {
+      return try await discardInvalidRecovery(
+        runUID: runUID,
+        checkpointJSON: checkpointJSON,
+        error: error
+      )
+    }
+
+    let needsEnumerationState =
+      checkpoint.request.mode != .repair
+      && checkpoint.phase != .finalizing
+      && checkpoint.phase != .completed
+    guard needsEnumerationState else { return checkpoint }
+
+    let enumerationState: MediaScanEnumerationState
+    do {
+      guard let storedState = try await loadEnumerationState(runUID: runUID) else {
+        // The run disappeared after its checkpoint was read. There is nothing left to resume.
+        return nil
+      }
+      enumerationState = storedState
+    } catch {
+      return try await discardInvalidRecovery(
+        runUID: runUID,
+        checkpointJSON: checkpointJSON,
+        error: error
+      )
+    }
+
+    guard Self.isEnumerationState(enumerationState, consistentWith: checkpoint) else {
+      return try await discardInvalidRecovery(
+        runUID: runUID,
+        checkpointJSON: checkpointJSON,
+        error: SDKError(
+          code: .storageFailure,
+          message: "durable scan frontier is inconsistent"
+        )
+      )
     }
     return checkpoint
+  }
+
+  private func discardInvalidRecovery(
+    runUID: String,
+    checkpointJSON: String,
+    error: Error
+  ) async throws -> MediaScanCheckpoint? {
+    if try await store.discardRecoverableScan(
+      runUID: runUID,
+      checkpointJSON: checkpointJSON
+    ) {
+      return nil
+    }
+    // A concurrent cleanup may already have removed the run. A changed checkpoint, however,
+    // belongs to newer work and must not be discarded based on this stale read.
+    if try await store.checkpointJSON(runUID: runUID) == nil {
+      return nil
+    }
+    throw error
+  }
+
+  private static func isEnumerationState(
+    _ state: MediaScanEnumerationState,
+    consistentWith checkpoint: MediaScanCheckpoint
+  ) -> Bool {
+    state.pendingPages.count == checkpoint.pendingPageCount
+      && state.completedPages.count == checkpoint.processedPageCount
+      && state.seenEntryIdentityKeys.count == checkpoint.discoveredEntryCount
+      && (state.pendingPages + state.completedPages).allSatisfy {
+        $0.directory.sourceUID == checkpoint.request.sourceUID
+      }
   }
 
   private static func decodeCheckpoint(_ json: String) throws -> MediaScanCheckpoint {

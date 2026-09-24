@@ -2,7 +2,18 @@ import SwiftUI
 
 struct PosterWallView: View {
   @ObservedObject var model: MediaLibraryModel
-  @State private var selectedItem: DemoPosterItem?
+  @State private var searchText = ""
+  @State private var mediaKind = "all"
+  @State private var newestFirst = false
+
+  private var visibleItems: [DemoPosterItem] {
+    let filtered = model.posterItems.filter {
+      (mediaKind == "all" || $0.kind.rawValue == mediaKind)
+        && (searchText.isEmpty || $0.title.localizedStandardContains(searchText))
+    }
+    return newestFirst
+      ? filtered.sorted { ($0.year ?? 0, $0.title) > ($1.year ?? 0, $1.title) } : filtered
+  }
 
   private let columns = [
     GridItem(.adaptive(minimum: 140, maximum: 210), spacing: 16, alignment: .top)
@@ -22,11 +33,15 @@ struct PosterWallView: View {
           )
           .frame(maxWidth: .infinity, minHeight: 320)
         } else {
+          if visibleItems.isEmpty {
+            ContentUnavailableView.search(text: searchText)
+          }
           LazyVGrid(columns: columns, spacing: 22) {
-            ForEach(model.posterItems) { item in
-              Button {
-                selectedItem = item
-              } label: {
+            ForEach(visibleItems) { item in
+              NavigationLink(
+                value: DemoMediaRoute(
+                  libraryUID: item.mediaUID, kind: item.kind.rawValue, title: item.title)
+              ) {
                 PosterCard(item: item)
               }
               .buttonStyle(.plain)
@@ -35,7 +50,33 @@ struct PosterWallView: View {
           .padding()
         }
       }
-      .navigationTitle("Poster Wall")
+      .navigationTitle("Library")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbarColorScheme(.dark, for: .navigationBar)
+      .searchable(text: $searchText, prompt: "Movies and TV shows")
+      .safeAreaInset(edge: .top, spacing: 0) {
+        HStack {
+          Picker("Media type", selection: $mediaKind) {
+            Text("All").tag("all")
+            Text("Movies").tag("movie")
+            Text("TV Shows").tag("series")
+          }.pickerStyle(.segmented)
+          Menu {
+            Button("Title", systemImage: newestFirst ? "textformat.abc" : "checkmark") {
+              newestFirst = false
+            }
+            Button("Newest first", systemImage: newestFirst ? "checkmark" : "calendar") {
+              newestFirst = true
+            }
+          } label: {
+            Image(systemName: "arrow.up.arrow.down").padding(.leading, 8)
+          }
+          .accessibilityLabel("Sort library")
+        }.padding(.horizontal).padding(.vertical, 10).background(.bar)
+      }
+      .background(Color(red: 0.055, green: 0.06, blue: 0.08))
+      .preferredColorScheme(.dark)
+      .tint(.orange)
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button {
@@ -53,8 +94,11 @@ struct PosterWallView: View {
       .task {
         await model.refreshPosterWall()
       }
-      .sheet(item: $selectedItem) { item in
-        PosterDetailsView(model: model, item: item)
+      .navigationDestination(for: DemoMediaRoute.self) { route in
+        MediaDetailsView(library: model, route: route)
+      }
+      .navigationDestination(for: DemoPersonRoute.self) { route in
+        PersonDetailsView(library: model, route: route)
       }
     }
   }
@@ -75,10 +119,7 @@ private struct PosterCard: View {
           case .failure:
             posterPlaceholder
           case .empty:
-            ZStack {
-              posterPlaceholder
-              ProgressView()
-            }
+            posterPlaceholder
           @unknown default:
             posterPlaceholder
           }
@@ -123,67 +164,4 @@ private struct PosterCard: View {
         .foregroundStyle(.white.opacity(0.8))
     }
   }
-}
-
-private struct PosterDetailsView: View {
-  @Environment(\.dismiss) private var dismiss
-  @ObservedObject var model: MediaLibraryModel
-  let item: DemoPosterItem
-  @State private var loadedItem: DemoPosterItem?
-
-  private var displayedItem: DemoPosterItem { loadedItem ?? item }
-
-  var body: some View {
-    NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          AsyncImage(url: displayedItem.artworkURL) { image in
-            image.resizable().scaledToFit()
-          } placeholder: {
-            RoundedRectangle(cornerRadius: 16)
-              .fill(.quaternary)
-              .aspectRatio(2.0 / 3.0, contentMode: .fit)
-              .overlay { ProgressView() }
-          }
-          .frame(maxWidth: 280)
-          .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-          .frame(maxWidth: .infinity)
-
-          Text(displayedItem.title)
-            .font(.title.bold())
-          if let originalTitle = displayedItem.originalTitle,
-            originalTitle != displayedItem.title
-          {
-            Text(originalTitle)
-              .font(.headline)
-              .foregroundStyle(.secondary)
-          }
-          if let year = displayedItem.year {
-            Text(String(year))
-              .font(.subheadline.monospacedDigit())
-              .foregroundStyle(.secondary)
-          }
-          if let overview = displayedItem.overview, !overview.isEmpty {
-            Text(overview)
-              .font(.body)
-          }
-        }
-        .padding()
-      }
-      .navigationTitle(displayedItem.kind == .series ? "Series" : "Movie")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Done") { dismiss() }
-        }
-      }
-      .task(id: item.id) {
-        loadedItem = await model.posterDetails(for: item)
-      }
-    }
-  }
-}
-
-#Preview {
-  PosterWallView(model: MediaLibraryModel())
 }

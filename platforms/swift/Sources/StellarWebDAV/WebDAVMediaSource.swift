@@ -364,6 +364,16 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
   public func listDirectory(_ request: RemoteDirectoryPageRequest) async throws
     -> CursorPage<RemoteEntry>
   {
+    try await listDirectory(
+      request,
+      options: RemoteDirectoryEnumerationOptions()
+    )
+  }
+
+  public func listDirectory(
+    _ request: RemoteDirectoryPageRequest,
+    options: RemoteDirectoryEnumerationOptions
+  ) async throws -> CursorPage<RemoteEntry> {
     try requireConnected()
     if let cachedPage = try directoryPaginator.cachedPage(for: request) {
       return cachedPage
@@ -379,7 +389,11 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     entries.removeAll {
       $0.locator.pathComparisonKey(using: capabilities.pathSemantics) == directoryKey
     }
-    return try directoryPaginator.storeAndPage(entries, for: request)
+    return try directoryPaginator.storeAndPage(
+      entries,
+      for: request,
+      exclusionMarkerFileNames: options.exclusionMarkerFileNames
+    )
   }
 
   public func stat(_ locator: RemoteLocator) async throws -> RemoteEntry {

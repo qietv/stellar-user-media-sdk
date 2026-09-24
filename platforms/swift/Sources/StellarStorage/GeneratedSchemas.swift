@@ -686,6 +686,7 @@ extension StorageDatabaseKind {
     case (.library, 8): "adef120a578fc8f6f0130050cf15dbdd5fcfb02659e9e83e85c187e67dcaaaa3"
     case (.library, 9): "deb1d5ad6380a36458e168abf82f69a1ea95143731fa8470f3114ccb6190d733"
     case (.library, 10): "33b1b503158af3683c6bc4b9a5adec8a67b55980f7cc6c88d7280569b03e0889"
+    case (.library, 11): "85741f44bd7e76b31b9df6ed96c1f9e288a412909500140ddcaea598501b6c64"
     default: nil
     }
   }
@@ -969,6 +970,39 @@ extension StorageDatabaseKind {
           WHERE deleted_at_ms IS NULL;
 
       PRAGMA user_version = 10;
+      """#
+    case (.library, 10):
+      #"""
+      -- Deep optical-disc probing is expensive on network sources. Cache both successful projections
+      -- and typed failures against the exact published file revision and selection rule.
+      CREATE TABLE composite_media_probe (
+          media_file_id          INTEGER PRIMARY KEY
+                                 REFERENCES media_file(id) ON DELETE CASCADE,
+          input_revision         INTEGER NOT NULL CHECK (input_revision > 0),
+          input_size_bytes       INTEGER CHECK (input_size_bytes IS NULL OR input_size_bytes >= 0),
+          input_modified_at_ms   INTEGER,
+          input_etag             TEXT,
+          selection_rule_version INTEGER NOT NULL CHECK (selection_rule_version > 0),
+          status                 TEXT NOT NULL CHECK (status IN (
+                                     'confirmed', 'unsupported', 'corrupt_structure', 'encrypted',
+                                     'cancelled', 'remote_unavailable', 'dependency_failure'
+                                 )),
+          result_json            TEXT CHECK (
+                                     result_json IS NULL
+                                     OR (
+                                         length(result_json) <= 1048576
+                                         AND json_valid(result_json)
+                                         AND json_type(result_json) = 'object'
+                                     )
+                                 ),
+          probed_at_ms           INTEGER NOT NULL CHECK (probed_at_ms >= 0),
+          CHECK (
+              (status = 'confirmed' AND result_json IS NOT NULL)
+              OR (status <> 'confirmed' AND result_json IS NULL)
+          )
+      ) STRICT;
+
+      PRAGMA user_version = 11;
       """#
     default: nil
     }

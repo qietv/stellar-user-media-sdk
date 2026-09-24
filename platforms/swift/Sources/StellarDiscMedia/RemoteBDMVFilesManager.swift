@@ -11,6 +11,9 @@ final class RemoteBDMVFilesManager: FilesManager, @unchecked Sendable {
   private let virtualSentinel: String
   private let pageSize: Int
   private let readTimeoutMilliseconds: Int
+  private let metricsAccumulator: DiscProbeMetricsAccumulator
+  private let failureRecorder = DiscProbeIOFailureRecorder()
+  private let directoryCache: RemoteDiscDirectoryCache
   private let stateLock = NSLock()
   private var downloads: [RemoteRangeDownload] = []
   private var isClosed = false
@@ -19,7 +22,8 @@ final class RemoteBDMVFilesManager: FilesManager, @unchecked Sendable {
     session: any MediaSourceSession,
     candidate: CompositeMediaDescriptor,
     pageSize: Int = 500,
-    readTimeoutMilliseconds: Int = 30_000
+    readTimeoutMilliseconds: Int = 30_000,
+    metrics: DiscProbeMetricsAccumulator = DiscProbeMetricsAccumulator()
   ) throws {
     guard candidate.container == .directory,
       candidate.kind == .bluray || candidate.kind == .avchd || candidate.kind == .dvdVideo,
@@ -63,6 +67,12 @@ final class RemoteBDMVFilesManager: FilesManager, @unchecked Sendable {
     self.session = session
     self.pageSize = pageSize
     self.readTimeoutMilliseconds = readTimeoutMilliseconds
+    metricsAccumulator = metrics
+    directoryCache = RemoteDiscDirectoryCache(
+      session: session,
+      pageSize: pageSize,
+      metrics: metrics
+    )
     sentinelRoot = try RemoteLocator(
       sourceUID: candidate.logicalRoot.sourceUID,
       path: resolvedSentinel
@@ -112,7 +122,9 @@ final class RemoteBDMVFilesManager: FilesManager, @unchecked Sendable {
         session: session,
         entry: $0,
         description: canonicalFileName($0.locator.path.name),
-        timeoutMilliseconds: readTimeoutMilliseconds
+        timeoutMilliseconds: readTimeoutMilliseconds,
+        metrics: metricsAccumulator,
+        failureRecorder: failureRecorder
       )
     }
     guard register(readers) else {
@@ -139,36 +151,23 @@ final class RemoteBDMVFilesManager: FilesManager, @unchecked Sendable {
     }
   }
 
+  func metrics(elapsedMilliseconds: Int64) throws -> DiscMediaProbeMetrics {
+    try metricsAccumulator.snapshot(elapsedMilliseconds: elapsedMilliseconds)
+  }
+
+  func recordedIOFailure() -> (any Error)? {
+    failureRecorder.failure()
+  }
+
   private func entries(in directory: RemoteLocator) async throws -> [RemoteEntry] {
     guard !closedSnapshot() else {
       throw SDKError(code: .cancelled, message: "remote BDMV manager is closed")
     }
 
-    var result: [RemoteEntry] = []
-    var cursor: String?
-    var seenCursors = Set<String>()
-    repeat {
-      try Task.checkCancellation()
-      let request = try RemoteDirectoryPageRequest(
-        directory: directory,
-        cursor: cursor,
-        limit: pageSize
-      )
-      let page = try await session.listDirectory(request)
-      guard
-        page.items.allSatisfy({ item in
-          item.locator.sourceUID == directory.sourceUID
-            && item.locator.path.parent == directory.path
-        })
-      else {
-        throw SDKError(code: .parseFailure, message: "BDMV directory escaped its logical root")
-      }
-      result.append(contentsOf: page.items)
-      cursor = page.nextCursor
-      if let cursor, !seenCursors.insert(cursor).inserted {
-        throw SDKError(code: .parseFailure, message: "BDMV directory repeated a page cursor")
-      }
-    } while cursor != nil
+    let result = try await directoryCache.entries(in: directory)
+    guard !closedSnapshot() else {
+      throw SDKError(code: .cancelled, message: "remote BDMV manager is closed")
+    }
     return result
   }
 
@@ -273,5 +272,71 @@ final class RemoteBDMVFilesManager: FilesManager, @unchecked Sendable {
 
   private static func asciiUppercased<S: StringProtocol>(_ value: S) -> String {
     String(decoding: value.utf8.map { (97...122).contains($0) ? $0 - 32 : $0 }, as: UTF8.self)
+  }
+}
+
+private actor RemoteDiscDirectoryCache {
+  private let session: any MediaSourceSession
+  private let pageSize: Int
+  private let metrics: DiscProbeMetricsAccumulator
+  private var completed: [RemoteLocator: [RemoteEntry]] = [:]
+  private var active: [RemoteLocator: Task<[RemoteEntry], Error>] = [:]
+
+  init(
+    session: any MediaSourceSession,
+    pageSize: Int,
+    metrics: DiscProbeMetricsAccumulator
+  ) {
+    self.session = session
+    self.pageSize = pageSize
+    self.metrics = metrics
+  }
+
+  func entries(in directory: RemoteLocator) async throws -> [RemoteEntry] {
+    if let entries = completed[directory] { return entries }
+    let task: Task<[RemoteEntry], Error>
+    if let existing = active[directory] {
+      task = existing
+    } else {
+      task = Task { [session, pageSize, metrics] in
+        var result: [RemoteEntry] = []
+        var cursor: String?
+        var seenCursors = Set<String>()
+        repeat {
+          try Task.checkCancellation()
+          let request = try RemoteDirectoryPageRequest(
+            directory: directory,
+            cursor: cursor,
+            limit: pageSize
+          )
+          metrics.recordDirectoryListRequest()
+          let page = try await session.listDirectory(request)
+          guard
+            page.items.allSatisfy({ item in
+              item.locator.sourceUID == directory.sourceUID
+                && item.locator.path.parent == directory.path
+            })
+          else {
+            throw SDKError(code: .parseFailure, message: "BDMV directory escaped its root")
+          }
+          result.append(contentsOf: page.items)
+          cursor = page.nextCursor
+          if let cursor, !seenCursors.insert(cursor).inserted {
+            throw SDKError(code: .parseFailure, message: "BDMV directory repeated a page cursor")
+          }
+        } while cursor != nil
+        return result
+      }
+      active[directory] = task
+    }
+    do {
+      let entries = try await task.value
+      active[directory] = nil
+      completed[directory] = entries
+      return entries
+    } catch {
+      active[directory] = nil
+      throw error
+    }
   }
 }

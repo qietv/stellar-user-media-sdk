@@ -1,5 +1,5 @@
 {
-  "originHash" : "7aeea421ea0037a339e8578665bc0ab8cc594c9208938e3341c32b539eb4ed5e",
+  "originHash" : "cbad331117dbd07994b67831a350ff180724d3a7394c828405f00a1b8c7c0b52",
   "pins" : [
     {
       "identity" : "amsmb2",
@@ -8,14 +8,6 @@
       "state" : {
         "revision" : "1726aaaf7adf63d7d1d2a0c5d1b0e635028215c0",
         "version" : "4.0.3"
-      }
-    },
-    {
-      "identity" : "bdmviocontext",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/TracyPlayer/BDMVIOContext.git",
-      "state" : {
-        "revision" : "639c793ff0cac9a9e3601db49e5790b5ba18f321"
       }
     },
     {

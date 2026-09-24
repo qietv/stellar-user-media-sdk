@@ -1,6 +1,8 @@
 # Infuse 刮削/扫描方案分析与 StellarOAuthDemo 改进计划
 
-> 状态：调研完成，实施中（Demo 主元数据/artwork 隔离、目录单次枚举、持久 frontier/compact checkpoint、per-run discovery staging、集合化发布、revision-safe worker lease、启动恢复、本地 metadata intake、扩展格式/光盘结构、早期文件过滤、missing 生命周期/延迟 GC 和 PosterWall 分页复用已落地）
+> 2026-09-09：海报墙详情专项见 [DETAILS_API_ASSESSMENT.md](DETAILS_API_ASSESSMENT.md)。已先完成接口评估，再接入电影、季/集、演职员、人物与作品浏览；该专项独立于本文扫描计划，远端 503 与剩余能力缺口见评估。
+
+> 状态：调研完成，实施中（Demo 主元数据/artwork 隔离、目录单次枚举、持久 frontier/compact checkpoint、per-run discovery staging、集合化发布、revision-safe worker lease、启动恢复、trigger merge、full/incremental/repair、前台周期扫描、`.nomedia`/scope 早期过滤、本地 metadata intake、扩展格式/光盘结构、光盘 Phase D-E、missing 生命周期/延迟 GC 和 PosterWall 分页复用已落地）
 >
 > 日期：2026-09-03
 >
@@ -75,7 +77,7 @@
   `scan_frontier` / `scan_seen` 通过 library schema v2 持久化，每页条目、frontier transition、
   seen 去重和 checkpoint 在同一 SQLite 事务提交；Scanner 使用增量 FIFO frontier，不再每页全量
   排序/复制前沿。中断恢复测试确认只重放未完成页，完成后 per-run frontier/seen 自动清理；
-- `library.sqlite` 已支持经过 checksum 验证的 v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10 原地迁移，保留已有业务数据；旧版 v1
+- `library.sqlite` 已支持经过 checksum 验证的 v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10 → v11 原地迁移，保留已有业务数据；旧版 v1
   checkpoint payload 若被显式加载会返回 conflict 并要求新建 run，避免静默错误恢复。
 - `library.sqlite` schema v3 已加入 per-run `scan_discovery`：枚举页只写 staging，不再提前修改
   正式 `media_file`；完整成功时，added/changed/moved/unchanged、metadata enqueue、scoped missing、
@@ -142,8 +144,8 @@
   STRM；`BDMV`、`AVCHD`、`DVD`、`VIDEO_TS` 仍由光盘 classifier 识别为单一合成媒体项，不展开内部
   transport 文件。
 
-这一阶段没有宣称完成下文全部计划。后台 scheduler、`.nomedia`/可配置 scope、父目录联合解析和
-离线本地 materialization 仍按后续 Phase 推进。Local、WebDAV 与 AMSMB2 的单次目录快照是 Phase 1 的正式兼容实现；网盘来源可直接映射
+这一阶段没有宣称完成下文全部计划。watcher 接入、持久后台执行条件、父目录联合解析和离线本地
+materialization 仍按后续 Phase 推进。Local、WebDAV 与 AMSMB2 的单次目录快照是 Phase 1 的正式兼容实现；网盘来源可直接映射
 服务端 cursor。协议级 QUERY_DIRECTORY 真流式仅在真实单目录 RSS 超出预算时作为来源专项优化，
 不再阻塞 Phase 1 完成。事务内临时批次表已用于成功发布 diff，枚举期持久 staging 则由
 `scan_discovery` 承担。
@@ -536,8 +538,8 @@ ceil(D / P) × O(D log D + network_list(D))
 | PosterWall 20,000 根实体 × 5 文件版本、标题首屏 | 0.19 s / 2.514B instructions / 95–97 MB max RSS | 0.14 s / 1.939B instructions / 75–76 MB max RSS | 100,000 个 binding 在 SQLite 先聚合为根实体/来源可用性；墙钟下降约 26%，最大 RSS 下降约 21% |
 
 8k 当前已满足 2.5 秒初始预算。compact checkpoint、持久 frontier 与 per-run discovery staging
-已消除主要非线性写放大并补齐失败 run 的发布边界；下一优先级是 scheduler、本地 metadata
-intake 和真实目录游标。
+已消除主要非线性写放大并补齐失败 run 的发布边界；scheduler/trigger merge 与本地 metadata
+intake 的核心路径也已落地。下一优先级是 watcher/后台执行条件、离线 materialization 和真实目录游标。
 
 ---
 
@@ -555,8 +557,8 @@ intake 和真实目录游标。
 | 共享实体复用 | 以媒体实体/剧集层组织 | entity/artwork 请求已有 single-flight 与持久 cache | 网络 N+1 已止血，仍可增加 batch resolve | P1 |
 | 元数据持久化 | 结构化数据库和缓存 | localized metadata/artwork/queue 已同事务写 SQLite | O(N²) JSON 重写已消除 | P0（完成） |
 | 搜索索引 | 二级阶段、按变更维护 | remote metadata 提交时增量 upsert | 全表 rebuild 已仅保留 repair/migration | P1（核心完成） |
-| 自动/增量触发 | 打开、空闲、服务器周期同步 | 已恢复 discovery/metadata，仍缺后台 scheduler/trigger merge | 重启恢复已完成；周期重扫策略仍缺 | P1 |
-| 范围过滤 | Favorite/exclusion/`.nomedia` | Demo 已在 enqueue 前跳过隐藏/系统目录，媒体扩展名在 identity/seen/staging 前过滤 | 非媒体文件不再产生 durable discovery 写入；通用 include/exclude 和 `.nomedia` 仍缺 | P1 |
+| 自动/增量触发 | 打开、空闲、服务器周期同步 | SDK 已有 trigger merge/优先级/debounce/单来源 active run；Demo 支持 full/incremental/repair 与前台 15 分钟周期扫描 | 核心调度完成；watcher 和持久后台执行条件仍缺 | P1（核心完成） |
+| 范围过滤 | Favorite/exclusion/`.nomedia` | SDK 通用 path filter 在目录入队前执行 include/exclude、隐藏/回收目录和 marker；Demo 启用 `.nomedia`、常见系统目录及增量 scope | 网络来源在遍历前剪枝；仍缺持久 Favorite/Library 策略 UI | P1（核心完成） |
 | 本地元数据 | embedded/local/NFO/override 优先 | filename、NFO/JSON、sidecar intake 已进入 Demo `.parse`，本地 metadata 优先构造 match query；embedded/纯离线 materialization 仍缺 | 本地证据已持久化并参与匹配；无在线服务时仍不能完整建库 | P1（核心完成） |
 | 格式覆盖 | 广泛视频/光盘/流媒体格式 | 文件 admission 已扩展；ISO/IMG 强制进入光盘候选，BDMV/AVCHD/DVD/VIDEO_TS 作为原子媒体项 | 已消除已知格式漏扫；播放能力仍由后续 probe/player 决定 | P1（完成） |
 | 服务器来源 | Plex/Emby/Jellyfin 专用 API，Direct/Library | 只有文件来源主路径 | 无法高效利用服务器现有索引 | P2 |
@@ -735,11 +737,13 @@ provider artwork 已从主元数据提交前移出，并增加有界自动重试
 媒体文件。实际启用的技术探测同样复用该 seekable range bridge，并通过单并发 `.probe` 原子写入
 `technical_summary` / `media_stream`。
 
-## 7.6 P1：后台调度和 trigger merge 尚未落地到 Demo
+## 7.6 P1：增量调度和 trigger merge（核心已完成）
 
 Demo 已能从 SQLite 选择每个 source 最新的可恢复 run，并直接恢复 metadata 队列；数据库也已强制
-同一 source 只能有一个 active run。当前仍总是由用户发起 `.full`，缺少 trigger merge、周期策略、
-watcher hint 和 full/incremental/repair UI。
+同一 source 只能有一个 active run。SDK 的来源无关 scheduler 会合并 full/incremental/repair trigger、
+压缩重叠增量 scope、对 watcher hint 执行 debounce/max-wait，并在 claim 层保持每来源单 active run。
+Demo 已提供 full/incremental/repair 入口，并可在应用活跃时每 15 分钟发起一次 scheduled full。
+尚未接入实际 watcher/overflow，也未实现依赖电源、网络与系统后台配额的持久执行或任务中心。
 
 ### 修复方向
 
@@ -773,18 +777,20 @@ Demo 原先的可索引扩展名只有：
 是否全部支持播放仍由播放器和深度 probe 能力决定，扫描接纳不等同于解码承诺。
 
 Demo 的媒体扩展名过滤已从 sink 前推到 Scanner 的文件 admission，排除项不再计算 identity、写入
-`scan_seen` 或进入 staging 批次；目录过滤也已在 child enqueue 前执行。当前还缺少：
+`scan_seen` 或进入 staging 批次；目录过滤也已在 child enqueue 前执行。SDK 的通用
+`MediaScanPathFilter` 已支持 include/exclude root、目录名、隐藏目录和 marker，Scanner 把 marker
+选项下推给 Local、SMB、WebDAV session；整目录响应会在已有枚举内识别 `.nomedia`，不增加网络请求。
+当前还缺少：
 
-- `.nomedia`；
-- include/exclude root；
-- Favorite/Library scope；
-- 更完整、可配置的 recycle/trash/package 规则。
+- 持久化的 Favorite/Library scope 产品策略和配置 UI；
+- Demo 面向用户的任意 exclude/recycle/trash/package 规则编辑。
 
 过滤应尽可能前推到目录入队之前，这对网络来源是直接性能收益。
 
 ## 7.8 P1：stable ID 能力不能被强制假设
 
-Demo 对 SMB inode 使用 `.persistent` 语义，但不同 SMB 服务端的 file ID/inode 行为并不一致：
+Demo 不再把 SMB inode 强制声明为 `.persistent`，默认使用 path identity；SDK capability 仍允许经验证
+的 adapter 明确报告稳定范围。不同 SMB 服务端的 file ID/inode 行为并不一致：
 
 - 某些服务器跨 reconnect 稳定；
 - 某些仅在 session 或 share 内稳定；
@@ -1100,17 +1106,17 @@ variant；当前已完成拆分。Phase 4 保留以下三个执行边界：
 ## Phase 5：增量调度、恢复和后台策略（P1，预计 1–2 周）
 
 > 进度：按 source 的最新 unfinished run 恢复和 metadata queue 启动恢复已接入 Demo；恢复只使用
-> checkpoint 中的非秘密 request/scope，SMB 密码仍需用户重新输入。trigger merge、后台 scheduler、
-> full/incremental/repair UI 和任务中心仍待推进。
+> checkpoint 中的非秘密 request/scope，SMB 密码仍需用户重新输入。SDK trigger merge/scheduler、
+> Demo full/incremental/repair UI 和应用活跃时的周期扫描已完成；watcher、持久后台条件和任务中心仍待推进。
 
 ### 工作项
 
-- 引入 scheduler 和 trigger merge；
-- launch 时恢复 unfinished run；
-- UI 暴露 full/incremental/repair；
+- 已完成：引入 scheduler 和 trigger merge；
+- 已完成：launch 时恢复 unfinished run；
+- 已完成：UI 暴露 full/incremental/repair；
 - 文件 watcher 只生成 hint，并做 debounce/max-wait；
 - watcher overflow 或 source revision 不可信时升级 full；
-- SMB/NAS 使用周期扫描并在前台/电源/网络条件下调度；
+- 已完成：SMB/NAS 可在应用活跃时按 15 分钟周期扫描；电源/网络/系统后台条件仍待接入；
 - 手工扫描可优先于 scheduled artwork/thumbnail/probe；
 - 保存 request scope 和安全 credential reference；
 - 增加任务中心：当前 phase、发现/匹配/artwork 进度、暂停原因、重试入口。
@@ -1130,7 +1136,7 @@ variant；当前已完成拆分。Phase 4 保留以下三个执行边界：
 - 已完成：接入 `MediaFilenameParser`、本地 metadata store、NFO/JSON/sidecar/artwork/subtitle；
 - 支持显式 TMDB/IMDb ID、无年份电影、`SE2EP3`、`02-003`、本地化季集、specials、日期集、绝对集数；
 - 结合父目录生成多个候选并保留解释性 score；
-- `.nomedia`、include/exclude、隐藏/回收目录在 enqueue 前生效；
+- 已完成：`.nomedia`、include/exclude、隐藏/回收目录在 enqueue 前生效；Demo 的任意规则配置 UI 后续补充；
 - 已完成：扩展媒体格式和 BDMV/DVD/ISO 等结构识别；
 - source capability 决定 stable ID、pagination 和并发；
 - 已完成：增加空根和数量骤降保护，相同范围、计数与 stable identity 集合的权威异常结果需再次确认；
@@ -1445,10 +1451,10 @@ Firecore 官方说明：
 
 ## 18. BDMV、DVD、VIDEO_TS 与光盘镜像实施计划
 
-> 状态（2026-09-02）：Phase A-C 的核心代码已完成，包括 source-independent 结构识别、扫描器
-> 原子叶子语义、schema v8 持久化、`BDMVIOContext` 本地/远程镜像 probe，以及 BDMV、AVCHD、
-> DVD-Video 远程目录 adapter。Phase D-E 的缓存、真实自制光盘 fixture、播放/UI 接口和发布许可证
-> 门禁仍待完成。
+> 状态（2026-09-03）：Phase A-E 已完成，包括 source-independent 结构识别、扫描器原子叶子语义、
+> `BDMVIOContext` 本地/远程镜像 probe、BDMV/AVCHD/DVD-Video 远程目录 adapter、revision-safe
+> 持久缓存、playlist/UI/播放器交接接口、自制 UDF/BDMV fixture、跨来源 contract 和真实 NAS 指标。
+> 发布许可证门禁仍未满足，见 18.8 与 18.10。
 >
 > 依赖基线：`TracyPlayer/BDMVIOContext` `main` revision
 > `639c793ff0cac9a9e3601db49e5790b5ba18f321`（2026-09-01）。集成必须固定 revision，不能跟随
@@ -1651,12 +1657,38 @@ adapter 分两条路径：
   FFmpeg 或 BDMVIOContext 类型；
 - 保留原有 Scanner/Storage initializer 重载并更新 public API baseline，避免新增参数造成源码/API 破坏。
 
+### 18.11 2026-09-03 Phase D-E 实施记录
+
+已完成：
+
+- schema v11 新增 `composite_media_probe`，按 media identity、`material_revision`、size、mtime、ETag
+  与 playlist 选择规则版本精确命中；成功和有界终态均持久化。unchanged rescan 不再重开 UDF，
+  规则或 material input 变化会重新入队；技术摘要、stream 投影、probe cache 和 lease resolution
+  在同一 SQLite 事务提交，失败的新 revision 会移除旧的 BDMV 技术投影；
+- `DiscMediaLibrary` 作为 source-independent 高层入口接通 `.probe` durable queue。所有有效 playlist
+  与 segment 均保留，默认继续使用最大 playlist size，并提供稳定 `DiscMediaPlaybackSelection` 供 UI/
+  播放器选择任意 playlist；Demo 默认启用光盘探测，在普通 FFmpeg probe 前处理复合媒体，并在详情页
+  展示全部 playlist、主标题、segment 和实际 I/O 指标；
+- `unsupported`、`corruptStructure`、`encrypted`、`cancelled`、`remoteUnavailable`、
+  `dependencyFailure` 分开缓存和调度。同步 `udfread` 桥现在会把异步 source read 的原始失败带回，
+  不再把断网/取消误记为结构损坏；不实现或尝试绕过 AACS/CSS；
+- remote image 增加 128 KiB 有界 read-ahead；目录型 adapter 对 `/BDMV`、`PLAYLIST`、`STREAM`
+  使用 probe-scoped single-flight snapshot，同一逻辑目录不重复枚举。direct-root 跨页时只在控制文件
+  所在页投影一次 synthetic item，其余页全部保持叶子语义；
+- 提交自制的 1.1 MiB UDF/BDMV 镜像、生成脚本和 SHA-256 sidecar；真实执行 `udfread + MPLS`
+  端到端解析，覆盖多个 MPLS、重复 playlist 消除、最大标题选择、本地与远端 range 路径；
+- range contract 覆盖随机 seek、跨 2 KiB block、短读、EOF、timeout、Task cancellation 与并发 close；
+  Local、SMB fake、WebDAV fake 得到相同 playlist 结果；现有 scanner/storage contract 继续覆盖原子发布、
+  replay/resume、missing 禁止条件和内部文件不入队；
+- 使用用户提供的测试 NAS 只读验证：21,305,556,992-byte ISO 在一次暖连接样本中用 9 次 range、
+  1,179,648 bytes、41 ms 解析出 8 个 playlist；目录型 BDMV 用 3 次逻辑 list、89 次 range、
+  68,408 bytes、238 ms 解析出 89 个 playlist。两项串行 opt-in 测试的 SwiftPM runner 最大 RSS
+  约 110.4 MiB，测试进程 peak footprint 约 30.8 MiB；不含构建时间。
+
 仍待完成：
 
-- 制作并提交无版权问题的最小 UDF/BDMV 与 DVD fixture，执行真正的 MPLS/IFO 端到端解析；当前自动化
-  测试覆盖结构 detector、scanner、SQLite 和 adapter 协议边界，但不伪造 parser 成功；
-- 增加 probe cache、规则版本、细分失败状态、playlist segment/章节投影及 UI/播放入口；
-- 补 direct-root 多页、取消/恢复、SMB/WebDAV 集成和真实 NAS 请求数/RSS benchmark；
+- 制作自制 DVD-Video IFO fixture，执行完整 IFO/PGC 端到端解析；当前 DVD 已覆盖结构 detector、
+  scanner、SQLite 和 adapter 协议边界，但没有把伪造 IFO 当作 parser 成功；
 - 修复 SwiftPM `dump-symbol-graph` 对该 target 缺失 FFmpegKit `Libavcodec` include search path 的上游
   问题，并为 `StellarDiscMedia` 建立独立公共 API baseline；当前 CI guard 只豁免这一条可精确识别的
   extractor-only 失败，Debug/Release target 构建仍必须成功；

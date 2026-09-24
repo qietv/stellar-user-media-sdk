@@ -44,10 +44,6 @@ let package = Package(
       url: "https://github.com/TracyPlayer/FFmpegKit.git",
       revision: "233c6bb6657a244ef57178e5d54979d1fd3cd45d"
     ),
-    .package(
-      url: "https://github.com/TracyPlayer/BDMVIOContext.git",
-      revision: "639c793ff0cac9a9e3601db49e5790b5ba18f321"
-    ),
     // BDMVIOContext's `from: 5.0.0` floor lacks its current FilesManager API. Keep a direct,
     // reproducible pin to the verified latest KSPlayer `lgpl` commit instead.
     .package(
@@ -56,6 +52,18 @@ let package = Package(
     ),
   ],
   targets: [
+    // Bundle the patched sources as targets so remote SDK consumers need no local package override.
+    // See Vendor/BDMVIOContext/README.md for the upstream revision and patch scope.
+    .target(
+      name: "udfread",
+      path: "Vendor/BDMVIOContext/Sources/udfread",
+      cSettings: [.define("HAVE_CONFIG_H", to: "1")]
+    ),
+    .target(
+      name: "BDMVIOContext",
+      dependencies: ["udfread", .product(name: "KSPlayer", package: "KSPlayer")],
+      path: "Vendor/BDMVIOContext/Sources/BDMVIOContext"
+    ),
     .target(
       name: "StellarCore"
     ),
@@ -138,7 +146,8 @@ let package = Package(
         "StellarCore",
         "StellarMediaLibrary",
         "StellarRemoteMedia",
-        .product(name: "BDMVIOContext", package: "BDMVIOContext"),
+        "StellarStorage",
+        "BDMVIOContext",
         .product(name: "KSPlayer", package: "KSPlayer"),
       ]
     ),
@@ -170,7 +179,17 @@ let package = Package(
         "StellarMediaImaging",
         "StellarDiscMedia",
         "StellarUserMediaSDK",
+        "BDMVIOContext",
+        .product(name: "KSPlayer", package: "KSPlayer"),
         .product(name: "GRDB", package: "GRDB.swift"),
+      ],
+      exclude: [
+        "Fixtures/Disc/README.md",
+        "Fixtures/Disc/generate-fixtures.swift",
+      ],
+      resources: [
+        .copy("Fixtures/Disc/minimal-bdmv.iso"),
+        .copy("Fixtures/Disc/minimal-bdmv.iso.sha256"),
       ]
     ),
   ],

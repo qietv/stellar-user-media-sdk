@@ -11,14 +11,6 @@
       }
     },
     {
-      "identity" : "bdmviocontext",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/TracyPlayer/BDMVIOContext.git",
-      "state" : {
-        "revision" : "639c793ff0cac9a9e3601db49e5790b5ba18f321"
-      }
-    },
-    {
       "identity" : "ffmpegkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/TracyPlayer/FFmpegKit.git",

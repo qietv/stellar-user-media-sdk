@@ -351,7 +351,8 @@ extension LibraryStore {
     let minimumDrop: Int64 = source["missing_drop_guard_minimum_count"]
     let drop = max(0, presentFileCount - observedFileCount)
     let emptyIsSuspicious = protectsEmptyResult && presentFileCount > 0 && observedFileCount == 0
-    let dropIsSuspicious = dropPercentage > 0 && drop >= minimumDrop && presentFileCount > 0
+    let dropIsSuspicious =
+      dropPercentage > 0 && drop >= minimumDrop && presentFileCount > 0
       && (Double(drop) / Double(presentFileCount)) * 100 >= Double(dropPercentage)
     guard emptyIsSuspicious || dropIsSuspicious else {
       return LibraryMissingReconciliationDecision(
@@ -451,20 +452,22 @@ extension LibraryStore {
     insideCoveredRoots: Bool = false,
     database: Database
   ) throws -> Int64 {
-    let rootFilter = insideCoveredRoots
+    let rootFilter =
+      insideCoveredRoots
       ? """
-        AND EXISTS (
-          SELECT 1 FROM stellar_scan_covered_root AS root
-          WHERE root.path_compare_key = ''
-             OR discovery.path_compare_key = root.path_compare_key
-             OR substr(discovery.path_compare_key, 1, length(root.path_compare_key) + 1)
-                  = root.path_compare_key || '/'
-        )
-        """
+      AND EXISTS (
+        SELECT 1 FROM stellar_scan_covered_root AS root
+        WHERE root.path_compare_key = ''
+           OR discovery.path_compare_key = root.path_compare_key
+           OR substr(discovery.path_compare_key, 1, length(root.path_compare_key) + 1)
+                = root.path_compare_key || '/'
+      )
+      """
       : ""
     return try Int64.fetchOne(
       database,
-      sql: "SELECT COUNT(*) FROM scan_discovery AS discovery WHERE discovery.run_id = ? \(rootFilter)",
+      sql:
+        "SELECT COUNT(*) FROM scan_discovery AS discovery WHERE discovery.run_id = ? \(rootFilter)",
       arguments: [runID]
     ) ?? 0
   }

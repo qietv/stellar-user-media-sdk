@@ -229,6 +229,45 @@ struct CompositeMediaDetectorTests {
     #expect(await sink.compositeMedia.map(\.descriptor.kind) == [.unknownDiscImage])
   }
 
+  @Test("A directly selected BDMV root stays atomic across logical pages")
+  func scannerDirectRootPagination() async throws {
+    let root = try directory("Selected/BDMV")
+    let backup = try directory("Selected/BDMV/BACKUP")
+    let clipInfo = try directory("Selected/BDMV/CLIPINF")
+    let index = try file("Selected/BDMV/index.bdmv")
+    let playlist = try directory("Selected/BDMV/PLAYLIST")
+    let stream = try directory("Selected/BDMV/STREAM")
+    let session = try DiscScanFixtureSession(
+      entriesByDirectory: [root.locator: [backup, clipInfo, index, playlist, stream]],
+      stats: [root.locator: root]
+    )
+    let sink = CompositeRecordingScanSink()
+    let request = try MediaScanRequest(
+      runUID: "composite-direct-root-pages",
+      sourceUID: root.locator.sourceUID,
+      mode: .incremental,
+      roots: [root.locator]
+    )
+
+    let result = try await MediaScanner(
+      configuration: MediaScannerConfiguration(pageSize: 2, maxConcurrentDirectoryRequests: 1)
+    ).scan(
+      request,
+      using: DiscScanFixtureConnector(session: session),
+      sink: sink,
+      traversalPolicy: TraverseAllMediaScanDirectories(),
+      directoryClassifier: OpticalDiscMediaScanClassifier(probePageSize: 2)
+    )
+
+    #expect(result.checkpoint.phase == .completed)
+    #expect(result.checkpoint.processedPageCount == 3)
+    #expect(result.checkpoint.discoveredEntryCount == 1)
+    #expect(await sink.entries.map(\.locator) == [root.locator])
+    #expect(await sink.compositeMedia.map(\.descriptor.kind) == [.bluray])
+    // Three scanner pages plus one cached, three-page structural snapshot.
+    #expect(await session.listCount(for: root.locator) == 6)
+  }
+
   private func snapshot(
     _ directory: RemoteEntry,
     _ children: [RemoteEntry]
@@ -294,11 +333,24 @@ private actor DiscScanFixtureSession: MediaSourceSession {
   func listDirectory(
     _ request: RemoteDirectoryPageRequest
   ) async throws -> CursorPage<RemoteEntry> {
-    guard request.cursor == nil, let entries = entriesByDirectory[request.directory] else {
+    guard let entries = entriesByDirectory[request.directory] else {
       throw SDKError(code: .remoteUnavailable, message: "unexpected fixture directory request")
     }
+    let start: Int
+    if let cursor = request.cursor {
+      guard let parsed = Int(cursor), parsed >= 0, parsed <= entries.count else {
+        throw SDKError(code: .parseFailure, message: "invalid fixture cursor")
+      }
+      start = parsed
+    } else {
+      start = 0
+    }
+    let end = min(entries.count, start + request.limit)
     listCounts[request.directory, default: 0] += 1
-    return try CursorPage(items: entries, nextCursor: nil)
+    return try CursorPage(
+      items: Array(entries[start..<end]),
+      nextCursor: end < entries.count ? String(end) : nil
+    )
   }
 
   func stat(_ locator: RemoteLocator) async throws -> RemoteEntry {

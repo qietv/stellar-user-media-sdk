@@ -13,6 +13,7 @@ struct ContentView: View {
   @StateObject private var oauthModel = OAuthDemoModel()
   @StateObject private var mediaLibraryModel = MediaLibraryModel()
   @State private var selectedTab = DemoTab.account
+  @State private var didReportFirstAppearance = false
 
   var body: some View {
     TabView(selection: $selectedTab) {
@@ -34,18 +35,51 @@ struct ContentView: View {
           Label("Library", systemImage: "rectangle.grid.2x2")
         }
     }
+    .onAppear {
+      guard !didReportFirstAppearance else { return }
+      didReportFirstAppearance = true
+      demoLaunchLogger.notice("phase=first-content-appeared")
+    }
     .task {
+      let oauthStartedAt = ProcessInfo.processInfo.systemUptime
+      demoLaunchLogger.notice("phase=oauth-restore-started")
       await oauthModel.restoreOnce()
+      let oauthElapsed = ProcessInfo.processInfo.systemUptime - oauthStartedAt
+      demoLaunchLogger.notice(
+        "phase=oauth-restore-finished elapsed-seconds=\(oauthElapsed, privacy: .public)"
+      )
+
+      let mediaStartedAt = ProcessInfo.processInfo.systemUptime
+      demoLaunchLogger.notice("phase=media-library-prepare-started")
       await mediaLibraryModel.prepareIfNeeded()
+      let mediaElapsed = ProcessInfo.processInfo.systemUptime - mediaStartedAt
+      demoLaunchLogger.notice(
+        "phase=media-library-prepare-finished elapsed-seconds=\(mediaElapsed, privacy: .public)"
+      )
+      mediaLibraryModel.setSceneActive(scenePhase == .active)
+      #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--smb-keyboard-probe") {
+          selectedTab = .scan
+          // Let navigation attach the real scan form before requesting its first responder.
+          try? await Task.sleep(for: .milliseconds(350))
+          if !Task.isCancelled {
+            demoLaunchLogger.notice("phase=smb-keyboard-probe-requested")
+            NotificationCenter.default.post(
+              name: SMBPasswordTextField.diagnosticFocusNotification, object: nil)
+          }
+        }
+      #endif
     }
     .onChange(of: selectedTab, initial: true) { _, newTab in
       updateIdleTimer(for: newTab, scenePhase: scenePhase)
     }
     .onChange(of: scenePhase) { _, newPhase in
       updateIdleTimer(for: selectedTab, scenePhase: newPhase)
+      mediaLibraryModel.setSceneActive(newPhase == .active)
     }
     .onDisappear {
       UIApplication.shared.isIdleTimerDisabled = false
+      mediaLibraryModel.setSceneActive(false)
     }
   }
 

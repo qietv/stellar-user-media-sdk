@@ -46,6 +46,78 @@ all-library search-index rebuild at the end of every scan.
 The demo pre-fills the supplied test SMB host, share, and username. Enter the test
 password in the app; it remains in memory and is not written to SQLite or preferences.
 
+A paused or recovered scan locks its source connection and scope fields so that resuming cannot
+silently use a different source. The Source card explains this state; both username and password
+remain editable while paused. **Edit source** unlocks the form without deleting checkpoints or
+queued metadata work. Automatic scans and automatic recovery selection wait while the connection
+is being edited; manually starting the same source can resume its saved scan.
+
+The password control keeps a single UIKit secure text field with `.password` semantics; it does
+not masquerade as a one-time-code field. Progress updates preserve the responder, selection and
+composition, and returning to the field preserves the draft. The keyboard's Done key dismisses
+editing, and the scan page supports interactive keyboard dismissal while scrolling.
+
+For first-install keyboard investigations, Debug builds emit `smb-password-focus-started`,
+`smb-password-focus-returned`, `smb-password-keyboard-will-show` and
+`smb-password-keyboard-visible` phases in the `Launch` log category. These contain timing and
+focus diagnostics only, never password contents or length.
+Compare them with `smb-scan-appeared` and `media-library-prepare-finished` to distinguish UI/input
+startup from database preparation. Keyboard-visible time includes the system keyboard animation;
+that notification may be absent with a hardware keyboard. Keyboard-service connection warnings
+alone do not establish whether the main thread stalled.
+
+After the focus call returns, a Debug-only main-queue probe runs every 100 ms until the keyboard
+appears, focus ends, the app becomes inactive, or 15 seconds elapse. The
+`smb-password-focus-observed` phase reports `main-queue-max-delay-seconds` and the probe count;
+delays of at least 250 ms also emit `smb-password-main-queue-delayed`. A long keyboard wait with
+many timely probes means the main queue remained responsive between those samples. A large
+probe delay requires a call-stack capture to identify the blocking work. This is diagnostic
+instrumentation, not a workaround for the keyboard-service delay. A timeout alone is inconclusive
+because an already visible or hardware keyboard may not produce a new notification.
+
+For interactive device testing, select the **StellarOAuthDemo-Device** scheme. It runs the same
+Debug configuration without attaching LLDB. The normal **StellarOAuthDemo** scheme retains its
+debugger for breakpoints and crash investigations. A physical-device cold-start A/B/A comparison
+on 2026-09-09 measured the first password keyboard at 7.627 s with the debugger, 0.166 s without
+it, then 12.006 s after re-enabling it. Each trial terminated the old process; these were not
+repeat taps in an already running app. See [the keyboard investigation](KEYBOARD_INVESTIGATION.md)
+for measurements and remaining limits.
+
+To reproduce the first focus automatically, temporarily add `--smb-keyboard-probe` to a Debug
+scheme's Run > Arguments. After normal startup preparation it opens Scan and requests focus
+on the actual password field once the form is attached and the app is active (up to 10 seconds).
+It does not type a password or start a scan. Remove the argument to return to normal navigation.
+Neither shared scheme enables this argument by default. Keep iPhone Mirroring and hardware
+keyboards disconnected when measuring the on-device software keyboard; focus-return timing
+without a keyboard-visible event does not validate software-keyboard presentation.
+
+## Media detail browsing
+
+The Library opens a backdrop-led movie or series page with metadata, file versions,
+stream details, and optical-disc title selection. Series expose season and episode
+browsing, specials, library/all-episode filtering, and alternate orders when available.
+Cast and crew link to biographies and filmographies; a work that is already in the
+library resolves back to its local files. Search and media-type/year sorting are
+available on the poster wall.
+
+Read [the API assessment](DETAILS_API_ASSESSMENT.md) for verified development-service
+behavior and remaining Infuse gaps. In particular, filmographies are capped at 40
+items; ratings, trailers, and automatic collections are not exposed by this API.
+Credits and the order menu may return 503. Each section offers its own retry, and a
+verified cached aired order can still provide episode details when other orders fail.
+
+Run the metadata contract tests from this directory:
+
+```sh
+GIT_LFS_SKIP_SMUDGE=1 swift test
+```
+
+The tests compile the app's real DTOs and client, inject a URL protocol, and create
+isolated SQLite caches. They do not sign in, scan SMB, or call live metadata endpoints.
+For Xcode builds, run `xcodebuild` from this demo directory: KSPlayer's upstream
+manifest detects sibling FFmpegKit checkouts relative to the current working directory.
+`GIT_LFS_SKIP_SMUDGE=1` avoids fetching the upstream missing dSYMs LFS object.
+
 ## Validation status
 
 Physical-device acceptance passed on 2026-08-18 using this signed project and the

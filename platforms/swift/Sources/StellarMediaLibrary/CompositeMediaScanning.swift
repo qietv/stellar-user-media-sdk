@@ -51,6 +51,7 @@ public struct NoopMediaScanDirectoryClassifier: MediaScanDirectoryClassifier {
 /// opens the candidate in the later probe/playback stage.
 public struct OpticalDiscMediaScanClassifier: MediaScanDirectoryClassifier {
   public let probePageSize: Int
+  private let directSnapshotCache = OpticalDiscDirectSnapshotCache()
 
   public init(probePageSize: Int = 500) throws {
     guard (1...10_000).contains(probePageSize) else {
@@ -114,13 +115,35 @@ public struct OpticalDiscMediaScanClassifier: MediaScanDirectoryClassifier {
       rootedAt: root,
       snapshots: snapshots
     )
-    if directoryDetections.isEmpty, directSentinel,
-      let direct = try detector.directDirectoryCandidate(
+    if directoryDetections.isEmpty, directSentinel {
+      // A caller-selected BDMV/VIDEO_TS root can span several logical scanner pages. Read its
+      // complete snapshot through the source paginator, but only suppress entries from this page
+      // so the scanner's classification validation remains page-local. Emit the synthetic item on
+      // the one page containing the control file; every other page remains an empty leaf page.
+      let cacheKey = OpticalDiscDirectSnapshotCache.Key(root)
+      let completeRoot: CompositeMediaDirectorySnapshot
+      if let cached = await directSnapshotCache.snapshot(for: cacheKey) {
+        completeRoot = cached
+      } else {
+        completeRoot = try await snapshot(of: root, using: session)
+        await directSnapshotCache.store(completeRoot, for: cacheKey)
+      }
+      if let direct = try detector.directDirectoryCandidate(
         rootedAt: root,
-        snapshot: snapshots[0]
-      )
-    {
-      directoryDetections = [direct]
+        snapshot: completeRoot
+      ) {
+        let currentPageDetection = CompositeMediaDetection(
+          descriptor: direct.descriptor,
+          consumeAsLeaf: true,
+          suppressedDescendants: entries.map(\.locator)
+        )
+        guard entries.contains(where: { $0.locator == direct.descriptor.entryPoint }) else {
+          return MediaScanDirectoryClassification(
+            suppressedEntries: entries.map(\.locator)
+          )
+        }
+        directoryDetections = [currentPageDetection]
+      }
     }
     guard !directoryDetections.isEmpty else {
       return MediaScanDirectoryClassification(
@@ -196,5 +219,31 @@ public struct OpticalDiscMediaScanClassifier: MediaScanDirectoryClassifier {
       let foldedRight = (0x41...0x5A).contains(right) ? right + 0x20 : right
       return foldedLeft == foldedRight
     }
+  }
+}
+
+private actor OpticalDiscDirectSnapshotCache {
+  struct Key: Hashable, Sendable {
+    let locator: RemoteLocator
+    let stableID: String?
+    let modifiedAtMilliseconds: Int64?
+    let entityTag: String?
+
+    init(_ entry: RemoteEntry) {
+      locator = entry.locator
+      stableID = entry.stableID
+      modifiedAtMilliseconds = entry.modifiedAtMilliseconds
+      entityTag = entry.entityTag
+    }
+  }
+
+  private var snapshots: [Key: CompositeMediaDirectorySnapshot] = [:]
+
+  func snapshot(for key: Key) -> CompositeMediaDirectorySnapshot? {
+    snapshots[key]
+  }
+
+  func store(_ snapshot: CompositeMediaDirectorySnapshot, for key: Key) {
+    snapshots[key] = snapshot
   }
 }

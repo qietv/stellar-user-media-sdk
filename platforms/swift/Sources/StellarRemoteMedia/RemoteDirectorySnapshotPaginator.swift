@@ -36,9 +36,18 @@ package struct RemoteDirectorySnapshotPaginator: Sendable {
   /// Normalizes one complete directory response and returns the requested logical page.
   package mutating func storeAndPage(
     _ entries: [RemoteEntry],
-    for request: RemoteDirectoryPageRequest
+    for request: RemoteDirectoryPageRequest,
+    exclusionMarkerFileNames: Set<String> = []
   ) throws -> CursorPage<RemoteEntry> {
-    let snapshot = Snapshot(entries: entries, semantics: pathSemantics)
+    let snapshot = Snapshot(
+      entries: entries,
+      semantics: pathSemantics,
+      exclusionMarkerFileNames: request.cursor == nil ? exclusionMarkerFileNames : []
+    )
+    if snapshot.isExcluded {
+      snapshots.removeValue(forKey: request.directory)
+      return try CursorPage(items: [], nextCursor: nil)
+    }
     let offset: Int
     if let rawCursor = request.cursor {
       let cursor = try Cursor(rawCursor, namespace: cursorNamespace)
@@ -88,11 +97,33 @@ package struct RemoteDirectorySnapshotPaginator: Sendable {
   private struct Snapshot: Sendable {
     let entries: [RemoteEntry]
     let fingerprint: String
+    let isExcluded: Bool
 
-    init(entries: [RemoteEntry], semantics: RemotePathSemantics) {
+    init(
+      entries: [RemoteEntry],
+      semantics: RemotePathSemantics,
+      exclusionMarkerFileNames: Set<String>
+    ) {
+      let markerNames: Set<String>
+      if semantics.caseSensitivity == .insensitive {
+        markerNames = Set(exclusionMarkerFileNames.map { $0.lowercased() })
+      } else {
+        markerNames = exclusionMarkerFileNames
+      }
       var sortableEntries: [SortableEntry] = []
       sortableEntries.reserveCapacity(entries.count)
       for entry in entries {
+        if entry.kind == .file, !markerNames.isEmpty {
+          let name = semantics.caseSensitivity == .insensitive
+            ? entry.locator.path.name.lowercased()
+            : entry.locator.path.name
+          if markerNames.contains(name) {
+            self.entries = []
+            fingerprint = ""
+            isExcluded = true
+            return
+          }
+        }
         sortableEntries.append(
           SortableEntry(
             entry: entry,
@@ -108,6 +139,7 @@ package struct RemoteDirectorySnapshotPaginator: Sendable {
       }
       self.entries = sortableEntries.map(\.entry)
       fingerprint = Self.fingerprint(sortableEntries)
+      isExcluded = false
     }
 
     private static func fingerprint(

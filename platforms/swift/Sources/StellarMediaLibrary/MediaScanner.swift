@@ -575,10 +575,14 @@ public protocol MediaScanTraversalPolicy: Sendable {
 
   /// Returns whether the scanner should recursively enumerate this directory.
   func shouldTraverseDirectory(_ entry: RemoteEntry) -> Bool
+
+  /// Marker files that suppress a directory without an extra protocol request on snapshot sources.
+  var directoryExclusionMarkerFileNames: Set<String> { get }
 }
 
 extension MediaScanTraversalPolicy {
   public func shouldIndexFile(_: RemoteEntry) -> Bool { true }
+  public var directoryExclusionMarkerFileNames: Set<String> { [] }
 }
 
 /// Default traversal policy that recursively enumerates every discovered directory.
@@ -818,6 +822,9 @@ public struct MediaScanner: Sendable {
     )
     var workingState = EnumerationWorkingState(state: initialState)
     let pageCommitBatchSize = max(1, min(sink.preferredPageCommitBatchSize, 64))
+    let enumerationOptions = try RemoteDirectoryEnumerationOptions(
+      exclusionMarkerFileNames: traversalPolicy.directoryExclusionMarkerFileNames
+    )
     var durableCheckpoint = checkpoint
 
     do {
@@ -843,7 +850,7 @@ public struct MediaScanner: Sendable {
                 cursor: pageCursor.cursor,
                 limit: pageSize
               )
-              let page = try await session.listDirectory(request)
+              let page = try await session.listDirectory(request, options: enumerationOptions)
               try Task.checkCancellation()
               return PageResponse(cursor: pageCursor, page: page)
             }

@@ -126,6 +126,9 @@ public typealias RemoteEntryKind = StellarRemoteMedia.RemoteEntryKind
 public typealias RemoteEntry = StellarRemoteMedia.RemoteEntry
 /// Compatibility alias for a cursor-paginated directory request.
 public typealias RemoteDirectoryPageRequest = StellarRemoteMedia.RemoteDirectoryPageRequest
+/// Compatibility alias for source-independent directory enumeration options.
+public typealias RemoteDirectoryEnumerationOptions =
+  StellarRemoteMedia.RemoteDirectoryEnumerationOptions
 /// Compatibility alias for a source-independent byte range.
 public typealias RemoteByteRange = StellarRemoteMedia.RemoteByteRange
 /// Compatibility alias for a connected read-only source.
@@ -186,6 +189,19 @@ public typealias MediaScanObserver = StellarMediaLibrary.MediaScanObserver
 public typealias NoopMediaScanObserver = StellarMediaLibrary.NoopMediaScanObserver
 /// Compatibility alias for deciding which discovered directories should be traversed.
 public typealias MediaScanTraversalPolicy = StellarMediaLibrary.MediaScanTraversalPolicy
+/// Compatibility alias for the reusable source-independent scan path filter.
+public typealias MediaScanPathFilter = StellarMediaLibrary.MediaScanPathFilter
+/// Compatibility alias for scan trigger origins.
+public typealias MediaScanTriggerOrigin = StellarMediaLibrary.MediaScanTriggerOrigin
+/// Compatibility alias for one scheduler trigger.
+public typealias MediaScanTrigger = StellarMediaLibrary.MediaScanTrigger
+/// Compatibility alias for scheduler coalescing configuration.
+public typealias MediaScanSchedulerConfiguration =
+  StellarMediaLibrary.MediaScanSchedulerConfiguration
+/// Compatibility alias for one claimed scheduled scan.
+public typealias ScheduledMediaScan = StellarMediaLibrary.ScheduledMediaScan
+/// Compatibility alias for the source-independent scan scheduler.
+public typealias MediaScanScheduler = StellarMediaLibrary.MediaScanScheduler
 /// Compatibility alias for traversing every discovered directory.
 public typealias TraverseAllMediaScanDirectories =
   StellarMediaLibrary.TraverseAllMediaScanDirectories
