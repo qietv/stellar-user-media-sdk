@@ -59,6 +59,15 @@ struct MediaScannerContractTests {
           == result.checkpoint
       )
 
+      // Version 2 checkpoints written before truncation reporting remain readable.
+      var legacy = try #require(
+        JSONSerialization.jsonObject(with: encodedCheckpoint) as? [String: Any])
+      legacy.removeValue(forKey: "has_truncated_directories")
+      #expect(
+        try JSONDecoder().decode(
+          MediaScanCheckpoint.self, from: JSONSerialization.data(withJSONObject: legacy))
+          == result.checkpoint)
+
       if scenario.request.mode == .repair {
         #expect(await connector.connectionCount == 0)
       } else {
@@ -92,12 +101,21 @@ struct MediaScannerContractTests {
     }
   }
 
-  @Test("Interrupted pagination keeps its checkpoint and cannot reconcile missing")
-  func interruptedPaginationAndResume() async throws {
+  @Test(
+    "Interrupted pagination preserves truncation and missing eligibility on resume",
+    arguments: [false, true])
+  func interruptedPaginationAndResume(truncated: Bool) async throws {
     let fixture = try loadFixture()
     let scenario = try #require(
       fixture.scenarios.first(where: { $0.name == "interrupted_page" })
     )
+    let pages = try scenario.pages.enumerated().map { index, page in
+      FixtureScanPage(
+        request: page.request,
+        response: try CursorPage(
+          items: page.response.items, nextCursor: page.response.nextCursor,
+          isTruncated: truncated && index == 0))
+    }
     let scanner = MediaScanner(
       configuration: try MediaScannerConfiguration(
         pageSize: 2,
@@ -108,7 +126,7 @@ struct MediaScannerContractTests {
     let failingConnector = FixtureScanConnector(
       sourceUID: fixture.sourceUID,
       capabilities: fixture.capabilities,
-      pages: scenario.pages,
+      pages: pages,
       failureRequest: scenario.failureRequest
     )
 
@@ -116,7 +134,10 @@ struct MediaScannerContractTests {
       _ = try await scanner.scan(scenario.request, using: failingConnector, sink: sink)
     }
 
-    let failedCheckpoint = try #require(await sink.checkpoint)
+    let storedCheckpoint = try #require(await sink.checkpoint)
+    let failedCheckpoint = try JSONDecoder().decode(
+      MediaScanCheckpoint.self, from: JSONEncoder().encode(storedCheckpoint))
+    #expect(failedCheckpoint.hasTruncatedDirectories == truncated)
     #expect(failedCheckpoint.phase == scenario.expected.phase)
     #expect(failedCheckpoint.lastErrorCode == .remoteUnavailable)
     #expect(failedCheckpoint.discoveredEntryCount == scenario.expected.discoveredEntryCount)
@@ -127,7 +148,7 @@ struct MediaScannerContractTests {
     let resumedConnector = FixtureScanConnector(
       sourceUID: fixture.sourceUID,
       capabilities: fixture.capabilities,
-      pages: scenario.pages,
+      pages: pages,
       failureRequest: nil
     )
     let resumed = try await scanner.scan(
@@ -138,7 +159,8 @@ struct MediaScannerContractTests {
     )
 
     #expect(resumed.checkpoint.phase == .completed)
-    #expect(resumed.completion.reconcileMissingEligible)
+    #expect(resumed.completion.reconcileMissingEligible == !truncated)
+    #expect(resumed.checkpoint.hasTruncatedDirectories == truncated)
     #expect(resumed.checkpoint.discoveredEntryCount == 2)
     #expect(resumed.checkpoint.processedPageCount == 3)
     #expect(
@@ -286,6 +308,57 @@ struct MediaScannerContractTests {
     #expect(await sink.checkpoint?.phase == .cancelled)
     #expect(await sink.checkpoint?.lastErrorCode == .cancelled)
     #expect(await sink.completion == nil)
+  }
+
+  @Test(
+    "Cancellation at finalization or repair cannot publish completion", arguments: [false, true])
+  func cancellationBeforePublication(repair: Bool) async throws {
+    let fixture = try loadFixture()
+    let scanner = MediaScanner(
+      configuration: try MediaScannerConfiguration(
+        pageSize: 2, maxConcurrentDirectoryRequests: 1
+      )
+    )
+    let scenario = try #require(
+      fixture.scenarios.first(where: {
+        $0.name == (repair ? "repair_without_enumeration" : "full_success")
+      })
+    )
+    let sink = RecordingScanSink()
+    let connector = FixtureScanConnector(
+      sourceUID: fixture.sourceUID,
+      capabilities: fixture.capabilities,
+      pages: scenario.pages,
+      failureRequest: nil
+    )
+    let task = Task {
+      try await scanner.scan(
+        scenario.request,
+        using: connector,
+        sink: sink,
+        observer: CancelBeforePublicationObserver(repair: repair)
+      )
+    }
+    await #expect(throws: SDKError.self) { _ = try await task.value }
+    #expect(await sink.checkpoint?.phase == .cancelled)
+    #expect(await sink.completion == nil)
+
+    let checkpoint = try #require(await sink.checkpoint)
+    let result = try await scanner.scan(
+      scenario.request, using: connector, sink: sink, resumeFrom: checkpoint
+    )
+    #expect(result.checkpoint.phase == .completed)
+    #expect(result.completion.reconcileMissingEligible == !repair)
+  }
+
+  @Test("Repair requests cannot declare discovery roots")
+  func repairRejectsDiscoveryRoots() throws {
+    let root = try RemoteLocator(sourceUID: "repair-source", path: RemotePath())
+    #expect(throws: SDKError.self) {
+      try MediaScanRequest(
+        runUID: "repair-run", sourceUID: root.sourceUID, mode: .repair, roots: [root]
+      )
+    }
   }
 
   @Test("Persistent IDs preserve moves and failed scans cannot coordinate deletions")
@@ -906,6 +979,18 @@ private actor RecordingScanSink: MediaScanSink {
 
   func loadEnumerationState(runUID _: String) async throws -> MediaScanEnumerationState? {
     enumerationState
+  }
+}
+
+private struct CancelBeforePublicationObserver: MediaScanObserver {
+  let repair: Bool
+
+  func emit(_ event: MediaScanEvent) async {
+    if (repair && event.kind == .started)
+      || (!repair && event.kind == .checkpointed && event.phase == .finalizing)
+    {
+      withUnsafeCurrentTask { $0?.cancel() }
+    }
   }
 }
 

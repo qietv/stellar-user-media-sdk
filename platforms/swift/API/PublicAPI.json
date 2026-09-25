@@ -650,12 +650,30 @@
           ]
         },
         {
+          "declaration": "let isTruncated: Bool",
+          "identifier": "s:11StellarCore10CursorPageV11isTruncatedSbvp",
+          "kind": "swift.property",
+          "path": [
+            "CursorPage",
+            "isTruncated"
+          ]
+        },
+        {
           "declaration": "init(from decoder: any Decoder) throws",
           "identifier": "s:11StellarCore10CursorPageV4fromACyxGs7Decoder_p_tKcfc",
           "kind": "swift.init",
           "path": [
             "CursorPage",
             "init(from:)"
+          ]
+        },
+        {
+          "declaration": "init(items: [Element], nextCursor: String?, isTruncated: Bool) throws",
+          "identifier": "s:11StellarCore10CursorPageV5items04nextC011isTruncatedACyxGSayxG_SSSgSbtKcfc",
+          "kind": "swift.init",
+          "path": [
+            "CursorPage",
+            "init(items:nextCursor:isTruncated:)"
           ]
         },
         {
@@ -2423,12 +2441,30 @@
           ]
         },
         {
+          "declaration": "func pendingPages(runUID: String, limit: Int) async throws -> [MediaScanPageCursor]",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV12pendingPages6runUID5limitSayAA0bE10PageCursorVGSS_SitYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaScanSink",
+            "pendingPages(runUID:limit:)"
+          ]
+        },
+        {
           "declaration": "func loadCheckpoint(runUID: String) async throws -> MediaScanCheckpoint?",
           "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV14loadCheckpoint6runUIDAA0beH0VSgSS_tYaKF",
           "kind": "swift.method",
           "path": [
             "SQLiteMediaScanSink",
             "loadCheckpoint(runUID:)"
+          ]
+        },
+        {
+          "declaration": "var enumerationIndex: (any MediaScanEnumerationIndex)? { get }",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV16enumerationIndexAA0be11EnumerationH0_pSgvp",
+          "kind": "swift.property",
+          "path": [
+            "SQLiteMediaScanSink",
+            "enumerationIndex"
           ]
         },
         {
@@ -2441,12 +2477,30 @@
           ]
         },
         {
+          "declaration": "func enumerationMembership(runUID: String, pages: [MediaScanPageCursor], identityKeys: [String]) async throws -> MediaScanEnumerationState",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV21enumerationMembership6runUID5pages12identityKeysAA0bE16EnumerationStateVSS_SayAA0bE10PageCursorVGSaySSGtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaScanSink",
+            "enumerationMembership(runUID:pages:identityKeys:)"
+          ]
+        },
+        {
           "declaration": "var preferredPageCommitBatchSize: Int { get }",
           "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV28preferredPageCommitBatchSizeSivp",
           "kind": "swift.property",
           "path": [
             "SQLiteMediaScanSink",
             "preferredPageCommitBatchSize"
+          ]
+        },
+        {
+          "declaration": "func validateEnumerationCheckpoint(_ checkpoint: MediaScanCheckpoint) async throws",
+          "identifier": "s:19StellarMediaLibrary06SQLiteB8ScanSinkV29validateEnumerationCheckpointyyAA0beI0VYaKF",
+          "kind": "swift.method",
+          "path": [
+            "SQLiteMediaScanSink",
+            "validateEnumerationCheckpoint(_:)"
           ]
         },
         {
@@ -3901,6 +3955,15 @@
           "path": [
             "MediaScanCheckpoint",
             "seenEntryIdentityKeys"
+          ]
+        },
+        {
+          "declaration": "let hasTruncatedDirectories: Bool",
+          "identifier": "s:19StellarMediaLibrary0B14ScanCheckpointV23hasTruncatedDirectoriesSbvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanCheckpoint",
+            "hasTruncatedDirectories"
           ]
         },
         {
@@ -5456,6 +5519,41 @@
           ]
         },
         {
+          "declaration": "protocol MediaScanEnumerationIndex : Sendable",
+          "identifier": "s:19StellarMediaLibrary0B20ScanEnumerationIndexP",
+          "kind": "swift.protocol",
+          "path": [
+            "MediaScanEnumerationIndex"
+          ]
+        },
+        {
+          "declaration": "func validateEnumerationCheckpoint(_ checkpoint: MediaScanCheckpoint) async throws",
+          "identifier": "s:19StellarMediaLibrary0B20ScanEnumerationIndexP08validateE10CheckpointyyAA0bdH0VYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanEnumerationIndex",
+            "validateEnumerationCheckpoint(_:)"
+          ]
+        },
+        {
+          "declaration": "func pendingPages(runUID: String, limit: Int) async throws -> [MediaScanPageCursor]",
+          "identifier": "s:19StellarMediaLibrary0B20ScanEnumerationIndexP12pendingPages6runUID5limitSayAA0bD10PageCursorVGSS_SitYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanEnumerationIndex",
+            "pendingPages(runUID:limit:)"
+          ]
+        },
+        {
+          "declaration": "func enumerationMembership(runUID: String, pages: [MediaScanPageCursor], identityKeys: [String]) async throws -> MediaScanEnumerationState",
+          "identifier": "s:19StellarMediaLibrary0B20ScanEnumerationIndexP21enumerationMembership6runUID5pages12identityKeysAA0bdE5StateVSS_SayAA0bD10PageCursorVGSaySSGtYaKF",
+          "kind": "swift.method",
+          "path": [
+            "MediaScanEnumerationIndex",
+            "enumerationMembership(runUID:pages:identityKeys:)"
+          ]
+        },
+        {
           "declaration": "struct MediaScanEnumerationState",
           "identifier": "s:19StellarMediaLibrary0B20ScanEnumerationStateV",
           "kind": "swift.struct",
@@ -6073,6 +6171,15 @@
           ]
         },
         {
+          "declaration": "var enumerationIndex: (any MediaScanEnumerationIndex)? { get }",
+          "identifier": "s:19StellarMediaLibrary0B8ScanSinkP16enumerationIndexAA0bd11EnumerationG0_pSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanSink",
+            "enumerationIndex"
+          ]
+        },
+        {
           "declaration": "func loadEnumerationState(runUID: String) async throws -> MediaScanEnumerationState?",
           "identifier": "s:19StellarMediaLibrary0B8ScanSinkP20loadEnumerationState6runUIDAA0bdgH0VSgSS_tYaKF",
           "kind": "swift.method",
@@ -6097,6 +6204,15 @@
           "path": [
             "MediaScanSink",
             "commit(_:)"
+          ]
+        },
+        {
+          "declaration": "var enumerationIndex: (any MediaScanEnumerationIndex)? { get }",
+          "identifier": "s:19StellarMediaLibrary0B8ScanSinkPAAE16enumerationIndexAA0bd11EnumerationG0_pSgvp",
+          "kind": "swift.property",
+          "path": [
+            "MediaScanSink",
+            "enumerationIndex"
           ]
         },
         {
@@ -15667,6 +15783,14 @@
           "kind": "swift.typealias",
           "path": [
             "MediaTechnicalStreamKind"
+          ]
+        },
+        {
+          "declaration": "typealias MediaScanEnumerationIndex = MediaScanEnumerationIndex",
+          "identifier": "s:19StellarUserMediaSDK0C20ScanEnumerationIndexa",
+          "kind": "swift.typealias",
+          "path": [
+            "MediaScanEnumerationIndex"
           ]
         },
         {

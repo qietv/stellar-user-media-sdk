@@ -111,7 +111,8 @@ public struct CompositeMediaDescriptor: Codable, Equatable, Sendable {
 
 /// One observed directory snapshot consumed by the pure structure detector.
 ///
-/// Sentinel-directory snapshots must be complete. The root snapshot may be one scanner page
+/// Sentinel directories must be fully enumerated; snapshots may retain only structural controls.
+/// The root snapshot may be one scanner page
 /// because a candidate is classified when that page exposes its sentinel child.
 public struct CompositeMediaDirectorySnapshot: Equatable, Sendable {
   public let directory: RemoteEntry
@@ -180,7 +181,7 @@ public struct OpticalDiscCandidateDetector: Sendable {
 
   /// Finds every valid optical-disc structure rooted at `root`.
   ///
-  /// `snapshots` must contain an observed snapshot for `root` and a complete snapshot for each
+  /// `snapshots` must contain an observed snapshot for `root` and all structural controls for each
   /// sentinel directory the caller wants to validate. A missing nested snapshot is treated as
   /// insufficient evidence, not as a malformed disc. Returning multiple candidates preserves
   /// ambiguous fixture evidence for the later authoritative parser instead of silently choosing

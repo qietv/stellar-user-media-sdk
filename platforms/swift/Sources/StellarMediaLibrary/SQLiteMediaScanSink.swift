@@ -4,12 +4,14 @@ import StellarRemoteMedia
 import StellarStorage
 
 /// A `MediaScanSink` that commits scanner state and file facts to `library.sqlite`.
-public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
+public struct SQLiteMediaScanSink: MediaScanSink, MediaScanEnumerationIndex, Sendable {
   public let store: LibraryStore
 
-  /// Small directory pages share a transaction; entry buffering remains capped by the scanner's
-  /// configured page size.
-  public var preferredPageCommitBatchSize: Int { 32 }
+  /// SQLite commits each validated page before querying the next durable membership window.
+  public var preferredPageCommitBatchSize: Int { 1 }
+
+  /// The durable frontier and seen-identity index used by the scanner and sink decorators.
+  public var enumerationIndex: (any MediaScanEnumerationIndex)? { self }
 
   public init(store: LibraryStore) {
     self.store = store
@@ -101,6 +103,9 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
   /// A completed newer run suppresses older failed or cancelled runs, so callers cannot
   /// accidentally publish stale discovery state by reviving superseded work. An unreadable or
   /// inconsistent recovery record is discarded with its private state so a fresh run can start.
+  /// Failed discovery whose snapshot or configuration is no longer compatible is also discarded;
+  /// durable protocol cursors remain resumable. Session-bound cursors restart discovery after a
+  /// disconnect; only the unpublished run is discarded, never published library data.
   public func loadLatestRecoverableCheckpoint(
     sourceUID: String
   ) async throws -> MediaScanCheckpoint? {
@@ -131,6 +136,13 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
           message: "stored scan recovery checkpoint is invalid"
         )
       }
+      if checkpoint.request.mode != .repair, checkpoint.phase == .failed,
+        checkpoint.lastErrorCode == .conflict || checkpoint.lastErrorCode == .invalidConfiguration
+      {
+        // Replaying the same cursor after a directory/root change cannot recover its old
+        // snapshot. The compare-and-delete cleanup below preserves all published library data.
+        throw SDKError(code: .conflict, message: "scan recovery requires a fresh source snapshot")
+      }
     } catch {
       return try await discardInvalidRecovery(
         runUID: runUID,
@@ -145,30 +157,19 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
       && checkpoint.phase != .completed
     guard needsEnumerationState else { return checkpoint }
 
-    let enumerationState: MediaScanEnumerationState
     do {
-      guard let storedState = try await loadEnumerationState(runUID: runUID) else {
-        // The run disappeared after its checkpoint was read. There is nothing left to resume.
-        return nil
+      guard
+        let summary = try await store.scanEnumerationSummary(
+          runUID: runUID, sourceUID: checkpoint.request.sourceUID
+        )
+      else { return nil }
+      try Self.validate(summary, checkpoint: checkpoint)
+      guard !summary.hasSessionCursor else {
+        throw SDKError(code: .conflict, message: "directory session expired; restart discovery")
       }
-      enumerationState = storedState
     } catch {
       return try await discardInvalidRecovery(
-        runUID: runUID,
-        checkpointJSON: checkpointJSON,
-        error: error
-      )
-    }
-
-    guard Self.isEnumerationState(enumerationState, consistentWith: checkpoint) else {
-      return try await discardInvalidRecovery(
-        runUID: runUID,
-        checkpointJSON: checkpointJSON,
-        error: SDKError(
-          code: .storageFailure,
-          message: "durable scan frontier is inconsistent"
-        )
-      )
+        runUID: runUID, checkpointJSON: checkpointJSON, error: error)
     }
     return checkpoint
   }
@@ -192,16 +193,43 @@ public struct SQLiteMediaScanSink: MediaScanSink, Sendable {
     throw error
   }
 
-  private static func isEnumerationState(
-    _ state: MediaScanEnumerationState,
-    consistentWith checkpoint: MediaScanCheckpoint
-  ) -> Bool {
-    state.pendingPages.count == checkpoint.pendingPageCount
-      && state.completedPages.count == checkpoint.processedPageCount
-      && state.seenEntryIdentityKeys.count == checkpoint.discoveredEntryCount
-      && (state.pendingPages + state.completedPages).allSatisfy {
-        $0.directory.sourceUID == checkpoint.request.sourceUID
-      }
+  public func validateEnumerationCheckpoint(_ checkpoint: MediaScanCheckpoint) async throws {
+    guard
+      let summary = try await store.scanEnumerationSummary(
+        runUID: checkpoint.request.runUID, sourceUID: checkpoint.request.sourceUID
+      )
+    else { throw SDKError(code: .storageFailure, message: "durable scan frontier is missing") }
+    try Self.validate(summary, checkpoint: checkpoint)
+    guard !summary.hasSessionCursor else {
+      throw SDKError(code: .conflict, message: "directory session expired; restart discovery")
+    }
+  }
+
+  private static func validate(
+    _ summary: LibraryScanEnumerationSummary, checkpoint: MediaScanCheckpoint
+  ) throws {
+    guard summary.pendingPageCount == checkpoint.pendingPageCount,
+      summary.completedPageCount == checkpoint.processedPageCount,
+      summary.seenEntryCount == checkpoint.discoveredEntryCount
+    else { throw SDKError(code: .storageFailure, message: "durable scan frontier is inconsistent") }
+  }
+
+  public func pendingPages(runUID: String, limit: Int) async throws -> [MediaScanPageCursor] {
+    try await store.scanPendingPages(runUID: runUID, limit: limit).map(Self.scannerPage)
+  }
+
+  public func enumerationMembership(
+    runUID: String, pages: [MediaScanPageCursor], identityKeys: [String]
+  ) async throws -> MediaScanEnumerationState {
+    let state = try await store.scanEnumerationMembership(
+      runUID: runUID, pages: pages.map(Self.persistencePage), identityKeys: identityKeys
+    )
+    return try MediaScanEnumerationState(
+      pendingPages: state.pendingPages.map(Self.scannerPage),
+      completedPages: state.completedPages.map(Self.scannerPage),
+      seenEntryIdentityKeys: state.seenEntryIdentityKeys,
+      seenDirectoryIdentityKeys: state.seenDirectoryIdentityKeys
+    )
   }
 
   private static func decodeCheckpoint(_ json: String) throws -> MediaScanCheckpoint {

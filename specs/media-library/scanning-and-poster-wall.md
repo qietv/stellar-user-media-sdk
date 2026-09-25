@@ -27,18 +27,15 @@
 
 ```mermaid
 flowchart TD
-    A["创建 scan_session"] --> B["遍历媒体源并生成临时快照"]
-    B --> C["规范化 locator 与稳定身份"]
-    C --> D["探测媒体类型与技术信息"]
-    D --> E["解析文件名、目录和 sidecar"]
-    E --> F["本地候选与缓存匹配"]
-    F --> G["远程元数据查询与打分"]
-    G --> H["事务提交媒体实体和关联"]
-    H --> I["生成海报墙投影并预取图片"]
-    I --> J{"遍历是否完整成功"}
-    J -->|是| K["快照差分，确认缺失"]
-    J -->|否| L["保留旧数据并记录失败范围"]
-    K --> M["完成 session，发布增量事件"]
+    A["创建或恢复 scan_run，预检根身份"] --> B["有界并发枚举，持久化临时快照和断点"]
+    B --> C{"枚举完整且未取消？"}
+    C -->|否| D["保留已发布索引，保存失败或取消状态"]
+    C -->|是| E["事务发布文件变化，按范围和异常保护协调 missing"]
+    E --> F["为变化的文件 revision 排队，完成文件扫描"]
+    F --> G["解析文件名、父目录和本地元数据"]
+    G --> H["缓存或在线匹配，物化实体和海报墙"]
+    H --> I["按策略补图片、缩略图和技术探测"]
+    H --> J["单项失败持久化重试，不撤销文件扫描"]
 ```
 
 详细的阶段、恢复点和数据库映射见[扫描重建调研与自有设计](../../docs/research/infuse/infuse_library_scan_rebuild_and_our_scanner_design.md)。
@@ -57,7 +54,10 @@ flowchart TD
 - `relative_path` MUST 移除重复分隔符与 `.` 段，MUST 拒绝 NUL 和 `..` 段。显示路径保留连接器返回的大小写和 Unicode 拼写，不用 compare key 替换。
 - `RemoteEntry` 至少携带 locator、kind、可选稳定 ID、size、`modified_at_ms` 和 etag。未知 kind 必须安全降级为 `unknown`。
 - 稳定 ID 能力分为 `none`、`scan` 和 `persistent`。只有 `persistent` 可跨扫描识别改名或移动；`scan` 只用于单次枚举去重和循环检测。
-- 目录枚举统一返回游标页。即使底层来源不分页，也必须返回一个 `next_cursor: null` 的终页；空游标、重复游标或中途失败都令本次 coverage 不完整。
+- 目录枚举统一返回游标页。即使底层来源不分页，也必须返回一个 `next_cursor: null` 的终页；空游标、重复游标或中途失败都令本次 coverage 不完整。因条目上限而截断时 MUST 返回 `is_truncated: true`，不能把终页当成完整 coverage；旧页缺省为 false。
+- 扫描消费来源返回顺序，不依赖整个目录排序或整目录 fingerprint；展示顺序在 PosterWall 查询层处理。变化判断使用单文件 size/mtime/etag 等事实。
+- Local 使用原生目录迭代器；SMB 使用有界 `QUERY_DIRECTORY`，不能把内部已经全量收集的 `opendir` 包成假分页。WebDAV PROPFIND 无通用分页时，在内存中接收完整单目录 XML，并最多保留来源顺序的前 655,360 个直接子项（文件和目录均计数，目录自身不计数）；首个逻辑页仍需等待网络响应。不创建临时文件，确认第 655,361 个子项后停止 XML 解析，其余子项及超限的 `.nomedia` 均忽略。该上限限制保留/扫描条目数，不限制响应字节数。
+- 内置游标使用会话期随机 token，不包含排序偏移或目录内容哈希。丢失会话/临时文件后 MUST 返回 conflict，不能重读新目录并猜测旧偏移；旧版 local/webdav/smb offset+fingerprint 游标也视为过期。
 - 连接器 MUST 声明路径大小写为 `sensitive`、`insensitive` 或 `unknown`，Unicode 规则为 `preserve`、`nfc` 或 `nfd`。`unknown`/`preserve` 采用精确比较，不能擅自合并可能不同的远端对象。
 
 `path_compare_key` MUST 逐路径段生成：先按声明执行 NFC/NFD，再在大小写不敏感来源上执行 Unicode default case folding，最后用 `/` 连接。它只用于同一来源内的比较；不同 `source_uid` 的相同路径始终是不同对象。范围判断也必须按路径段执行，`Movies/A` 不得覆盖 `Movies/AB`。
@@ -85,8 +85,19 @@ flowchart TD
 - 目录请求并发度 MUST 有显式上限。持久层批次提交完成前不得无限继续领取结果，以形成背压；取消必须传播到所有 in-flight 请求。
 - 连接器返回不同来源、非直接子项、空/重复 cursor 或目录循环/异常路径时，当前 coverage MUST 失败关闭。精确重复条目不增加发现计数；`scan`/`persistent` stable ID 用于单次扫描去重，只有 `persistent` 可用于跨扫描移动识别。
 - 只有最终原子批次中的 `completion.reconcile_missing_eligible=true` 才授权持久层在 `covered_roots` 内协调 missing。连接、鉴权、根预检、分页、持久化、取消或超时失败只保存可恢复 checkpoint，不产生 completion。
+- 目录页带 `is_truncated: true` 时 MUST 将 `has_truncated_directories` 持久化到 checkpoint（旧 checkpoint 缺省 false），后续页和恢复不得清除。最终可以发布已发现文件，但整个 run 的 `completion.reconcile_missing_eligible` MUST 为 false，避免误判未扫描子项及其后代为 missing。
+- 进入 finalizing 和提交 completion 前 MUST 检查取消，包括从 finalizing 断点恢复以及无需连接来源的 repair。已经提交成功的事务不会因稍后到达的取消而回滚。
+- 来源快照或根身份冲突、来源配置不兼容造成的 failed discovery checkpoint MUST 在恢复加载时失效，只清理该 run 的临时状态，并让宿主创建新 run；不得无限重放失效 cursor。网络中断和取消仅能恢复仍有效的协议游标；当前会话句柄/临时队列失效时清理未发布 run，宿主重新扫描。
+- repair MUST 不携带枚举 roots、文件事实或 missing 授权；其成功或失败都不得更新来源的扫描日期、连通性和来源错误，也不得清除此前等待复核的异常快照。恢复来源在线状态必须由真实来源检查或成功枚举确认。
 
-durable frontier 的 pending 集合也包含当前 in-flight 请求。这样任一并发页提交后，其他尚未提交的请求仍会留在持久 frontier；崩溃恢复最多重复读取和幂等 UPSERT，不会跳过目录。compact checkpoint 只保存 schema、request、phase、capability/root identity 和计数。进度事件只能携带 run、phase、计数和错误分类，不得携带路径或稳定 ID。
+SQLite scanner 通过 `MediaScanEnumerationIndex` 按页查询待处理窗口与当页身份集合，不加载全部
+frontier/seen；每页提交后再读取持久状态，并优先继续已打开目录，使目录句柄数量受请求并发上限约束。
+sink 装饰器 MUST 转发 `enumerationIndex` 才能保持该内存边界；旧式自定义 sink 默认保留兼容行为。
+WebDAV 未触及条目上限前的 XML 截断、单条 response 失败或解析失败均不得授权 missing；
+某个可选属性 propstat 失败但条目仍有成功属性时可以继续。主动达到目录上限属于可发布的
+不完整枚举，通过上述标记禁用 missing。
+
+durable frontier 的 pending 集合也包含当前 in-flight 请求。这样任一并发页提交后，其他尚未提交的请求仍会留在持久 frontier；崩溃恢复最多重复读取和幂等 UPSERT，不会跳过目录。compact checkpoint 只保存 schema、request、phase、capability/root identity、截断标记和计数。进度事件只能携带 run、phase、计数和错误分类，不得携带路径或稳定 ID。
 
 [`scanner-state-v1.json`](../fixtures/media-library/scanner-state-v1.json) 固定 full、scoped incremental、repair、分页重复条目、中断 checkpoint 和 missing 资格样本。各语言实现 MUST 规范化顺序后比较结果，不得把连接器到达顺序写进合同。
 
@@ -108,6 +119,12 @@ durable frontier 的 pending 集合也包含当前 in-flight 请求。这样任�
 3. 年份、季目录、标题目录和连续剧集范围。
 4. 移除分辨率、来源、编解码、音轨、发布组等噪声标签。
 5. 保留原始字符串、规范标题和每条解析证据，产出电影或剧集候选及置信度。
+
+Swift parser v3 对剧集读取输入中明确给出的最近三层父目录：`Season 2`、`S02` 为季结构，
+`Specials` 为 season 0；空剧名从最近的非结构目录补全。`02-003 Episode` 支持从父目录取剧名，
+`03 Episode` 等纯集号还必须有季目录。文件名已有剧名和季集时保留文件名优先级；仅在父目录
+剧名相同或文件名无剧名时借用父目录年份。相对路径不得借用进程工作目录，也不进行兄弟文件
+枚举或多数投票。三层限制和通用库根名称过滤是本 SDK 的保守策略，不宣称为 Infuse 精确规则。
 
 元数据匹配必须分候选生成、候选打分、决策三步；查询成功但低于阈值的项目进入待人工匹配，不得用搜索第一条强行绑定。用户确认后的绑定设置 `manual_lock`，自动修复不得覆盖。
 

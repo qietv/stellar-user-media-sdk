@@ -1929,6 +1929,7 @@ private struct DemoScanSink: MediaScanSink {
   let relay: DemoScanProgressRelay
 
   var preferredPageCommitBatchSize: Int { base.preferredPageCommitBatchSize }
+  var enumerationIndex: (any MediaScanEnumerationIndex)? { base.enumerationIndex }
 
   func commit(_ batch: MediaScanBatch) async throws {
     try await base.commit(batch)

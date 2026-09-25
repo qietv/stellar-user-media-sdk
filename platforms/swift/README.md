@@ -37,7 +37,23 @@ Tests/StellarUserMediaSDKTests/
 
 当前切片提供公共错误模型、可注入 runtime services、统一日志脱敏、基础 wire contracts、版本化明文 `CredentialRecord`、严格受限的五种 `CredentialPayload`、版本化 `MediaSourceConfig` 与账户级原子 outbox、来源无关的 locator/entry/connector 合同、可恢复且有界并发的 scanner、SQLite library v1→v5 迁移/校验/扫描入库、扩展文件名 parser，以及调用 umbrella SDK 的 `stellar-media` CLI。`StellarAuth` 读取并严格校验 Gateway Metadata，生成 PKCE S256 与 `state`，通过 actor 串行化登录、恢复、20 路 single-flight refresh、多账户切换、资料刷新和本地优先登出；access token 只驻留内存，refresh token 使用非交互 Data Protection Keychain。Scanner 在每个成功目录页把 discovery staging、frontier transition、seen identity 和 compact checkpoint 作为同一批次提交；只有最终 completion 才会集合化发布正式文件快照、metadata work 与 scoped missing。应用可按 source 读取最新可恢复 checkpoint；较新的成功 run 会抑制旧失败 run。Metadata worker 通过可续租、过期可回收且绑定 file material revision 的 claim API 处理任务，陈旧 worker 无法覆盖新扫描输入；v5 claim 顺序索引避免每个小批次对全队列按媒体路径排序。outstanding-work 查询也会包含 deferred retry 与未过期 lease，供进程启动恢复使用。
 
-`StellarSMB2Core` 提供不泄漏第三方类型的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。Apple backend 通过 TracyPlayer/AMSMB2 4.0.3 实现连接、枚举、`stat` 和 range read；仓库不再维护直接编译、前缀化和分发 libsmb2 的链路，底层 C target 由 AMSMB2 package 自身管理。AMSMB2 暂不公开 dialect 约束和 required-signing 开关，因此 adapter 会拒绝无法忠实表达的策略。
+目录扫描按来源顺序消费，不对整个目录排序或计算列表指纹。本地使用 `readdir`；SMB 使用
+原生目录句柄和最多 64 KiB 的 `QUERY_DIRECTORY` 响应；WebDAV 没有通用目录分页协议，
+因此在内存中接收并解析每个目录的 PROPFIND，按服务器顺序最多保留 655,360 个直接子项，
+再按页交给 scanner；不写临时文件。超出上限的子项不入库、不遍历，页携带截断标记，
+本轮扫描可发布已观察到的文件，但不协调 missing。条目上限不限制 XML 响应的网络字节数。
+SQLite scanner 按页查询 frontier/seen 索引，历史集合留在数据库；sink 包装层应转发
+`enumerationIndex`（Demo 已接入）。目录句柄/内存列表/兼容路径临时文件的游标只在当前会话有效，断线后恢复加载
+会清理相应未发布 run 并启动新扫描，已发布海报墙不变。自定义旧式数组 transport 和未提供
+`enumerationIndex` 的自定义 sink 仍保留兼容路径，不能保证相同内存上界。
+
+`StellarSMB2Core` 提供不泄漏第三方类型的 `SMB2Transport` / `SMB2Session` seam、连接策略和只读值模型。
+Apple backend 使用 TracyPlayer/AMSMB2 4.0.3 随包提供的 libsmb2，通过串行队列执行连接、
+`stat`、range read 和原生目录查询；不再使用会在内部收集完整目录的 AMSMB2/libsmb2 `opendir`。
+底层 C target 仍由 AMSMB2 package 管理，无新增 SDK 依赖。连接策略保持现有 `anySupported`
+和 signing `enabled` 范围，其他策略明确拒绝。直接调用旧公开的 `SMB2Session.listDirectory`
+仍按其数组返回合同收集结果；SDK scanner 使用原生分页入口。
+
 
 `StellarMediaImaging` 使用 TracyPlayer/FFmpegKit 的 libavformat/libavcodec/libswscale 解码目标视频帧为 BGRA，再由 ImageIO 编码 PNG/JPEG。远端来源首版通过 `MediaSourceSession` 分块暂存到受控临时文件，不把 SMB/WebDAV 凭据交给 FFmpeg。公共入口是 `FFmpegMediaScreenshotGenerator`、`MediaScreenshotRequest` 与 `MediaScreenshotResult`。
 

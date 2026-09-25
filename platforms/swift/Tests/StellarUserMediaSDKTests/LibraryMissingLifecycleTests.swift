@@ -106,6 +106,15 @@ struct LibraryMissingLifecycleTests {
     #expect(changedIdentityResult.0 == 0)
     #expect(changedIdentityResult.1 == 3)
 
+    // Metadata-only work between two observations cannot erase or supersede the first proof.
+    try await fixture.store(at: 350).commit(
+      LibraryScanPersistenceBatch(
+        runUID: "identity-metadata-repair", sourceUID: fixture.sourceUID,
+        mode: "repair", state: "completed", checkpointJSON: "{}", coverageJSON: "{}",
+        entries: [], capabilities: nil, discoveredEntryCount: 0
+      )
+    )
+
     try await commitLifecycleSnapshot(
       fixture, at: 400, runUID: "identity-drop-b-2", entries: [entries[1]]
     )
@@ -178,6 +187,65 @@ struct LibraryMissingLifecycleTests {
     }
     #expect(recoveredSource.0 == nil)
     #expect(recoveredSource.1 == nil)
+  }
+
+  @Test("Metadata repair cannot change source connectivity or discovery freshness")
+  func repairPreservesDiscoveryState() async throws {
+    let fixture = try await makeLifecycleFixture(sourceUID: "repair-offline-source")
+    defer { try? FileManager.default.removeItem(at: fixture.directory) }
+    let entry = try lifecycleEntry(sourceUID: fixture.sourceUID)
+    try await commitLifecycleSnapshot(fixture, at: 100, runUID: "repair-initial", entries: [entry])
+    try await fixture.store(at: 200).markSourceOffline(sourceUID: fixture.sourceUID)
+    let publishedFiles = try await fixture.store(at: 200).snapshot().files
+
+    for state in ["completed", "failed"] {
+      try await fixture.store(at: 300).commit(
+        LibraryScanPersistenceBatch(
+          runUID: "metadata-repair-\(state)", sourceUID: fixture.sourceUID,
+          mode: "repair", state: state, checkpointJSON: #"{"repair":true}"#,
+          coverageJSON: #"{"roots":[]}"#, entries: [], capabilities: nil,
+          discoveredEntryCount: 0,
+          errorCode: state == "failed" ? SDKErrorCode.remoteUnavailable.rawValue : nil
+        )
+      )
+      let sourceState = try await fixture.database.read { database in
+        let row = try #require(
+          try Row.fetchOne(
+            database,
+            sql: """
+              SELECT offline_since_ms, last_error_code, last_scan_at_ms,
+                     last_successful_scan_at_ms FROM library_source LIMIT 1
+              """
+          )
+        )
+        return (
+          row["offline_since_ms"] as Int64?, row["last_error_code"] as String?,
+          row["last_scan_at_ms"] as Int64?, row["last_successful_scan_at_ms"] as Int64?
+        )
+      }
+      #expect(sourceState.0 == 200)
+      #expect(sourceState.1 == SDKErrorCode.networkUnavailable.rawValue)
+      #expect(sourceState.2 == 100)
+      #expect(sourceState.3 == 100)
+      #expect(try await fixture.store(at: 300).snapshot().files == publishedFiles)
+    }
+  }
+
+  @Test("Repair batches cannot publish discovery facts or authorize missing reconciliation")
+  func repairRejectsDiscoveryBatch() async throws {
+    let fixture = try await makeLifecycleFixture(sourceUID: "repair-batch-source")
+    defer { try? FileManager.default.removeItem(at: fixture.directory) }
+    let entry = try lifecycleEntry(sourceUID: fixture.sourceUID)
+    for authorizeMissing in [false, true] {
+      #expect(throws: SDKError.self) {
+        try LibraryScanPersistenceBatch(
+          runUID: "repair-batch", sourceUID: fixture.sourceUID, mode: "repair", state: "completed",
+          checkpointJSON: "{}", coverageJSON: "{}", entries: authorizeMissing ? [] : [entry],
+          capabilities: fixture.capabilities, coveredRoots: authorizeMissing ? [fixture.root] : [],
+          reconcileMissingEligible: authorizeMissing, discoveredEntryCount: authorizeMissing ? 0 : 1
+        )
+      }
+    }
   }
 
   @Test("Offline sources suspend cleanup and file tombstones can be revived")

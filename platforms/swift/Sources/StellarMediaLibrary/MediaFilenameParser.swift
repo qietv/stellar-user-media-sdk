@@ -182,7 +182,7 @@ public struct MediaFilenameAnalysis: Codable, Equatable, Sendable {
 
 /// The initial filename parser. Its behavior is intentionally covered by fixtures before it grows.
 public struct MediaFilenameParser: Sendable {
-  public static let version = 2
+  public static let version = 3
 
   public init() {}
 
@@ -268,7 +268,7 @@ public struct MediaFilenameParser: Sendable {
       let episode = integerCapture(episodeMatch, index: 2, in: stem)
     {
       let prefix = String(stem[..<episodeMatch.range.lowerBound])
-      let (title, year) = normalizedTitleAndYear(prefix)
+      let (title, year) = episodeTitleAndYear(prefix: prefix, path: path)
       return ParsedMediaFilename(
         kind: isSample ? .extra : .episode,
         title: title,
@@ -290,7 +290,7 @@ public struct MediaFilenameParser: Sendable {
       let episode = integerCapture(episodeMatch, index: 2, in: stem)
     {
       let prefix = String(stem[..<episodeMatch.range.lowerBound])
-      let (title, year) = normalizedTitleAndYear(prefix)
+      let (title, year) = episodeTitleAndYear(prefix: prefix, path: path)
       return ParsedMediaFilename(
         kind: isSample ? .extra : .episode,
         title: title,
@@ -299,6 +299,32 @@ public struct MediaFilenameParser: Sendable {
         episode: episode,
         edition: edition,
         isSample: isSample,
+        sourceName: sourceName
+      )
+    }
+
+    // Number-only/iTunes names require a real series directory; an episode-only name also
+    // requires an explicit season directory. Do not turn arbitrary numbered movies into TV.
+    if let match = firstMatch(pattern: #"^(\d{1,2})-(\d{1,3})(?:$|[\s._-])"#, in: stem),
+      let season = integerCapture(match, index: 1, in: stem),
+      let episode = integerCapture(match, index: 2, in: stem),
+      let context = episodeParentContext(path)
+    {
+      return ParsedMediaFilename(
+        kind: isSample ? .extra : .episode, title: context.title, year: context.year,
+        season: season, episode: episode, edition: edition, isSample: isSample,
+        sourceName: sourceName
+      )
+    }
+    if let match = firstMatch(
+      pattern: #"(?i)^(?:e(?:pisode)?[\s._-]*)?(\d{1,3})(?:$|[\s._-])"#, in: stem
+    ),
+      let episode = integerCapture(match, index: 1, in: stem),
+      let context = episodeParentContext(path), let season = context.season
+    {
+      return ParsedMediaFilename(
+        kind: isSample ? .extra : .episode, title: context.title, year: context.year,
+        season: season, episode: episode, edition: edition, isSample: isSample,
         sourceName: sourceName
       )
     }
@@ -320,6 +346,47 @@ public struct MediaFilenameParser: Sendable {
       isSample: isSample,
       sourceName: sourceName
     )
+  }
+
+  private func episodeTitleAndYear(prefix: String, path: String) -> (String, Int?) {
+    let (title, year) = normalizedTitleAndYear(prefix)
+    guard title.isEmpty || year == nil, let context = episodeParentContext(path) else {
+      return (title, year)
+    }
+    if title.isEmpty { return (context.title, year ?? context.year) }
+    // A containing folder for a different show must not contribute its year to this filename.
+    let sameTitle =
+      title.compare(context.title, options: [.caseInsensitive, .diacriticInsensitive])
+      == .orderedSame
+    return (title, year ?? (sameTitle ? context.year : nil))
+  }
+
+  private func episodeParentContext(_ path: String) -> (title: String, year: Int?, season: Int?)? {
+    // Inspect only explicit path components. URL(fileURLWithPath:) resolves bare relative names
+    // against the process working directory, which is never evidence about a remote show.
+    let parents = path.split(separator: "/").dropLast().suffix(3).reversed()
+    var season: Int?
+    for component in parents {
+      let parent = String(component)
+      if let number = seasonDirectoryNumber(parent) {
+        if season == nil { season = number }
+        continue
+      }
+      let (title, year) = normalizedTitleAndYear(parent)
+      let libraryRoots = Set(["tv", "tv shows", "series", "shows", "movies", "media", "videos"])
+      guard !title.isEmpty, !libraryRoots.contains(title.lowercased()), title != ".", title != ".."
+      else { return nil }
+      return (title, year, season)
+    }
+    return nil
+  }
+
+  private func seasonDirectoryNumber(_ name: String) -> Int? {
+    if name.lowercased() == "specials" { return 0 }
+    guard let match = firstMatch(pattern: #"(?i)^(?:season|s)[\s._-]*(\d{1,2})$"#, in: name) else {
+      return nil
+    }
+    return integerCapture(match, index: 1, in: name)
   }
 
   private func editionLabel(in input: String) -> String? {

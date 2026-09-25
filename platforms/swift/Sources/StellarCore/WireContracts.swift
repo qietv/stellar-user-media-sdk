@@ -43,13 +43,21 @@ extension KeyedEncodingContainer {
 public struct CursorPage<Element: Codable & Sendable>: Codable, Sendable {
   public let items: [Element]
   public let nextCursor: String?
+  /// True when the producer omitted entries; a terminal cursor alone does not imply full coverage.
+  public let isTruncated: Bool
 
   public init(items: [Element], nextCursor: String?) throws {
+    try self.init(items: items, nextCursor: nextCursor, isTruncated: false)
+  }
+
+  /// Creates a page that can explicitly report a producer-imposed enumeration limit.
+  public init(items: [Element], nextCursor: String?, isTruncated: Bool) throws {
     guard nextCursor?.isEmpty != true else {
       throw SDKError(code: .invalidConfiguration, message: "next cursor must not be empty")
     }
     self.items = items
     self.nextCursor = nextCursor
+    self.isTruncated = isTruncated
   }
 
   public init(from decoder: Decoder) throws {
@@ -64,17 +72,20 @@ public struct CursorPage<Element: Codable & Sendable>: Codable, Sendable {
       )
     }
     self.nextCursor = nextCursor
+    isTruncated = try container.decodeIfPresent(Bool.self, forKey: .isTruncated) ?? false
   }
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(items, forKey: .items)
     try container.encode(nextCursor, forKey: .nextCursor)
+    if isTruncated { try container.encode(true, forKey: .isTruncated) }
   }
 
   private enum CodingKeys: String, CodingKey {
     case items
     case nextCursor = "next_cursor"
+    case isTruncated = "is_truncated"
   }
 }
 

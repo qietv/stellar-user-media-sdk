@@ -111,6 +111,7 @@ let package = Package(
       name: "StellarSMB2Apple",
       dependencies: [
         "StellarCore",
+        "StellarRemoteMedia",
         "StellarSMB2Core",
         .product(name: "AMSMB2", package: "AMSMB2"),
       ]

@@ -100,6 +100,50 @@
       }
     },
     {
+      "input": "TV/Wednesday (2022)/Season 2/S02E03.mkv",
+      "expected": {
+        "kind": "episode",
+        "title": "Wednesday",
+        "year": 2022,
+        "season": 2,
+        "episode": 3,
+        "source_name": "S02E03.mkv"
+      }
+    },
+    {
+      "input": "TV/Wednesday (2022)/Season 2/03 Episode.mkv",
+      "expected": {
+        "kind": "episode",
+        "title": "Wednesday",
+        "year": 2022,
+        "season": 2,
+        "episode": 3,
+        "source_name": "03 Episode.mkv"
+      }
+    },
+    {
+      "input": "TV/Wednesday (2022)/Specials/01 Episode.mkv",
+      "expected": {
+        "kind": "episode",
+        "title": "Wednesday",
+        "year": 2022,
+        "season": 0,
+        "episode": 1,
+        "source_name": "01 Episode.mkv"
+      }
+    },
+    {
+      "input": "TV/Wednesday (2022)/02-003 Episode.mkv",
+      "expected": {
+        "kind": "episode",
+        "title": "Wednesday",
+        "year": 2022,
+        "season": 2,
+        "episode": 3,
+        "source_name": "02-003 Episode.mkv"
+      }
+    },
+    {
       "input": "剧集名称.mkv",
       "expected": {
         "kind": "unknown",

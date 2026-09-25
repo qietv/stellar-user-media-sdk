@@ -46,9 +46,9 @@ struct WebDAVMediaSourceContractTests {
 
     #expect(credential.description == "<WebDAVCredential redacted>")
     #expect(configuration.description.contains("dav.example.test") == false)
-    #expect(firstPage.items.map(\.locator.path.relativePath) == ["Movies"])
+    #expect(firstPage.items.map(\.locator.path.relativePath) == ["Notes.txt"])
     #expect(firstPage.nextCursor != nil)
-    #expect(secondPage.items.map(\.locator.path.relativePath) == ["Notes.txt"])
+    #expect(secondPage.items.map(\.locator.path.relativePath) == ["Movies"])
     #expect(secondPage.nextCursor == nil)
     #expect(stat.kind == .file)
     #expect(stat.size == 7)
@@ -57,6 +57,146 @@ struct WebDAVMediaSourceContractTests {
     #expect(await transport.sawAuthorizationHeader)
     #expect(await transport.methods.allSatisfy { ["PROPFIND", "GET"].contains($0) })
     #expect(await transport.depthOnePaths.filter { $0 == "/media" || $0 == "/media/" }.count == 1)
+  }
+
+  @Test("In-memory PROPFIND preserves source order, independent cursors, and late markers")
+  func inMemoryDirectory() async throws {
+    let executor = MemoryWebDAVExecutor(count: 2_001)
+    let configuration = try WebDAVMediaSourceConfiguration(
+      sourceUID: "memory-dav", baseURL: URL(string: "https://dav.example.test/media/")!
+    )
+    let connector = WebDAVMediaSourceConnector(
+      configuration: configuration, transport: URLSessionWebDAVTransport(executor: executor))
+    let session = try await connector.connect()
+    let root = try RemoteLocator(sourceUID: configuration.sourceUID, path: RemotePath())
+    var names: [String] = []
+    var cursor: String?
+    var firstCursor: String?
+    repeat {
+      let page = try await session.listDirectory(
+        RemoteDirectoryPageRequest(directory: root, cursor: cursor, limit: 73))
+      #expect(page.items.count <= 73)
+      if firstCursor == nil {
+        firstCursor = page.nextCursor
+        let independent = try await session.listDirectory(
+          RemoteDirectoryPageRequest(directory: root, limit: 10_000))
+        #expect(independent.items.count == 2_001 && independent.nextCursor == nil)
+      }
+      names.append(contentsOf: page.items.map(\.locator.path.name))
+      cursor = page.nextCursor
+    } while cursor != nil
+    #expect(names == (0..<2_001).reversed().map { "Video-\($0).mkv" })
+    #expect(await executor.requestCount == 3)
+    await session.disconnect()
+    let resumed = try await connector.connect()
+    let expiredCursor = firstCursor
+    await expectSDKError(.conflict) {
+      _ = try await resumed.listDirectory(
+        RemoteDirectoryPageRequest(directory: root, cursor: expiredCursor, limit: 73))
+    }
+    await resumed.disconnect()
+
+    let markerExecutor = MemoryWebDAVExecutor(
+      count: 2_001, suffix: response(href: "/media/.nomedia", size: 0))
+    let marked = try await WebDAVMediaSourceConnector(
+      configuration: configuration, transport: URLSessionWebDAVTransport(executor: markerExecutor)
+    ).connect()
+    let page = try await marked.listDirectory(
+      RemoteDirectoryPageRequest(directory: root, limit: 1),
+      options: RemoteDirectoryEnumerationOptions(exclusionMarkerFileNames: [".nomedia"])
+    )
+    #expect(page.items.isEmpty && page.nextCursor == nil)
+    await marked.disconnect()
+  }
+
+  @Test("Truncated or partly failed PROPFIND cannot publish an apparently complete directory")
+  func incompleteXML() async throws {
+    let configuration = try WebDAVMediaSourceConfiguration(
+      sourceUID: "partial-dav", baseURL: URL(string: "https://dav.example.test/media/")!
+    )
+    for malformed in [true, false] {
+      let executor = MemoryWebDAVExecutor(
+        count: 5,
+        suffix: malformed
+          ? "<d:response>"
+          : "<d:response><d:href>/media/missing.mkv</d:href><d:status>HTTP/1.1 403 Forbidden</d:status></d:response>"
+      )
+      let session = try await WebDAVMediaSourceConnector(
+        configuration: configuration, transport: URLSessionWebDAVTransport(executor: executor)
+      ).connect()
+      await expectSDKError(malformed ? .parseFailure : .remoteUnavailable) {
+        _ = try await session.listDirectory(
+          RemoteDirectoryPageRequest(
+            directory: RemoteLocator(sourceUID: configuration.sourceUID, path: RemotePath()),
+            limit: 1
+          ))
+      }
+      await session.disconnect()
+    }
+  }
+
+  @Test(
+    "Directory limits distinguish below, exact, and over-limit responses", arguments: [2, 3, 4])
+  func directoryLimitBoundary(count: Int) throws {
+    let configuration = try WebDAVMediaSourceConfiguration(
+      sourceUID: "bounded", baseURL: URL(string: "https://dav.example.test/media/")!)
+    let root = try RemoteLocator(sourceUID: configuration.sourceUID, path: RemotePath())
+    // A late self response must not consume one of the three child slots.
+    let body = multistatus(
+      (0..<count).map { response(href: "/media/\($0)", collection: $0 == 1) }
+        + [response(href: "/media/", collection: true)])
+    let listing = try WebDAVDirectoryListing.parse(
+      body, directory: root, baseURL: configuration.baseURL,
+      semantics: configuration.pathSemantics, options: RemoteDirectoryEnumerationOptions(),
+      maximumEntries: 3)
+    #expect(listing.entries.map(\.locator.path.name) == (0..<min(count, 3)).map(String.init))
+    #expect(listing.isTruncated == (count > 3))
+  }
+
+  @Test("Markers beyond the directory limit and the remaining XML are ignored")
+  func ignoredDirectoryTail() throws {
+    let configuration = try WebDAVMediaSourceConfiguration(
+      sourceUID: "bounded", baseURL: URL(string: "https://dav.example.test/media/")!)
+    let root = try RemoteLocator(sourceUID: configuration.sourceUID, path: RemotePath())
+    let body = Data(
+      ("<d:multistatus xmlns:d=\"DAV:\">"
+        + response(href: "/media/keep.mkv")
+        + response(href: "/media/.nomedia")
+        + "<invalid-and-unclosed").utf8)
+    let listing = try WebDAVDirectoryListing.parse(
+      body, directory: root, baseURL: configuration.baseURL,
+      semantics: configuration.pathSemantics,
+      options: RemoteDirectoryEnumerationOptions(exclusionMarkerFileNames: [".nomedia"]),
+      maximumEntries: 1)
+    #expect(listing.entries.map(\.locator.path.name) == ["keep.mkv"])
+    #expect(listing.isTruncated)
+  }
+
+  @Test("WebDAV returns at most 655,360 children across all logical pages")
+  func productionDirectoryLimit() async throws {
+    let executor = MemoryWebDAVExecutor(count: 655_361)
+    let configuration = try WebDAVMediaSourceConfiguration(
+      sourceUID: "large-dav", baseURL: URL(string: "https://dav.example.test/media/")!)
+    let session = try await WebDAVMediaSourceConnector(
+      configuration: configuration, transport: URLSessionWebDAVTransport(executor: executor)
+    ).connect()
+    let root = try RemoteLocator(sourceUID: configuration.sourceUID, path: RemotePath())
+    var cursor: String?
+    var count = 0
+    var lastName: String?
+    repeat {
+      let page = try await session.listDirectory(
+        RemoteDirectoryPageRequest(directory: root, cursor: cursor, limit: 10_000))
+      #expect(page.isTruncated)
+      if count == 0 { #expect(page.items.first?.locator.path.name == "Video-655360.mkv") }
+      count += page.items.count
+      lastName = page.items.last?.locator.path.name
+      cursor = page.nextCursor
+    } while cursor != nil
+    #expect(count == 655_360)
+    #expect(lastName == "Video-1.mkv")
+    #expect(await executor.requestCount == 2)
+    await session.disconnect()
   }
 
   @Test("A failed optional-property propstat does not hide a valid collection")
@@ -493,4 +633,33 @@ private func response(
   return """
     <d:response><d:href>\(href)</d:href><d:propstat><d:prop>\(resourceType)\(contentLength)<d:getlastmodified>Sun, 16 Aug 2026 00:00:00 GMT</d:getlastmodified>\(entityTag)</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
     """
+}
+
+private actor MemoryWebDAVExecutor: WebDAVRequestExecutor {
+  let count: Int
+  let suffix: String
+  private(set) var requestCount = 0
+
+  init(count: Int, suffix: String = "") {
+    self.count = count
+    self.suffix = suffix
+  }
+
+  func execute(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse {
+    requestCount += 1
+    var data = Data("<d:multistatus xmlns:d=\"DAV:\">".utf8)
+    data.append(Data(response(href: "/media/", collection: true).utf8))
+    if request.headers["Depth"] == "1" {
+      for index in (0..<count).reversed() {
+        // No date parsing is needed for the real 655,360-entry boundary test.
+        data.append(
+          Data(
+            "<d:response><d:href>/media/Video-\(index).mkv</d:href><d:status>HTTP/1.1 200 OK</d:status></d:response>"
+              .utf8))
+      }
+      data.append(Data(suffix.utf8))
+    }
+    data.append(Data("</d:multistatus>".utf8))
+    return WebDAVHTTPResponse(statusCode: 207, body: data)
+  }
 }

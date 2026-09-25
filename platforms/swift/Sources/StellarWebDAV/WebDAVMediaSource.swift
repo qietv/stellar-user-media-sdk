@@ -268,19 +268,28 @@ private struct WebDAVOrigin: Equatable {
 
 private struct FoundationWebDAVRequestExecutor: WebDAVRequestExecutor {
   func execute(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse {
-    var urlRequest = URLRequest(url: request.url)
-    urlRequest.httpMethod = request.method
-    urlRequest.httpBody = request.body
-    for (name, value) in request.headers {
-      urlRequest.setValue(value, forHTTPHeaderField: name)
-    }
-    let session = URLSession(
-      configuration: .ephemeral,
-      delegate: WebDAVNoRedirectDelegate.shared,
-      delegateQueue: nil
-    )
+    let session = makeSession()
     defer { session.invalidateAndCancel() }
-    let (data, response) = try await session.data(for: urlRequest)
+    let (data, response) = try await session.data(for: urlRequest(request))
+    return try httpResponse(response, body: data)
+  }
+
+  private func makeSession() -> URLSession {
+    URLSession(
+      configuration: .ephemeral, delegate: WebDAVNoRedirectDelegate.shared, delegateQueue: nil)
+  }
+
+  private func urlRequest(_ request: WebDAVHTTPRequest) -> URLRequest {
+    var result = URLRequest(url: request.url)
+    result.httpMethod = request.method
+    result.httpBody = request.body
+    for (name, value) in request.headers { result.setValue(value, forHTTPHeaderField: name) }
+    return result
+  }
+
+  private func httpResponse(_ response: URLResponse, body: Data = Data()) throws
+    -> WebDAVHTTPResponse
+  {
     guard let response = response as? HTTPURLResponse else {
       throw SDKError(code: .remoteUnavailable, message: "WebDAV response is not HTTP")
     }
@@ -288,11 +297,7 @@ private struct FoundationWebDAVRequestExecutor: WebDAVRequestExecutor {
     for (name, value) in response.allHeaderFields {
       headers[String(describing: name).lowercased()] = String(describing: value)
     }
-    return WebDAVHTTPResponse(
-      statusCode: response.statusCode,
-      headers: headers,
-      body: data
-    )
+    return WebDAVHTTPResponse(statusCode: response.statusCode, headers: headers, body: body)
   }
 }
 
@@ -335,7 +340,7 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
 
   private let configuration: WebDAVMediaSourceConfiguration
   private let transport: any WebDAVTransport
-  private var directoryPaginator: RemoteDirectorySnapshotPaginator
+  private var directoryPages: [String: DirectoryPageState] = [:]
   private var disconnected = false
 
   fileprivate init(
@@ -347,10 +352,6 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     self.configuration = configuration
     self.capabilities = capabilities
     self.transport = transport
-    directoryPaginator = RemoteDirectorySnapshotPaginator(
-      cursorNamespace: "webdav-v1",
-      pathSemantics: capabilities.pathSemantics
-    )
   }
 
   fileprivate func validateRoot() async throws {
@@ -375,40 +376,54 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     options: RemoteDirectoryEnumerationOptions
   ) async throws -> CursorPage<RemoteEntry> {
     try requireConnected()
-    if let cachedPage = try directoryPaginator.cachedPage(for: request) {
-      return cachedPage
+    if let cursor = request.cursor {
+      guard let state = directoryPages[cursor], state.directory == request.directory else {
+        throw SDKError(code: .conflict, message: "directory cursor expired; restart discovery")
+      }
+      directoryPages.removeValue(forKey: cursor)
+      return try page(state, limit: request.limit)
     }
-    let directoryURL = try url(for: request.directory)
-    let response = try await sendPROPFIND(url: directoryURL, depth: "1")
-    var entries = try WebDAVMultiStatusParser.parse(
-      response.body,
-      sourceUID: sourceUID,
-      baseURL: configuration.baseURL
-    )
-    let directoryKey = request.directory.pathComparisonKey(using: capabilities.pathSemantics)
-    entries.removeAll {
-      $0.locator.pathComparisonKey(using: capabilities.pathSemantics) == directoryKey
-    }
-    return try directoryPaginator.storeAndPage(
-      entries,
-      for: request,
-      exclusionMarkerFileNames: options.exclusionMarkerFileNames
-    )
+    let data = try await sendPROPFIND(url: url(for: request.directory), depth: "1")
+    let listing = try WebDAVDirectoryListing.parse(
+      data, directory: request.directory, baseURL: configuration.baseURL,
+      semantics: capabilities.pathSemantics, options: options)
+    try requireConnected()
+    return try page(
+      DirectoryPageState(directory: request.directory, listing: listing, offset: 0),
+      limit: request.limit)
+  }
+
+  private struct DirectoryPageState {
+    let directory: RemoteLocator
+    let listing: WebDAVDirectoryListing
+    var offset: Int
+  }
+
+  private func page(_ state: DirectoryPageState, limit: Int) throws -> CursorPage<RemoteEntry> {
+    var state = state
+    let end = min(state.offset + limit, state.listing.entries.count)
+    let items = Array(state.listing.entries[state.offset..<end])
+    state.offset = end
+    let cursor = end < state.listing.entries.count ? RemoteDirectorySessionCursor.make() : nil
+    if let cursor { directoryPages[cursor] = state }
+    return try CursorPage(
+      items: items, nextCursor: cursor, isTruncated: state.listing.isTruncated)
   }
 
   public func stat(_ locator: RemoteLocator) async throws -> RemoteEntry {
     try requireConnected()
-    let targetURL = try url(for: locator)
-    let response = try await sendPROPFIND(url: targetURL, depth: "0")
-    let entries = try WebDAVMultiStatusParser.parse(
-      response.body,
-      sourceUID: sourceUID,
-      baseURL: configuration.baseURL
-    )
-    guard let entry = entries.first(where: { $0.locator == locator }) else {
+    var result: RemoteEntry?
+    let xml = try await sendPROPFIND(url: try url(for: locator), depth: "0")
+    _ = try WebDAVMultiStatusParser.parse(
+      xml, sourceUID: sourceUID, baseURL: configuration.baseURL
+    ) { entry in
+      if entry.locator == locator { result = entry }
+      return true
+    }
+    guard let result else {
       throw SDKError(code: .metadataNotFound, message: "WebDAV entry was not found")
     }
-    return entry
+    return result
   }
 
   public func read(at locator: RemoteLocator, range: RemoteByteRange) async throws -> Data {
@@ -431,27 +446,24 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
   }
 
   public func disconnect() async {
-    directoryPaginator.removeAll()
+    directoryPages.removeAll()
     disconnected = true
   }
 
-  private func sendPROPFIND(url: URL, depth: String) async throws -> WebDAVHTTPResponse {
+  private func sendPROPFIND(url: URL, depth: String) async throws -> Data {
     let body = Data(
       """
       <?xml version="1.0" encoding="utf-8" ?>
       <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/></d:prop></d:propfind>
       """.utf8
     )
-    let response = try await transport.send(
-      request(
-        method: "PROPFIND",
-        url: url,
-        headers: ["Depth": depth, "Content-Type": "application/xml; charset=utf-8"],
-        body: body
-      )
+    let request = request(
+      method: "PROPFIND", url: url,
+      headers: ["Depth": depth, "Content-Type": "application/xml; charset=utf-8"], body: body
     )
+    let response = try await transport.send(request)
     try validateStatus(response.statusCode, allowsMultiStatus: true, allowsPartialContent: false)
-    return response
+    return response.body
   }
 
   private func request(
@@ -529,19 +541,74 @@ private final class WebDAVNoRedirectDelegate: NSObject, URLSessionTaskDelegate,
   }
 }
 
+/// A bounded, source-order directory result. The XML response itself still arrives in full.
+struct WebDAVDirectoryListing: Sendable {
+  static let maximumEntryCount = 655_360
+
+  let entries: [RemoteEntry]
+  let isTruncated: Bool
+
+  static func parse(
+    _ data: Data,
+    directory: RemoteLocator,
+    baseURL: URL,
+    semantics: RemotePathSemantics,
+    options: RemoteDirectoryEnumerationOptions,
+    maximumEntries: Int = maximumEntryCount
+  ) throws -> Self {
+    precondition(maximumEntries > 0)
+    var entries: [RemoteEntry] = []
+    var childCount = 0
+    var excluded = false
+    let directoryKey = directory.path.comparisonKey(using: semantics)
+    let complete = try WebDAVMultiStatusParser.parse(
+      data, sourceUID: directory.sourceUID, baseURL: baseURL
+    ) { entry in
+      // The PROPFIND self response does not consume a child slot, wherever it appears.
+      if entry.locator.path.comparisonKey(using: semantics) == directoryKey { return true }
+      guard entry.locator.path.parent?.comparisonKey(using: semantics) == directoryKey else {
+        throw SDKError(
+          code: .parseFailure, message: "WebDAV entry is outside the requested directory")
+      }
+      // Inspect one extra child to distinguish an exact-size directory from a truncated one.
+      // It is never retained, indexed, or traversed; the rest of the XML is ignored.
+      guard childCount < maximumEntries else { return false }
+      childCount += 1
+      if entry.kind == .file,
+        options.exclusionMarkerFileNames.contains(where: {
+          semantics.caseSensitivity == .insensitive
+            ? $0.lowercased() == entry.locator.path.name.lowercased()
+            : $0 == entry.locator.path.name
+        })
+      {
+        excluded = true
+        entries.removeAll()
+      }
+      if !excluded { entries.append(entry) }
+      return true
+    }
+    return Self(entries: entries, isTruncated: !excluded && !complete)
+  }
+}
+
 private enum WebDAVMultiStatusParser {
   static func parse(
     _ data: Data,
     sourceUID: String,
-    baseURL: URL
-  ) throws -> [RemoteEntry] {
-    let delegate = MultiStatusDelegate(sourceUID: sourceUID, baseURL: baseURL)
+    baseURL: URL,
+    onEntry: @escaping (RemoteEntry) throws -> Bool
+  ) throws -> Bool {
+    let delegate = MultiStatusDelegate(sourceUID: sourceUID, baseURL: baseURL, onEntry: onEntry)
     let parser = XMLParser(data: data)
+    parser.shouldResolveExternalEntities = false
     parser.delegate = delegate
-    guard parser.parse() else {
+    let success = parser.parse()
+    if let error = delegate.parsingError { throw error }
+    if delegate.stoppedEarly { return false }
+    guard success else {
       throw SDKError(code: .parseFailure, message: "WebDAV multistatus XML is invalid")
     }
-    return try delegate.entries.get()
+    return true
   }
 
   private final class MultiStatusDelegate: NSObject, XMLParserDelegate, @unchecked Sendable {
@@ -556,17 +623,12 @@ private enum WebDAVMultiStatusParser {
     private var currentPropstat: PropertyFields?
     private var elementStack: [String] = []
     private var text = ""
-    private var parsedEntries: [RemoteEntry] = []
-    private var parsingError: Error?
+    private let onEntry: (RemoteEntry) throws -> Bool
+    fileprivate var parsingError: Error?
+    fileprivate var stoppedEarly = false
 
-    fileprivate var entries: Result<[RemoteEntry], Error> {
-      if let parsingError {
-        return .failure(parsingError)
-      }
-      return .success(parsedEntries)
-    }
-
-    init(sourceUID: String, baseURL: URL) {
+    init(sourceUID: String, baseURL: URL, onEntry: @escaping (RemoteEntry) throws -> Bool) {
+      self.onEntry = onEntry
       self.sourceUID = sourceUID
       self.baseURL = baseURL
       baseScheme = baseURL.scheme?.lowercased()
@@ -581,13 +643,23 @@ private enum WebDAVMultiStatusParser {
     }
 
     func parser(
-      _: XMLParser,
+      _ parser: XMLParser,
       didStartElement elementName: String,
       namespaceURI _: String?,
       qualifiedName _: String?,
       attributes _: [String: String] = [:]
     ) {
+      guard !stoppedEarly, parsingError == nil else { return }
+      guard elementStack.count < 64 else {
+        fail(parser, SDKError(code: .parseFailure, message: "WebDAV XML nesting exceeds the limit"))
+        return
+      }
       let name = localName(elementName)
+      guard !elementStack.isEmpty || name == "multistatus" else {
+        fail(
+          parser, SDKError(code: .parseFailure, message: "WebDAV response is not multistatus XML"))
+        return
+      }
       elementStack.append(name)
       text = ""
       if name == "response" {
@@ -600,12 +672,22 @@ private enum WebDAVMultiStatusParser {
       }
     }
 
-    func parser(_: XMLParser, foundCharacters string: String) {
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+      guard !stoppedEarly, parsingError == nil else { return }
+      guard text.utf8.count + string.utf8.count <= 1_048_576 else {
+        fail(parser, SDKError(code: .parseFailure, message: "WebDAV XML field exceeds the limit"))
+        return
+      }
       text += string
     }
 
+    private func fail(_ parser: XMLParser, _ error: Error) {
+      parsingError = error
+      parser.abortParsing()
+    }
+
     func parser(
-      _: XMLParser,
+      _ parser: XMLParser,
       didEndElement elementName: String,
       namespaceURI _: String?,
       qualifiedName _: String?
@@ -619,7 +701,7 @@ private enum WebDAVMultiStatusParser {
         }
         text = ""
       }
-      guard parsingError == nil else { return }
+      guard !stoppedEarly, parsingError == nil else { return }
       switch name {
       case "href" where parentName == "response":
         current?.href = value
@@ -643,11 +725,20 @@ private enum WebDAVMultiStatusParser {
       case "response":
         if let current, current.isSuccessful {
           do {
-            let entry = try makeEntry(current)
-            parsedEntries.append(entry)
+            try Task.checkCancellation()
+            if try !onEntry(makeEntry(current)) {
+              stoppedEarly = true
+              parser.abortParsing()
+            }
           } catch {
-            parsingError = error
+            fail(parser, error)
           }
+        } else {
+          fail(
+            parser,
+            SDKError(
+              code: .remoteUnavailable, message: "WebDAV directory response contains a failed entry"
+            ))
         }
         current = nil
         currentPropstat = nil

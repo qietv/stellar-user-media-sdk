@@ -148,8 +148,8 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
   public nonisolated let capabilities: MediaSourceCapabilities
 
   private let sessions: [any SMB2Session]
-  private var directoryPaginator: RemoteDirectorySnapshotPaginator
-  private var directorySessionIndices: [SMB2Path: Int] = [:]
+  private var directoryPaginator: RemoteDirectorySpoolPaginator
+  private var directorySessionIndices: [PageKey: Int] = [:]
   private var directorySessionLoads: [Int]
   private var nextDirectorySessionIndex = 0
   private var disconnected = false
@@ -163,8 +163,7 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
     self.capabilities = capabilities
     self.sessions = sessions
     directorySessionLoads = Array(repeating: 0, count: sessions.count)
-    directoryPaginator = RemoteDirectorySnapshotPaginator(
-      cursorNamespace: "smb-v1",
+    directoryPaginator = RemoteDirectorySpoolPaginator(
       pathSemantics: capabilities.pathSemantics
     )
   }
@@ -184,22 +183,16 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
   ) async throws -> CursorPage<RemoteEntry> {
     try requireConnected()
     let directoryPath = try smbPath(for: request.directory)
-    // A persisted cursor from the snapshot implementation must finish through the
-    // compatibility path after an SDK upgrade. New enumerations use transport paging.
-    let hasLegacySnapshotCursor = request.cursor?.hasPrefix("smb-v1:") == true
-    if hasLegacySnapshotCursor,
-      let cachedPage = try directoryPaginator.cachedPage(for: request)
-    {
-      return cachedPage
+    if request.cursor?.hasPrefix("smb-v1:") == true {
+      throw SDKError(code: .conflict, message: "legacy SMB cursor expired; restart discovery")
     }
-    let sessionIndex = directorySessionIndex(for: directoryPath)
+    let pageKey = request.cursor.map { PageKey(directory: directoryPath, cursor: $0) }
+    let sessionIndex = directorySessionIndex(for: pageKey)
     let session = sessions[sessionIndex]
     directorySessionLoads[sessionIndex] += 1
     defer { directorySessionLoads[sessionIndex] -= 1 }
     do {
-      if !hasLegacySnapshotCursor,
-        let pagingSession = session as? any SMB2DirectoryPagingSession
-      {
+      if let pagingSession = session as? any SMB2DirectoryPagingSession {
         if request.cursor == nil, !options.exclusionMarkerFileNames.isEmpty {
           for markerName in options.exclusionMarkerFileNames {
             do {
@@ -207,7 +200,6 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
                 directoryPath.appending(component: markerName)
               )
               if marker.kind == .file {
-                directorySessionIndices.removeValue(forKey: directoryPath)
                 return try CursorPage(items: [], nextCursor: nil)
               }
             } catch let error as SDKError where error.code == .metadataNotFound {
@@ -220,23 +212,26 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
           cursor: request.cursor,
           limit: request.limit
         )
-        if page.nextCursor == nil {
-          directorySessionIndices.removeValue(forKey: directoryPath)
+        if let pageKey { directorySessionIndices.removeValue(forKey: pageKey) }
+        if let cursor = page.nextCursor {
+          directorySessionIndices[PageKey(directory: directoryPath, cursor: cursor)] = sessionIndex
         }
         return try CursorPage(
           items: page.items.map(convert),
           nextCursor: page.nextCursor
         )
       }
+      if let page = try directoryPaginator.cachedPage(for: request) {
+        return page
+      }
       let entries = try await session.listDirectory(at: directoryPath).map(convert)
-      directorySessionIndices.removeValue(forKey: directoryPath)
       return try directoryPaginator.storeAndPage(
         entries,
         for: request,
         exclusionMarkerFileNames: options.exclusionMarkerFileNames
       )
     } catch {
-      directorySessionIndices.removeValue(forKey: directoryPath)
+      if let pageKey { directorySessionIndices.removeValue(forKey: pageKey) }
       throw error
     }
   }
@@ -274,8 +269,13 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
     }
   }
 
-  private func directorySessionIndex(for path: SMB2Path) -> Int {
-    if let existing = directorySessionIndices[path] {
+  private struct PageKey: Hashable {
+    let directory: SMB2Path
+    let cursor: String
+  }
+
+  private func directorySessionIndex(for key: PageKey?) -> Int {
+    if let key, let existing = directorySessionIndices[key] {
       return existing
     }
     let minimumLoad = directorySessionLoads.min() ?? 0
@@ -288,7 +288,6 @@ public actor SMB2MediaSourceSession: MediaSourceSession {
       }
     }
     nextDirectorySessionIndex = (selected + 1) % sessions.count
-    directorySessionIndices[path] = selected
     return selected
   }
 

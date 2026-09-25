@@ -18,6 +18,7 @@
 
 ## 归档文件
 
+- [`sdk_scan_comparison_2026-09-25.md`](sdk_scan_comparison_2026-09-25.md)：当前 SDK 扫描对照、实际缺口、修复与验证范围。
 - [`cross_platform_media_library_design.md`](cross_platform_media_library_design.md)：27 表数据模型、关联、删除策略与跨平台实现。
 - [`infuse_ios_8.5.1_static_analysis.md`](infuse_ios_8.5.1_static_analysis.md)：iOS 8.5.1 解析、刮削、请求链和索引静态分析。
 - [`infuse_library_scan_rebuild_and_our_scanner_design.md`](infuse_library_scan_rebuild_and_our_scanner_design.md)：建库、扫描触发、重建和自有 scanner 设计。

@@ -372,6 +372,7 @@ extension LibraryStore {
             WHERE previous.id = (
               SELECT MAX(candidate.id) FROM scan_run AS candidate
               WHERE candidate.source_id = ? AND candidate.id < ?
+                AND candidate.mode <> 'repair'
             )
               AND previous.state = 'completed'
               AND previous.reconcile_missing = 0

@@ -669,6 +669,74 @@ struct SQLiteMediaScanSinkTests {
     #expect(freshResult.checkpoint.phase == .completed)
   }
 
+  @Test("Session cursors restart discovery without changing published files")
+  func changedDirectoryRecoveryStartsFresh() async throws {
+    let fixture = try SQLiteScanFixture()
+    defer { fixture.remove() }
+    let sourceUID = "changed-directory-source"
+    let database = try await StorageDatabase.open(kind: .library, at: fixture.databaseURL)
+    let store = try LibraryStore(database: database)
+    try await store.registerSource(
+      LibrarySourceDefinition(
+        uid: sourceUID, kind: .localFolder, displayName: "Changed Directory",
+        rootURI: "file://changed-directory-source"
+      )
+    )
+    let connector = LocalMediaSourceConnector(
+      configuration: try LocalMediaSourceConfiguration(
+        sourceUID: sourceUID, rootURL: fixture.mediaURL
+      )
+    )
+    let scanner = MediaScanner(
+      configuration: try MediaScannerConfiguration(
+        pageSize: 1, maxConcurrentDirectoryRequests: 1
+      )
+    )
+    let sink = SQLiteMediaScanSink(store: store)
+    let root = try RemoteLocator(sourceUID: sourceUID, path: RemotePath())
+    _ = try await scanner.scan(
+      MediaScanRequest(
+        runUID: "changed-directory-published", sourceUID: sourceUID, mode: .full, roots: [root]
+      ), using: connector, sink: sink
+    )
+    let publishedFiles = try await store.snapshot().files
+    let request = try MediaScanRequest(
+      runUID: "changed-directory-interrupted", sourceUID: sourceUID, mode: .full, roots: [root]
+    )
+    let task = Task {
+      try await scanner.scan(
+        request, using: connector, sink: sink, observer: PauseAfterFirstSQLitePage()
+      )
+    }
+    await #expect(throws: SDKError.self) { _ = try await task.value }
+    // A new session cannot revive a native directory handle, even if the directory is unchanged.
+    #expect(try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == nil)
+    try Data("new file".utf8).write(to: fixture.mediaURL.appendingPathComponent("New.mkv"))
+    #expect(try await store.snapshot().files == publishedFiles)
+    #expect(try await sink.loadLatestRecoverableCheckpoint(sourceUID: sourceUID) == nil)
+    #expect(try await store.checkpointJSON(runUID: request.runUID) == nil)
+    let privateRowCount = try await database.read { database in
+      try Int.fetchOne(
+        database,
+        sql: """
+          SELECT (SELECT COUNT(*) FROM scan_frontier)
+               + (SELECT COUNT(*) FROM scan_seen)
+               + (SELECT COUNT(*) FROM scan_discovery)
+          """
+      )
+    }
+    #expect(privateRowCount == 0)
+    #expect(try await store.snapshot().files == publishedFiles)
+
+    _ = try await scanner.scan(
+      MediaScanRequest(
+        runUID: "changed-directory-fresh", sourceUID: sourceUID, mode: .full, roots: [root]
+      ), using: connector, sink: sink
+    )
+    #expect(
+      try await store.snapshot().files.map(\.relativePath) == ["Arrival.mkv", "New.mkv", "Old.mkv"])
+  }
+
   @Test("A failed later page cannot publish an observed move")
   func failedRunDoesNotPublishMove() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -755,9 +823,8 @@ struct SQLiteMediaScanSinkTests {
           """
       )
     }
-    // The first page is still inside the bounded commit batch when the next request fails.
-    // Neither its staging fact nor its frontier advancement may become partially durable.
-    #expect(stagedPath == nil)
+    // The successful page and its frontier transition are durable, but stay unpublished.
+    #expect(stagedPath == "Movie Renamed.mkv")
   }
 
   @Test("Unchanged files stay done while retries remain actionable and failures terminate")
@@ -1529,6 +1596,14 @@ private final class SQLiteScanFixture: @unchecked Sendable {
 
   func remove() {
     try? FileManager.default.removeItem(at: rootURL)
+  }
+}
+
+private struct PauseAfterFirstSQLitePage: MediaScanObserver {
+  func emit(_ event: MediaScanEvent) async {
+    if event.kind == .checkpointed, event.phase == .enumerating, event.processedPageCount == 1 {
+      withUnsafeCurrentTask { $0?.cancel() }
+    }
   }
 }
 

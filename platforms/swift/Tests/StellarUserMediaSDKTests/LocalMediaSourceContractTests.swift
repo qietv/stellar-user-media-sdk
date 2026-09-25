@@ -76,7 +76,7 @@ struct LocalMediaSourceContractTests {
     }
   }
 
-  @Test("Local pagination keeps a stable snapshot and validates resumed cursors")
+  @Test("Local pagination advances a live iterator and rejects expired cursors")
   func paginationMutation() async throws {
     let fixture = try LocalDirectoryFixture()
     defer { fixture.remove() }
@@ -94,11 +94,17 @@ struct LocalMediaSourceContractTests {
     let cursor = try #require(firstPage.nextCursor)
     try Data("new".utf8).write(to: fixture.rootURL.appendingPathComponent("New.mkv"))
 
+    // A structure probe may enumerate the same directory while the scanner's cursor is live.
+    let independent = try await session.listDirectory(
+      RemoteDirectoryPageRequest(directory: root, limit: 100))
+    #expect(independent.items.contains { $0.locator.path.name == "New.mkv" })
     let remainingPage = try await session.listDirectory(
       RemoteDirectoryPageRequest(directory: root, cursor: cursor, limit: 100)
     )
     #expect(remainingPage.nextCursor == nil)
-    #expect(remainingPage.items.contains(where: { $0.locator.path.name == "New.mkv" }) == false)
+    // Live filesystem enumeration is weakly consistent under mutation; it promises no sorted snapshot.
+    #expect(
+      Set(firstPage.items.map(\.locator)).isDisjoint(with: remainingPage.items.map(\.locator)))
     await session.disconnect()
 
     let resumedSession = try await connector.connect()
@@ -108,6 +114,34 @@ struct LocalMediaSourceContractTests {
       )
     }
     await resumedSession.disconnect()
+  }
+
+  @Test("Local optical-disc probing cannot consume the scanner's live cursor")
+  func independentDiscProbe() async throws {
+    let fixture = try LocalDirectoryFixture()
+    defer { fixture.remove() }
+    let bdmv = fixture.rootURL.appendingPathComponent("Disc/BDMV")
+    for name in ["BACKUP", "CLIPINF", "PLAYLIST", "STREAM"] {
+      try FileManager.default.createDirectory(
+        at: bdmv.appendingPathComponent(name), withIntermediateDirectories: true)
+    }
+    try Data("index".utf8).write(to: bdmv.appendingPathComponent("INDEX.BDMV"))
+    let connector = LocalMediaSourceConnector(
+      configuration: try LocalMediaSourceConfiguration(
+        sourceUID: "disc-local", rootURL: fixture.rootURL))
+    let root = try RemoteLocator(sourceUID: "disc-local", path: RemotePath("Disc/BDMV"))
+    let sink = LocalRecordingScanSink()
+    let result = try await MediaScanner(
+      configuration: MediaScannerConfiguration(pageSize: 1, maxConcurrentDirectoryRequests: 2)
+    ).scan(
+      MediaScanRequest(
+        runUID: "direct-disc", sourceUID: "disc-local", mode: .incremental, roots: [root]),
+      using: connector, sink: sink, traversalPolicy: TraverseAllMediaScanDirectories(),
+      directoryClassifier: OpticalDiscMediaScanClassifier(probePageSize: 1)
+    )
+    #expect(result.checkpoint.phase == .completed)
+    #expect(result.checkpoint.discoveredEntryCount == 1)
+    #expect(await sink.paths == ["Disc/BDMV"])
   }
 
   @Test("The shared scanner completes a recursive local directory scan")

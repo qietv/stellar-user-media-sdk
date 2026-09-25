@@ -117,7 +117,7 @@ public struct OpticalDiscMediaScanClassifier: MediaScanDirectoryClassifier {
     )
     if directoryDetections.isEmpty, directSentinel {
       // A caller-selected BDMV/VIDEO_TS root can span several logical scanner pages. Read its
-      // complete snapshot through the source paginator, but only suppress entries from this page
+      // structural controls through an independent paginator, but only suppress entries from this page
       // so the scanner's classification validation remains page-local. Emit the synthetic item on
       // the one page containing the control file; every other page remains an empty leaf page.
       let cacheKey = OpticalDiscDirectSnapshotCache.Key(root)
@@ -185,7 +185,32 @@ public struct OpticalDiscMediaScanClassifier: MediaScanDirectoryClassifier {
         limit: probePageSize
       )
       let page = try await session.listDirectory(request)
-      children.append(contentsOf: page.items)
+      guard
+        page.items.allSatisfy({
+          $0.locator.sourceUID == directory.locator.sourceUID
+            && $0.locator.path.parent == directory.locator.path
+        })
+      else {
+        throw SDKError(code: .parseFailure, message: "disc probe entry escaped its directory")
+      }
+      // Structure detection needs at most one representative of each sentinel/control name.
+      // Drain all pages to verify completeness and release the independent directory handle.
+      for entry in page.items {
+        let relevant =
+          (entry.kind == .directory
+            && Self.asciiCaseInsensitiveEqual(entry.locator.path.name, "BDMV"))
+          || (entry.kind == .file
+            && ["index.bdmv", "VIDEO_TS.IFO", "VIDEO_TS.BUP"].contains {
+              Self.asciiCaseInsensitiveEqual(entry.locator.path.name, $0)
+            })
+        if relevant,
+          !children.contains(where: {
+            Self.asciiCaseInsensitiveEqual($0.locator.path.name, entry.locator.path.name)
+          })
+        {
+          children.append(entry)
+        }
+      }
       cursor = page.nextCursor
       if let cursor, !seenCursors.insert(cursor).inserted {
         throw SDKError(code: .parseFailure, message: "disc probe repeated a page cursor")
@@ -238,12 +263,17 @@ private actor OpticalDiscDirectSnapshotCache {
   }
 
   private var snapshots: [Key: CompositeMediaDirectorySnapshot] = [:]
+  private var insertionOrder: [Key] = []
 
   func snapshot(for key: Key) -> CompositeMediaDirectorySnapshot? {
     snapshots[key]
   }
 
   func store(_ snapshot: CompositeMediaDirectorySnapshot, for key: Key) {
+    if snapshots[key] == nil {
+      if insertionOrder.count == 32 { snapshots.removeValue(forKey: insertionOrder.removeFirst()) }
+      insertionOrder.append(key)
+    }
     snapshots[key] = snapshot
   }
 }

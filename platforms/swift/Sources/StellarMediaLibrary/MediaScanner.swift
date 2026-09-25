@@ -60,7 +60,12 @@ public struct MediaScanRequest: Codable, Equatable, Sendable {
         )
       }
     case .repair:
-      break
+      guard roots.isEmpty else {
+        throw SDKError(
+          code: .invalidConfiguration,
+          message: "repair must not enumerate source roots"
+        )
+      }
     }
 
     self.runUID = runUID
@@ -160,6 +165,8 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
   public let discoveredEntryCount: Int64
   public let processedPageCount: Int64
   public let lastErrorCode: SDKErrorCode?
+  /// A directory limit was reached; observed entries may publish but missing reconciliation is disabled.
+  public let hasTruncatedDirectories: Bool
 
   /// Creates the initial queued checkpoint for a scan request.
   public init(request: MediaScanRequest) throws {
@@ -185,7 +192,8 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
     pendingPageCount: Int,
     discoveredEntryCount: Int64,
     processedPageCount: Int64,
-    lastErrorCode: SDKErrorCode?
+    lastErrorCode: SDKErrorCode?,
+    hasTruncatedDirectories: Bool = false
   ) {
     self.schemaVersion = schemaVersion
     self.request = request
@@ -200,6 +208,7 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
     self.discoveredEntryCount = discoveredEntryCount
     self.processedPageCount = processedPageCount
     self.lastErrorCode = lastErrorCode
+    self.hasTruncatedDirectories = hasTruncatedDirectories
   }
 
   public init(from decoder: Decoder) throws {
@@ -253,7 +262,9 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
       pendingPageCount: pendingPageCount,
       discoveredEntryCount: discoveredEntryCount,
       processedPageCount: processedPageCount,
-      lastErrorCode: lastErrorCode
+      lastErrorCode: lastErrorCode,
+      hasTruncatedDirectories: try container.decodeIfPresent(
+        Bool.self, forKey: .hasTruncatedDirectories) ?? false
     )
   }
 
@@ -267,6 +278,7 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
     case discoveredEntryCount = "discovered_entry_count"
     case processedPageCount = "processed_page_count"
     case lastErrorCode = "last_error_code"
+    case hasTruncatedDirectories = "has_truncated_directories"
   }
 
   fileprivate func updating(
@@ -276,7 +288,8 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
     pendingPageCount: Int? = nil,
     discoveredEntryCount: Int64? = nil,
     processedPageCount: Int64? = nil,
-    lastErrorCode: SDKErrorCode?? = nil
+    lastErrorCode: SDKErrorCode?? = nil,
+    hasTruncatedDirectories: Bool? = nil
   ) -> MediaScanCheckpoint {
     MediaScanCheckpoint(
       schemaVersion: 2,
@@ -287,7 +300,8 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
       pendingPageCount: pendingPageCount ?? self.pendingPageCount,
       discoveredEntryCount: discoveredEntryCount ?? self.discoveredEntryCount,
       processedPageCount: processedPageCount ?? self.processedPageCount,
-      lastErrorCode: lastErrorCode ?? self.lastErrorCode
+      lastErrorCode: lastErrorCode ?? self.lastErrorCode,
+      hasTruncatedDirectories: hasTruncatedDirectories ?? self.hasTruncatedDirectories
     )
   }
 }
@@ -356,7 +370,8 @@ public struct MediaScanCompletion: Codable, Equatable, Sendable {
     sourceUID = checkpoint.request.sourceUID
     mode = checkpoint.request.mode
     coveredRoots = checkpoint.request.roots
-    reconcileMissingEligible = checkpoint.request.mode != .repair
+    reconcileMissingEligible =
+      checkpoint.request.mode != .repair && !checkpoint.hasTruncatedDirectories
     discoveredEntryCount = checkpoint.discoveredEntryCount
     processedPageCount = checkpoint.processedPageCount
   }
@@ -487,8 +502,26 @@ public struct MediaScanBatch: Sendable {
   }
 }
 
+/// Optional durable index for scans whose frontier and seen set must not be loaded into memory.
+/// Sink decorators should forward `MediaScanSink.enumerationIndex` to preserve bounded enumeration.
+public protocol MediaScanEnumerationIndex: Sendable {
+  /// Validates durable counts, source identity, and cursor lifetime before resuming a checkpoint.
+  func validateEnumerationCheckpoint(_ checkpoint: MediaScanCheckpoint) async throws
+
+  /// Returns at most `limit` pending pages without loading completed pages or seen identities.
+  func pendingPages(runUID: String, limit: Int) async throws -> [MediaScanPageCursor]
+
+  /// Returns only the stored membership of the supplied page cursors and entry identities.
+  func enumerationMembership(
+    runUID: String, pages: [MediaScanPageCursor], identityKeys: [String]
+  ) async throws -> MediaScanEnumerationState
+}
+
 /// Atomic persistence seam implemented by S4 storage and by fixture-backed tests.
 public protocol MediaScanSink: Sendable {
+  /// An optional persistent index. Forward this property when wrapping an indexed sink.
+  var enumerationIndex: (any MediaScanEnumerationIndex)? { get }
+
   /// Preferred number of small directory pages to persist in one atomic commit.
   ///
   /// The default of one preserves per-page durability for general-purpose sinks. Durable
@@ -500,6 +533,8 @@ public protocol MediaScanSink: Sendable {
 }
 
 extension MediaScanSink {
+  public var enumerationIndex: (any MediaScanEnumerationIndex)? { nil }
+
   public var preferredPageCommitBatchSize: Int { 1 }
 
   public func loadEnumerationState(runUID _: String) async throws -> MediaScanEnumerationState? {
@@ -680,6 +715,7 @@ public struct MediaScanner: Sendable {
     traversalPolicy: any MediaScanTraversalPolicy,
     directoryClassifier: any MediaScanDirectoryClassifier
   ) async throws -> MediaScanResult {
+    let enumerationIndex = sink.enumerationIndex
     var checkpoint: MediaScanCheckpoint
     var enumerationState: MediaScanEnumerationState?
     if let suppliedCheckpoint {
@@ -709,14 +745,15 @@ public struct MediaScanner: Sendable {
     }
 
     if enumerationState == nil, request.mode != .repair, checkpoint.phase != .finalizing {
-      guard let restored = try await sink.loadEnumerationState(runUID: request.runUID) else {
-        throw SDKError(
-          code: .storageFailure,
-          message: "durable scan frontier is missing"
-        )
+      if let enumerationIndex {
+        try await enumerationIndex.validateEnumerationCheckpoint(checkpoint)
+      } else {
+        guard let restored = try await sink.loadEnumerationState(runUID: request.runUID) else {
+          throw SDKError(code: .storageFailure, message: "durable scan frontier is missing")
+        }
+        try validate(restored, for: checkpoint)
+        enumerationState = restored
       }
-      try validate(restored, for: checkpoint)
-      enumerationState = restored
     }
 
     await observer.emit(MediaScanEvent(kind: .started, checkpoint: checkpoint))
@@ -780,15 +817,23 @@ public struct MediaScanner: Sendable {
       await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
 
       do {
-        checkpoint = try await enumerate(
-          session: session,
-          checkpoint: checkpoint,
-          state: try requireEnumerationState(enumerationState),
-          sink: sink,
-          observer: observer,
-          traversalPolicy: traversalPolicy,
-          directoryClassifier: directoryClassifier
-        )
+        if let enumerationIndex {
+          checkpoint = try await enumerateIndexed(
+            session: session, checkpoint: checkpoint, sink: sink, index: enumerationIndex,
+            observer: observer,
+            traversalPolicy: traversalPolicy, directoryClassifier: directoryClassifier
+          )
+        } else {
+          checkpoint = try await enumerate(
+            session: session,
+            checkpoint: checkpoint,
+            state: try requireEnumerationState(enumerationState),
+            sink: sink,
+            observer: observer,
+            traversalPolicy: traversalPolicy,
+            directoryClassifier: directoryClassifier
+          )
+        }
       } catch let interruption as EnumerationInterruption {
         checkpoint = interruption.checkpoint
         throw interruption.underlying
@@ -942,6 +987,98 @@ public struct MediaScanner: Sendable {
     }
   }
 
+  /// Durable SQLite state is queried a page at a time. Historical identities and completed pages
+  /// stay in the database; only active responses and their membership probes enter memory.
+  private func enumerateIndexed(
+    session: any MediaSourceSession,
+    checkpoint initialCheckpoint: MediaScanCheckpoint,
+    sink: any MediaScanSink,
+    index: any MediaScanEnumerationIndex,
+    observer: any MediaScanObserver,
+    traversalPolicy: any MediaScanTraversalPolicy,
+    directoryClassifier: any MediaScanDirectoryClassifier
+  ) async throws -> MediaScanCheckpoint {
+    var checkpoint = initialCheckpoint
+    guard let capabilities = checkpoint.capabilities else {
+      throw SDKError(code: .invalidConfiguration, message: "scan capabilities are missing")
+    }
+    let concurrency = min(
+      configuration.maxConcurrentDirectoryRequests,
+      capabilities.preferredDirectoryRequestConcurrency)
+    let options = try RemoteDirectoryEnumerationOptions(
+      exclusionMarkerFileNames: traversalPolicy.directoryExclusionMarkerFileNames)
+    do {
+      return try await withThrowingTaskGroup(of: PageResponse.self) { group in
+        var active = Set<MediaScanPageCursor>()
+        var continuations: [MediaScanPageCursor] = []
+        while checkpoint.pendingPageCount > 0 {
+          try Task.checkCancellation()
+          let window = try await index.pendingPages(
+            runUID: checkpoint.request.runUID, limit: concurrency * 2)
+          // Drain live directory handles before opening more directories. The number of handles
+          // and their bounded protocol buffers therefore cannot grow with the traversal frontier.
+          let candidates = continuations + window
+          for cursor in candidates where active.count < concurrency {
+            guard active.insert(cursor).inserted else { continue }
+            continuations.removeAll { $0 == cursor }
+            let pageSize = configuration.pageSize
+            group.addTask {
+              let request = try RemoteDirectoryPageRequest(
+                directory: cursor.directory, cursor: cursor.cursor, limit: pageSize)
+              let page = try await session.listDirectory(request, options: options)
+              try Task.checkCancellation()
+              return PageResponse(cursor: cursor, page: page)
+            }
+          }
+          guard let response = try await group.next() else {
+            throw SDKError(code: .storageFailure, message: "scanner frontier ended unexpectedly")
+          }
+          active.remove(response.cursor)
+          try validatePageEntries(
+            response, sourceUID: checkpoint.request.sourceUID, semantics: capabilities.pathSemantics
+          )
+          let classification = try await directoryClassifier.classify(
+            directory: response.cursor.directory, entries: response.page.items, using: session)
+          let entries = response.page.items + classification.syntheticEntries
+          var pages = [response.cursor]
+          if let next = response.page.nextCursor {
+            pages.append(
+              try MediaScanPageCursor(directory: response.cursor.directory, cursor: next))
+          }
+          pages.append(
+            contentsOf: try entries.filter { $0.kind == .directory }.map {
+              try MediaScanPageCursor(directory: $0.locator)
+            })
+          let membership = try await index.enumerationMembership(
+            runUID: checkpoint.request.runUID, pages: pages,
+            identityKeys: entries.map { identityKey(for: $0, capabilities: capabilities) }
+          )
+          var state = EnumerationWorkingState(
+            state: membership, totalPendingPageCount: checkpoint.pendingPageCount)
+          let processed = try process(
+            response, checkpoint: checkpoint, capabilities: capabilities, workingState: &state,
+            traversalPolicy: traversalPolicy, classification: classification)
+          try await sink.commit(
+            MediaScanBatch(
+              entries: processed.entries, compositeMedia: processed.compositeMedia,
+              checkpoint: processed.checkpoint, enumerationState: nil,
+              pageTransitions: [processed.transition]
+            ))
+          checkpoint = processed.checkpoint
+          continuations.append(
+            contentsOf: processed.transition.enqueuedPages.filter { $0.cursor != nil })
+          await observer.emit(MediaScanEvent(kind: .progress, checkpoint: checkpoint))
+          await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
+        }
+        checkpoint = checkpoint.updating(
+          phase: .finalizing, pendingPageCount: 0, lastErrorCode: .some(nil))
+        try await sink.commit(MediaScanBatch(entries: [], checkpoint: checkpoint))
+        await observer.emit(MediaScanEvent(kind: .checkpointed, checkpoint: checkpoint))
+        return checkpoint
+      }
+    } catch { throw EnumerationInterruption(checkpoint: checkpoint, underlying: error) }
+  }
+
   private func process(
     _ response: PageResponse,
     checkpoint: MediaScanCheckpoint,
@@ -1044,7 +1181,8 @@ public struct MediaScanner: Sendable {
       checkpoint: checkpoint.updating(
         pendingPageCount: workingState.pendingPageCount,
         discoveredEntryCount: discoveredCount,
-        processedPageCount: checkpoint.processedPageCount + 1
+        processedPageCount: checkpoint.processedPageCount + 1,
+        hasTruncatedDirectories: checkpoint.hasTruncatedDirectories || response.page.isTruncated
       ),
       transition: MediaScanPageTransition(
         completedPage: response.cursor,
@@ -1062,6 +1200,9 @@ public struct MediaScanner: Sendable {
     sink: any MediaScanSink,
     observer: any MediaScanObserver
   ) async throws -> MediaScanResult {
+    // Finalization can also be entered directly from a saved checkpoint or an offline repair.
+    // Neither path necessarily passes through enumeration's cancellation checks.
+    try Task.checkCancellation()
     let finalizingCheckpoint = checkpoint.updating(
       phase: .finalizing,
       pendingPageCount: 0,
@@ -1072,6 +1213,7 @@ public struct MediaScanner: Sendable {
     }
     let completedCheckpoint = finalizingCheckpoint.updating(phase: .completed)
     let completion = MediaScanCompletion(checkpoint: completedCheckpoint)
+    try Task.checkCancellation()
     try await sink.commit(
       MediaScanBatch(
         entries: [],
@@ -1279,8 +1421,11 @@ public struct MediaScanner: Sendable {
     var seenEntryKeys: Set<String>
     var seenDirectoryKeys: Set<String>
 
-    init(state: MediaScanEnumerationState) {
-      pendingPageQueue = state.pendingPages.sorted(by: Self.cursorPrecedes)
+    private var indexedPendingPageCount: Int?
+
+    init(state: MediaScanEnumerationState, totalPendingPageCount: Int? = nil) {
+      indexedPendingPageCount = totalPendingPageCount
+      pendingPageQueue = state.pendingPages
       pendingPageQueueHead = 0
       pendingPageCursors = Set(state.pendingPages)
       completedPageCursors = Set(state.completedPages)
@@ -1288,7 +1433,7 @@ public struct MediaScanner: Sendable {
       seenDirectoryKeys = Set(state.seenDirectoryIdentityKeys)
     }
 
-    var pendingPageCount: Int { pendingPageCursors.count }
+    var pendingPageCount: Int { indexedPendingPageCount ?? pendingPageCursors.count }
 
     func containsPending(_ cursor: MediaScanPageCursor) -> Bool {
       pendingPageCursors.contains(cursor)
@@ -1299,15 +1444,18 @@ public struct MediaScanner: Sendable {
       limit: Int
     ) -> [MediaScanPageCursor] {
       guard limit > 0 else { return [] }
-      return Array(
-        pendingPageQueue[pendingPageQueueHead...].lazy.filter {
-          pendingPageCursors.contains($0) && !active.contains($0)
-        }.prefix(limit)
-      )
+      let candidates = pendingPageQueue[pendingPageQueueHead...].lazy.filter {
+        pendingPageCursors.contains($0) && !active.contains($0)
+      }
+      let continuations = Array(candidates.filter { $0.cursor != nil }.prefix(limit))
+      return continuations
+        + Array(candidates.filter { $0.cursor == nil }.prefix(limit - continuations.count))
     }
 
     mutating func complete(_ cursor: MediaScanPageCursor) {
-      pendingPageCursors.remove(cursor)
+      if pendingPageCursors.remove(cursor) != nil, let count = indexedPendingPageCount {
+        indexedPendingPageCount = count - 1
+      }
       while pendingPageQueueHead < pendingPageQueue.count,
         !pendingPageCursors.contains(pendingPageQueue[pendingPageQueueHead])
       {
@@ -1318,17 +1466,10 @@ public struct MediaScanner: Sendable {
     mutating func enqueue(_ cursor: MediaScanPageCursor) {
       if pendingPageCursors.insert(cursor).inserted {
         pendingPageQueue.append(cursor)
+        if let count = indexedPendingPageCount { indexedPendingPageCount = count + 1 }
       }
     }
 
-    private static func cursorPrecedes(
-      _ left: MediaScanPageCursor,
-      _ right: MediaScanPageCursor
-    ) -> Bool {
-      let leftKey = "\(left.directory.path.relativePath)\u{0}\(left.cursor ?? "")"
-      let rightKey = "\(right.directory.path.relativePath)\u{0}\(right.cursor ?? "")"
-      return leftKey < rightKey
-    }
   }
 
   private struct ProcessedPage {

@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import StellarCore
 import StellarRemoteMedia
@@ -116,7 +117,7 @@ public actor LocalMediaSourceSession: MediaSourceSession {
 
   private let rootURL: URL
   private let fileManager: FileManager
-  private var directoryPaginator: RemoteDirectorySnapshotPaginator
+  private var directories: [String: LocalDirectoryHandle] = [:]
   private var disconnected = false
 
   fileprivate init(
@@ -128,10 +129,6 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     rootURL = configuration.rootURL
     self.capabilities = capabilities
     self.fileManager = fileManager
-    directoryPaginator = RemoteDirectorySnapshotPaginator(
-      cursorNamespace: "local-v1",
-      pathSemantics: capabilities.pathSemantics
-    )
   }
 
   public func listDirectory(_ request: RemoteDirectoryPageRequest) async throws
@@ -151,23 +148,66 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     guard request.directory.sourceUID == sourceUID else {
       throw SDKError(code: .invalidConfiguration, message: "local source UID does not match")
     }
-    if let cachedPage = try directoryPaginator.cachedPage(for: request) {
-      return cachedPage
+    try Task.checkCancellation()
+    let handle: LocalDirectoryHandle
+    if let cursor = request.cursor {
+      guard let existing = directories[cursor],
+        existing.locator == request.directory
+      else {
+        throw SDKError(
+          code: .conflict, message: "local directory cursor expired; restart discovery")
+      }
+      directories.removeValue(forKey: cursor)
+      handle = existing
+    } else {
+      let directoryURL = try confinedURL(for: request.directory)
+      guard try makeEntry(at: directoryURL, locator: request.directory).kind == .directory else {
+        throw SDKError(
+          code: .invalidConfiguration, message: "local enumeration target is not a directory")
+      }
+      for markerName in options.exclusionMarkerFileNames {
+        let marker = RemoteLocator(
+          validatedSourceUID: sourceUID,
+          path: try request.directory.path.appending(component: markerName)
+        )
+        do {
+          if try makeEntry(at: confinedURL(for: marker), locator: marker).kind == .file {
+            return try CursorPage(items: [], nextCursor: nil)
+          }
+        } catch let error as SDKError where error.code == .metadataNotFound {}
+      }
+      do { handle = try LocalDirectoryHandle(url: directoryURL, locator: request.directory) } catch
+      {
+        throw Self.mapFileError(error, fallback: .remoteUnavailable, operation: "enumerate")
+      }
     }
-
-    let directoryURL = try confinedURL(for: request.directory)
-    let directory = try makeEntry(at: directoryURL, locator: request.directory)
-    guard directory.kind == .directory else {
-      throw SDKError(
-        code: .invalidConfiguration, message: "local enumeration target is not a directory")
+    do {
+      var entries: [RemoteEntry] = []
+      while entries.count < request.limit, let name = try handle.nextName() {
+        try Task.checkCancellation()
+        let locator = RemoteLocator(
+          validatedSourceUID: sourceUID,
+          path: try request.directory.path.appending(component: name)
+        )
+        entries.append(try makeEntry(at: handle.url.appendingPathComponent(name), locator: locator))
+      }
+      // A full page may be followed by an empty terminal page: never read the full directory ahead.
+      let nextCursor: String?
+      if entries.count == request.limit {
+        handle.cursor = RemoteDirectorySessionCursor.make()
+        directories[handle.cursor] = handle
+        nextCursor = handle.cursor
+      } else {
+        nextCursor = nil
+      }
+      return try CursorPage(items: entries, nextCursor: nextCursor)
+    } catch let error as SDKError {
+      throw error
+    } catch is CancellationError {
+      throw SDKError(code: .cancelled, message: "local enumeration cancelled")
+    } catch {
+      throw Self.mapFileError(error, fallback: .remoteUnavailable, operation: "enumerate")
     }
-
-    let entries = try directoryEntries(at: directoryURL, locator: request.directory)
-    return try directoryPaginator.storeAndPage(
-      entries,
-      for: request,
-      exclusionMarkerFileNames: options.exclusionMarkerFileNames
-    )
   }
 
   public func stat(_ locator: RemoteLocator) async throws -> RemoteEntry {
@@ -200,7 +240,7 @@ public actor LocalMediaSourceSession: MediaSourceSession {
   }
 
   public func disconnect() async {
-    directoryPaginator.removeAll()
+    directories.removeAll()
     disconnected = true
   }
 
@@ -228,31 +268,6 @@ public actor LocalMediaSourceSession: MediaSourceSession {
       )
     }
     return candidate
-  }
-
-  private func directoryEntries(
-    at directoryURL: URL,
-    locator: RemoteLocator
-  ) throws -> [RemoteEntry] {
-    do {
-      let urls = try fileManager.contentsOfDirectory(
-        at: directoryURL,
-        includingPropertiesForKeys: Self.resourceKeys,
-        options: []
-      )
-      var entries: [RemoteEntry] = []
-      entries.reserveCapacity(urls.count)
-      for url in urls {
-        let child = try locator.path.appending(component: url.lastPathComponent)
-        let childLocator = RemoteLocator(validatedSourceUID: sourceUID, path: child)
-        entries.append(try makeEntry(at: url, locator: childLocator))
-      }
-      return entries
-    } catch let error as SDKError {
-      throw error
-    } catch {
-      throw Self.mapFileError(error, fallback: .remoteUnavailable, operation: "enumerate")
-    }
   }
 
   private func makeEntry(at url: URL, locator: RemoteLocator) throws -> RemoteEntry {
@@ -350,4 +365,42 @@ public actor LocalMediaSourceSession: MediaSourceSession {
     return SDKError(code: code, message: "local media \(operation) failed")
   }
 
+}
+
+/// `readdir` advances one native directory stream; FileManager's array API is deliberately avoided.
+private final class LocalDirectoryHandle {
+  let url: URL
+  let locator: RemoteLocator
+  var cursor = ""
+  private let directory: UnsafeMutablePointer<DIR>
+
+  init(url: URL, locator: RemoteLocator) throws {
+    self.url = url
+    self.locator = locator
+    guard let directory = opendir(url.path) else {
+      throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+    self.directory = directory
+  }
+
+  deinit { closedir(directory) }
+
+  func nextName() throws -> String? {
+    while true {
+      errno = 0
+      guard let entry = readdir(directory) else {
+        if errno != 0 { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        return nil
+      }
+      let name = withUnsafePointer(to: &entry.pointee.d_name) {
+        $0.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) {
+          String(validatingCString: $0)
+        }
+      }
+      guard let name else {
+        throw SDKError(code: .parseFailure, message: "local directory name is not UTF-8")
+      }
+      if name != ".", name != ".." { return name }
+    }
+  }
 }

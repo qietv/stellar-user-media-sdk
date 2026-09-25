@@ -177,6 +177,8 @@ public typealias MediaScanPageTransition = StellarMediaLibrary.MediaScanPageTran
 public typealias MediaScanCompletion = StellarMediaLibrary.MediaScanCompletion
 /// Compatibility alias for one atomic scanner persistence batch.
 public typealias MediaScanBatch = StellarMediaLibrary.MediaScanBatch
+/// Compatibility alias for a bounded durable frontier and identity index.
+public typealias MediaScanEnumerationIndex = StellarMediaLibrary.MediaScanEnumerationIndex
 /// Compatibility alias for scanner persistence.
 public typealias MediaScanSink = StellarMediaLibrary.MediaScanSink
 /// Compatibility alias for scanner progress event categories.

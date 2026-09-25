@@ -290,12 +290,13 @@ struct SMB2TransportContractTests {
   func directoryConnectionPool() async throws {
     let firstPath = try SMB2Path("First")
     let secondPath = try SMB2Path("Second")
+    // Every connection sees the same share. Parallel connection/request order is unspecified.
     let firstSession = TreeSMB2Session(
-      entriesByDirectory: [firstPath: []],
+      entriesByDirectory: [firstPath: [], secondPath: []],
       entriesByPath: [:]
     )
     let secondSession = TreeSMB2Session(
-      entriesByDirectory: [secondPath: []],
+      entriesByDirectory: [firstPath: [], secondPath: []],
       entriesByPath: [:]
     )
     let transport = SequencedFakeSMB2Transport(sessions: [firstSession, secondSession])
@@ -332,8 +333,16 @@ struct SMB2TransportContractTests {
 
     #expect(await transport.connectionCount == 2)
     #expect(capabilities.preferredDirectoryRequestConcurrency == 2)
-    #expect(await firstSession.listCount(at: firstPath) == 1)
-    #expect(await secondSession.listCount(at: secondPath) == 1)
+    let firstCounts = await (
+      firstSession.listCount(at: firstPath), firstSession.listCount(at: secondPath)
+    )
+    let secondCounts = await (
+      secondSession.listCount(at: firstPath), secondSession.listCount(at: secondPath)
+    )
+    #expect(firstCounts.0 + firstCounts.1 == 1)
+    #expect(secondCounts.0 + secondCounts.1 == 1)
+    #expect(firstCounts.0 + secondCounts.0 == 1)
+    #expect(firstCounts.1 + secondCounts.1 == 1)
   }
 }
 

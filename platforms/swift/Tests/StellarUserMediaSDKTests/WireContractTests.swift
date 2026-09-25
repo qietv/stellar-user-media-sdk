@@ -30,6 +30,16 @@ struct WireContractTests {
     #expect(object["next_cursor"] is NSNull)
   }
 
+  @Test("Truncation survives page encoding while old pages default to complete coverage")
+  func truncatedPageEncoding() throws {
+    let page = try CursorPage<WireItem>(items: [], nextCursor: nil, isTruncated: true)
+    #expect(
+      try JSONDecoder().decode(CursorPage<WireItem>.self, from: JSONEncoder().encode(page)) == page)
+    let legacy = try JSONDecoder().decode(
+      CursorPage<WireItem>.self, from: Data(#"{"items":[],"next_cursor":null}"#.utf8))
+    #expect(!legacy.isTruncated)
+  }
+
   @Test("Empty cursors are rejected")
   func emptyCursor() {
     #expect(throws: SDKError.self) {

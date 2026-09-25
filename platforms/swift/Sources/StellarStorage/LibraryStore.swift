@@ -273,7 +273,16 @@ public struct LibraryScanPersistenceBatch: Sendable {
       enumerationState == nil || pageTransitions.isEmpty,
       !reconcileMissingEligible || state == "completed",
       !reconcileMissingEligible || capabilities != nil,
-      !reconcileMissingEligible || !coveredRoots.isEmpty
+      !reconcileMissingEligible || !coveredRoots.isEmpty,
+      mode != "repair"
+        || (entries.isEmpty && compositeMedia.isEmpty && coveredRoots.isEmpty
+          && !reconcileMissingEligible && discoveredEntryCount == 0
+          && (pendingPageCount ?? 0) == 0 && (processedPageCount ?? 0) == 0
+          && pageTransitions.isEmpty
+          && enumerationState.map({
+            $0.pendingPages.isEmpty && $0.completedPages.isEmpty
+              && $0.seenEntryIdentityKeys.isEmpty && $0.seenDirectoryIdentityKeys.isEmpty
+          }) ?? true)
     else {
       throw SDKError(code: .invalidConfiguration, message: "scan persistence batch is invalid")
     }
@@ -1296,7 +1305,7 @@ public struct LibraryStore: Sendable {
           throw SDKError(code: .storageFailure, message: "file batch has no source capabilities")
         }
 
-        if batch.state == "completed" {
+        if batch.state == "completed", batch.mode != "repair" {
           observedFileCount = try Self.countStagedFiles(runID: runID, database: database)
           if batch.reconcileMissingEligible {
             guard let capabilities = batch.capabilities else {
@@ -1364,22 +1373,24 @@ public struct LibraryStore: Sendable {
           ]
         )
         if batch.state == "completed" {
-          try database.execute(
-            sql: """
-              UPDATE library_source SET
-                last_scan_at_ms = ?,
-                last_successful_scan_at_ms = CASE
-                  WHEN ? = 1 OR ? = 0 THEN ? ELSE last_successful_scan_at_ms END,
-                offline_since_ms = NULL,
-                last_error_code = ?,
-                updated_at_ms = ?
-              WHERE id = ?
-              """,
-            arguments: [
-              now, actualReconcileMissing ? 1 : 0, batch.reconcileMissingEligible ? 1 : 0,
-              now, reconciliationWarningCode, now, sourceID,
-            ]
-          )
+          if batch.mode != "repair" {
+            try database.execute(
+              sql: """
+                UPDATE library_source SET
+                  last_scan_at_ms = ?,
+                  last_successful_scan_at_ms = CASE
+                    WHEN ? = 1 OR ? = 0 THEN ? ELSE last_successful_scan_at_ms END,
+                  offline_since_ms = NULL,
+                  last_error_code = ?,
+                  updated_at_ms = ?
+                WHERE id = ?
+                """,
+              arguments: [
+                now, actualReconcileMissing ? 1 : 0, batch.reconcileMissingEligible ? 1 : 0,
+                now, reconciliationWarningCode, now, sourceID,
+              ]
+            )
+          }
           try database.execute(
             sql: "DELETE FROM scan_frontier WHERE run_id = ?",
             arguments: [runID]
@@ -1391,17 +1402,19 @@ public struct LibraryStore: Sendable {
               arguments: [runID]
             )
           }
-          try database.execute(
-            sql: """
-              DELETE FROM scan_discovery
-              WHERE run_id IN (
-                SELECT id FROM scan_run
-                WHERE source_id = ? AND id <> ? AND state = 'completed' AND error_code = ?
-              )
-              """,
-            arguments: [sourceID, runID, Self.missingReconciliationWithheldCode]
-          )
-        } else if batch.state == "failed" {
+          if batch.mode != "repair" {
+            try database.execute(
+              sql: """
+                DELETE FROM scan_discovery
+                WHERE run_id IN (
+                  SELECT id FROM scan_run
+                  WHERE source_id = ? AND id <> ? AND state = 'completed' AND error_code = ?
+                )
+                """,
+              arguments: [sourceID, runID, Self.missingReconciliationWithheldCode]
+            )
+          }
+        } else if batch.state == "failed", batch.mode != "repair" {
           let marksOffline =
             batch.errorCode == SDKErrorCode.networkUnavailable.rawValue
             || batch.errorCode == SDKErrorCode.remoteUnavailable.rawValue
