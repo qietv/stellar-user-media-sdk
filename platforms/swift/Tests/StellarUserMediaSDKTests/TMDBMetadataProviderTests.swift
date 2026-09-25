@@ -5,6 +5,24 @@ import Testing
 
 @Suite("TMDB metadata provider")
 struct TMDBMetadataProviderTests {
+  @Test("Episode ranges verify each provider coordinate", arguments: [false, true])
+  func episodeRangeEvidence(mismatched: Bool) async throws {
+    let transport = RangeTMDBTransport(mismatched: mismatched)
+    let provider = try makeProvider(transport: transport)
+    let query = try MediaMatchQuery(
+      kind: .episode, title: "Show", season: 1, episode: 1, episodeEnd: 2)
+    if mismatched {
+      await #expect(throws: SDKError.self) { _ = try await provider.search(query) }
+    } else {
+      let candidates = try await provider.search(query)
+      #expect(
+        candidates.first?.availableEpisodes == [
+          try MediaEpisodeCoordinate(season: 1, episode: 1),
+          try MediaEpisodeCoordinate(season: 1, episode: 2),
+        ])
+    }
+  }
+
   @Test("Movie search sends a runtime API key while fixture matching stays sanitized")
   func movieSearch() async throws {
     let transport = try FixtureTMDBTransport(loadFixture())
@@ -276,4 +294,19 @@ private struct StaticTMDBTransport: TMDBTransport {
   let response: TMDBHTTPResponse
 
   func send(_: TMDBHTTPRequest) async throws -> TMDBHTTPResponse { response }
+}
+
+private struct RangeTMDBTransport: TMDBTransport {
+  let mismatched: Bool
+  func send(_ request: TMDBHTTPRequest) async throws -> TMDBHTTPResponse {
+    let json: String
+    if request.url.path == "/3/search/tv" {
+      json = #"{"results":[{"id":42,"name":"Show"}]}"#
+    } else {
+      let requested = Int(request.url.lastPathComponent) ?? 0
+      let returned = mismatched && requested == 2 ? 3 : requested
+      json = "{\"id\":\(returned),\"season_number\":1,\"episode_number\":\(returned)}"
+    }
+    return TMDBHTTPResponse(statusCode: 200, body: Data(json.utf8))
+  }
 }

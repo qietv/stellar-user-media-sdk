@@ -1,10 +1,16 @@
 import Combine
 import CryptoKit
 import Foundation
+import OSLog
 import StellarDiscMedia
 import StellarSMB2Apple
 import StellarSMB2Core
 import StellarUserMediaSDK
+
+let demoLaunchLogger = Logger(
+  subsystem: Bundle.main.bundleIdentifier ?? "StellarOAuthDemo",
+  category: "Launch"
+)
 
 private enum DemoMediaAdmission {
   // File containers advertised by Infuse plus STRM playlist pointers. Optical-disc directory
@@ -48,6 +54,7 @@ enum DemoScanState: Equatable {
   case pausing
   case paused
   case completed
+  case partial
   case failed
 
   var label: String {
@@ -59,6 +66,7 @@ enum DemoScanState: Equatable {
     case .pausing: "Pausing"
     case .paused: "Paused"
     case .completed: "Completed"
+    case .partial: "Partial scan"
     case .failed: "Needs attention"
     }
   }
@@ -124,16 +132,18 @@ private struct DemoThumbnailWorkContext: Sendable {
   let generator: any MediaScreenshotGenerating
 }
 
-private struct DemoLocalMetadataLoad: Sendable {
+struct DemoLocalMetadataLoad: Sendable {
   let batch: MediaMetadataIntakeBatch
   let preferredMetadata: LocalMetadataDocument?
 }
 
 /// Loads bounded local metadata beside a media item without making sidecars library files.
-/// Directory pages are shared by concurrent workers and retained in a small LRU for the run.
-private actor DemoLocalMetadataLoader {
+/// Retains only associated records, with entry and byte budgets; never caches whole directories.
+actor DemoLocalMetadataLoader {
   private static let directoryPageSize = 2_000
-  private static let maximumCachedDirectories = 64
+  private static let maximumSidecars = 128
+  private static let maximumSidecarPathBytes = 256 * 1_024
+  private static let maximumIntakeBytes = 8 * 1_024 * 1_024
   private static let maximumMetadataDocumentBytes = 2 * 1_024 * 1_024
 
   private let session: any MediaSourceSession
@@ -143,9 +153,6 @@ private actor DemoLocalMetadataLoader {
   private let jsonParser = LocalMetadataJSONParser(
     maximumDocumentBytes: maximumMetadataDocumentBytes
   )
-  private var directoryCache: [RemoteLocator: [RemoteEntry]] = [:]
-  private var directoryLRU: [RemoteLocator] = []
-  private var directoryLoads: [RemoteLocator: Task<[RemoteEntry], Error>] = [:]
 
   init(session: any MediaSourceSession) {
     self.session = session
@@ -175,16 +182,30 @@ private actor DemoLocalMetadataLoader {
     }
 
     var sidecarsByPath: [String: MediaSidecarIntake] = [:]
+    var intakeBytes = 0
     for directoryPath in candidateDirectories {
       let directory = try RemoteLocator(sourceUID: file.sourceUID, path: directoryPath)
       let classificationMediaPath = try directoryPath.appending(component: mediaPath.name)
-      for entry in try await entries(in: directory) where entry.kind == .file {
+      for entry in try await associatedEntries(in: directory, mediaPath: classificationMediaPath) {
         guard
           let descriptor = try sidecarClassifier.classify(
             mediaPath: classificationMediaPath.relativePath,
             candidatePath: entry.locator.path.relativePath
           )
         else { continue }
+        let estimatedBytes =
+          (descriptor.kind == .nfo || descriptor.kind == .metadataJSON)
+          ? Int(
+            min(
+              entry.size ?? Int64(Self.maximumMetadataDocumentBytes),
+              Int64(Self.maximumMetadataDocumentBytes)))
+          : 0
+        intakeBytes += estimatedBytes
+        guard sidecarsByPath.count < Self.maximumSidecars, intakeBytes <= Self.maximumIntakeBytes
+        else {
+          throw SDKError(
+            code: .resourceLimitExceeded, message: "Local metadata exceeds intake budget")
+        }
         sidecarsByPath[descriptor.relativePath] = try await intake(
           descriptor: descriptor,
           entry: entry
@@ -210,58 +231,36 @@ private actor DemoLocalMetadataLoader {
     )
   }
 
-  private func entries(in directory: RemoteLocator) async throws -> [RemoteEntry] {
-    if let cached = directoryCache[directory] {
-      touch(directory)
-      return cached
-    }
-    let task: Task<[RemoteEntry], Error>
-    if let active = directoryLoads[directory] {
-      task = active
-    } else {
-      task = Task { [session] in
-        try await Self.loadDirectory(directory, using: session)
-      }
-      directoryLoads[directory] = task
-    }
-    do {
-      let loaded = try await task.value
-      directoryLoads[directory] = nil
-      directoryCache[directory] = loaded
-      touch(directory)
-      while directoryLRU.count > Self.maximumCachedDirectories {
-        directoryCache[directoryLRU.removeFirst()] = nil
-      }
-      return loaded
-    } catch {
-      directoryLoads[directory] = nil
-      throw error
-    }
-  }
-
-  private nonisolated static func loadDirectory(
-    _ directory: RemoteLocator,
-    using session: any MediaSourceSession
-  ) async throws -> [RemoteEntry] {
+  private func associatedEntries(in directory: RemoteLocator, mediaPath: RemotePath) async throws
+    -> [RemoteEntry]
+  {
     var entries: [RemoteEntry] = []
+    var pathBytes = 0
     var cursor: String?
     repeat {
+      try Task.checkCancellation()
       let page = try await session.listDirectory(
         RemoteDirectoryPageRequest(
-          directory: directory,
-          cursor: cursor,
-          limit: Self.directoryPageSize
-        )
-      )
-      entries.append(contentsOf: page.items)
+          directory: directory, cursor: cursor, limit: Self.directoryPageSize))
+      guard !page.isTruncated else {
+        throw SDKError(code: .resourceLimitExceeded, message: "Sidecar directory is incomplete")
+      }
+      for entry in page.items where entry.kind == .file {
+        guard
+          try sidecarClassifier.classify(
+            mediaPath: mediaPath.relativePath,
+            candidatePath: entry.locator.path.relativePath) != nil
+        else { continue }
+        pathBytes += entry.locator.path.relativePath.utf8.count
+        guard entries.count < Self.maximumSidecars, pathBytes <= Self.maximumSidecarPathBytes else {
+          throw SDKError(
+            code: .resourceLimitExceeded, message: "Sidecar associations exceed budget")
+        }
+        entries.append(entry)
+      }
       cursor = page.nextCursor
     } while cursor != nil
     return entries
-  }
-
-  private func touch(_ directory: RemoteLocator) {
-    directoryLRU.removeAll { $0 == directory }
-    directoryLRU.append(directory)
   }
 
   private func intake(
@@ -408,7 +407,8 @@ final class MediaLibraryModel: ObservableObject {
   var currentFile: String? { scanProgress.currentFile }
 
   var canStartOrResume: Bool {
-    guard scanTask == nil, [.idle, .paused, .completed, .failed].contains(scanState) else {
+    guard scanTask == nil, [.idle, .paused, .completed, .partial, .failed].contains(scanState)
+    else {
       return false
     }
     return scanState == .paused
@@ -457,7 +457,7 @@ final class MediaLibraryModel: ObservableObject {
     }
     return switch scanState {
     case .paused: "Resume scan"
-    case .completed: scansIncrementalScope ? "Scan scope" : "Scan again"
+    case .completed, .partial: scansIncrementalScope ? "Scan scope" : "Scan again"
     default: scansIncrementalScope ? "Scan scope" : "Start scan"
     }
   }
@@ -621,7 +621,8 @@ final class MediaLibraryModel: ObservableObject {
   func detailsClient() async throws -> TestMediaInfoClient {
     if mediaInfoClient == nil { await prepareIfNeeded() }
     guard let mediaInfoClient else {
-      throw SDKError(code: .storageFailure, message: "The local metadata cache could not be opened.")
+      throw SDKError(
+        code: .storageFailure, message: "The local metadata cache could not be opened.")
     }
     return mediaInfoClient
   }
@@ -638,7 +639,8 @@ final class MediaLibraryModel: ObservableObject {
     guard let libraryDatabase else {
       throw SDKError(code: .storageFailure, message: "The local media library could not be opened.")
     }
-    return try await PosterWallStore(database: libraryDatabase).details(mediaUID: mediaUID, locale: "zh-CN")
+    return try await PosterWallStore(database: libraryDatabase).details(
+      mediaUID: mediaUID, locale: "zh-CN")
   }
 
   func localArtworkURL(_ artwork: PosterWallArtwork?) -> URL? {
@@ -782,9 +784,11 @@ final class MediaLibraryModel: ObservableObject {
           trigger,
           pathSemantics: Self.smbPathSemantics
         )
-        guard let scheduled = try await scanScheduler.nextReady(
-          atMilliseconds: Self.nowMilliseconds()
-        ) else {
+        guard
+          let scheduled = try await scanScheduler.nextReady(
+            atMilliseconds: Self.nowMilliseconds()
+          )
+        else {
           throw SDKError(code: .conflict, message: "SMB source already has active scan work")
         }
         activeRequest = scheduled.request
@@ -820,7 +824,7 @@ final class MediaLibraryModel: ObservableObject {
       scanState = .scanning
       show("Scanning SMB directories…")
 
-      _ = try await MediaScanner().scan(
+      let scanResult = try await MediaScanner().scan(
         request,
         using: connection.connector,
         sink: sink,
@@ -836,6 +840,21 @@ final class MediaLibraryModel: ObservableObject {
       let metadataSession = try await connection.connector.connect()
       let localMetadataLoader = DemoLocalMetadataLoader(session: metadataSession)
       do {
+        // Re-read local dependencies in bounded windows, including files whose media facts
+        // did not change. NFO-only edits, additions/removals and parser upgrades invalidate parse.
+        let localStore = SQLiteMediaMetadataStore(store: libraryStore)
+        var afterStableKey: String?
+        while true {
+          let targets = try await libraryStore.metadataRefreshTargets(
+            sourceUID: request.sourceUID, afterStableKey: afterStableKey)
+          guard !targets.isEmpty else { break }
+          for target in targets {
+            try Task.checkCancellation()
+            let local = try await localMetadataLoader.load(for: target.file)
+            _ = try await localStore.refreshIfChanged(local.batch, target: target)
+          }
+          afterStableKey = targets.last?.file.stableKey
+        }
         try await enrichLibrary(
           sourceUID: request.sourceUID,
           libraryStore: libraryStore,
@@ -873,11 +892,11 @@ final class MediaLibraryModel: ObservableObject {
         return
       }
 
-      scanState = .completed
+      scanState = scanResult.checkpoint.outcome == .partial ? .partial : .completed
       activeRequest = nil
       updateCurrentFile(nil)
       show(
-        "Scan completed: \(mediaFileCount) media items, \(matchedFileCount) matched, "
+        "\(scanResult.checkpoint.outcome == .partial ? "Partial scan (directory limit reached)" : "Scan completed"): \(mediaFileCount) media items, \(matchedFileCount) matched, "
           + "\(failedFileCount) skipped or failed."
       )
       await refreshPosterWall()
@@ -908,11 +927,9 @@ final class MediaLibraryModel: ObservableObject {
     mediaFileCount = initialSummary.presentFileCount
     matchedFileCount = initialSummary.matchedFileCount
     failedFileCount = 0
-    let policy = try MediaMatchScoringPolicy(automaticThreshold: 0.70, reviewThreshold: 0.55)
     let matcher = SQLiteMediaMatcher(
       libraryStore: libraryStore,
-      metadataCacheStore: metadataCacheStore,
-      scorer: MediaMetadataCandidateScorer(policy: policy)
+      metadataCacheStore: metadataCacheStore
     )
     let metadataStore = SQLiteMediaMetadataStore(store: libraryStore)
     await mediaInfoClient.resetProviderSuspension()
@@ -1095,11 +1112,28 @@ final class MediaLibraryModel: ObservableObject {
     defer { heartbeat.cancel() }
     do {
       let local = try await localMetadataLoader.load(for: workItem.file)
-      try await metadataStore.persist(local.batch)
+      try await metadataStore.persist(local.batch, lease: workItem.lease)
       let localQuery = try? MediaMatchQueryBuilder().build(
-        filename: local.batch.filename.parsed,
+        analysis: local.batch.filename,
         localMetadata: local.preferredMetadata
       )
+      if let document = local.preferredMetadata,
+        let evidence = try LocalMetadataMatchEvidence.build(
+          document: document, sourceUID: sourceUID,
+          mediaRelativePath: path, stableKey: workItem.file.stableKey)
+      {
+        let result = try await matcher.evaluate(
+          query: evidence.query, candidates: [evidence.candidate],
+          sourceUID: sourceUID, mediaRelativePath: path, lease: workItem.lease,
+          metadata: evidence.metadata, method: .sidecarID)
+        if result.state == .lockedBindingPreserved {
+          try await libraryStore.completeScanWork(workItem.lease)
+          return .preserved(path: path)
+        }
+        if result.state == .automaticBound {
+          return .matched(path: path, wasAlreadyMatched: workItem.hasMatchingBinding)
+        }
+      }
       let resolution = try await mediaInfoClient.resolve(path: path)
       guard let resolved = try await mediaInfoClient.primaryMetadata(from: resolution) else {
         throw SDKError(
@@ -1114,38 +1148,23 @@ final class MediaLibraryModel: ObservableObject {
         query = try resolution.makeMatchQuery()
       }
       let candidate = try resolved.makeCandidate(for: query)
+      let metadata = try LibraryRemoteMetadata(
+        provider: ResolvedPosterMetadata.provider,
+        providerID: resolved.rootObjectID,
+        kind: resolved.kind == .movie ? .movie : .series,
+        locale: "zh-CN", title: resolved.title, originalTitle: resolved.originalTitle,
+        overview: resolved.overview, year: resolved.year)
       let result = try await matcher.evaluate(
-        query: query,
-        candidates: [candidate],
-        sourceUID: sourceUID,
-        mediaRelativePath: path
-      )
+        query: query, candidates: [candidate], sourceUID: sourceUID, mediaRelativePath: path,
+        lease: workItem.lease, metadata: metadata, enqueueArtwork: true)
       if result.state == .lockedBindingPreserved {
         try await libraryStore.completeScanWork(workItem.lease)
         return .preserved(path: path)
       }
       guard result.state == .automaticBound else {
         throw SDKError(
-          code: .metadataNotFound,
-          message: "the media file could not be matched automatically"
-        )
+          code: .metadataNotFound, message: "The media match requires review or more evidence")
       }
-
-      let metadata = try LibraryRemoteMetadata(
-        provider: ResolvedPosterMetadata.provider,
-        providerID: resolved.rootObjectID,
-        kind: resolved.kind == .movie ? .movie : .series,
-        locale: "zh-CN",
-        title: resolved.title,
-        originalTitle: resolved.originalTitle,
-        overview: resolved.overview,
-        year: resolved.year
-      )
-      _ = try await libraryStore.commitRemoteMetadata(
-        metadata,
-        completing: workItem.lease,
-        enqueueArtwork: true
-      )
       return .matched(path: path, wasAlreadyMatched: workItem.hasMatchingBinding)
     } catch {
       if Self.isCancellation(error) {
@@ -1556,9 +1575,10 @@ final class MediaLibraryModel: ObservableObject {
         ),
         pathSemantics: Self.smbPathSemantics
       )
-      guard let scheduled = try await scanScheduler.nextReady(
-        atMilliseconds: Self.nowMilliseconds()
-      ), scheduled.request.mode == .repair
+      guard
+        let scheduled = try await scanScheduler.nextReady(
+          atMilliseconds: Self.nowMilliseconds()
+        ), scheduled.request.mode == .repair
       else {
         throw SDKError(code: .conflict, message: "SMB source already has active scan work")
       }

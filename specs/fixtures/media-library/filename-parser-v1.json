@@ -150,6 +150,49 @@
         "title": "剧集名称",
         "source_name": "剧集名称.mkv"
       }
+    },
+    {
+      "input": "1917.2019.2160p.mkv",
+      "expected": {
+        "kind": "movie",
+        "title": "1917",
+        "source_name": "1917.2019.2160p.mkv",
+        "year": 2019
+      }
+    },
+    {
+      "input": "2001.A.Space.Odyssey.1968.mkv",
+      "expected": {
+        "kind": "movie",
+        "title": "2001 A Space Odyssey",
+        "source_name": "2001.A.Space.Odyssey.1968.mkv",
+        "year": 1968
+      }
+    },
+    {
+      "input": "2012.mkv",
+      "expected": {
+        "kind": "unknown",
+        "title": "2012",
+        "source_name": "2012.mkv"
+      }
+    },
+    {
+      "input": "Arrival.1080p.WEB-DL.x265.mkv",
+      "expected": {
+        "kind": "unknown",
+        "title": "Arrival",
+        "source_name": "Arrival.1080p.WEB-DL.x265.mkv"
+      }
+    },
+    {
+      "input": "The.Web.2024.mkv",
+      "expected": {
+        "kind": "movie",
+        "title": "The Web",
+        "source_name": "The.Web.2024.mkv",
+        "year": 2024
+      }
     }
   ]
 }

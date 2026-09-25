@@ -75,12 +75,24 @@ public struct WebDAVHTTPRequest: Sendable, CustomStringConvertible, CustomDebugS
   public let url: URL
   public let headers: [String: String]
   public let body: Data?
+  /// Maximum decoded response bytes, enforced while receiving even chunked responses.
+  public let maximumResponseBytes: Int
 
   public init(method: String, url: URL, headers: [String: String] = [:], body: Data? = nil) {
+    self.init(
+      method: method, url: url, headers: headers, body: body,
+      maximumResponseBytes: 32 * 1_024 * 1_024)
+  }
+
+  public init(
+    method: String, url: URL, headers: [String: String] = [:], body: Data? = nil,
+    maximumResponseBytes: Int
+  ) {
     self.method = method
     self.url = url
     self.headers = headers
     self.body = body
+    self.maximumResponseBytes = max(1, maximumResponseBytes)
   }
 
   /// A representation that hides URL, headers, and body.
@@ -120,6 +132,10 @@ public struct URLSessionWebDAVTransport: WebDAVTransport {
     executor = FoundationWebDAVRequestExecutor()
   }
 
+  init(configuration: URLSessionConfiguration) {
+    executor = FoundationWebDAVRequestExecutor(configuration: configuration)
+  }
+
   init(executor: any WebDAVRequestExecutor) {
     self.executor = executor
   }
@@ -127,6 +143,8 @@ public struct URLSessionWebDAVTransport: WebDAVTransport {
   public func send(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse {
     do {
       return try await sendFollowingRedirects(request)
+    } catch is CancellationError {
+      throw SDKError(code: .cancelled, message: "WebDAV request cancelled")
     } catch let error as SDKError {
       throw error
     } catch let error as URLError {
@@ -158,6 +176,9 @@ public struct URLSessionWebDAVTransport: WebDAVTransport {
 
     while true {
       let response = try await executor.execute(currentRequest)
+      guard response.body.count <= currentRequest.maximumResponseBytes else {
+        throw SDKError(code: .resourceLimitExceeded, message: "WebDAV response exceeds byte budget")
+      }
       guard Self.redirectStatusCodes.contains(response.statusCode) else {
         return response
       }
@@ -228,7 +249,8 @@ public struct URLSessionWebDAVTransport: WebDAVTransport {
       method: request.method,
       url: targetURL,
       headers: headers,
-      body: request.body
+      body: request.body,
+      maximumResponseBytes: request.maximumResponseBytes
     )
   }
 
@@ -267,16 +289,27 @@ private struct WebDAVOrigin: Equatable {
 }
 
 private struct FoundationWebDAVRequestExecutor: WebDAVRequestExecutor {
+  var configuration: URLSessionConfiguration = .ephemeral
   func execute(_ request: WebDAVHTTPRequest) async throws -> WebDAVHTTPResponse {
     let session = makeSession()
     defer { session.invalidateAndCancel() }
-    let (data, response) = try await session.data(for: urlRequest(request))
+    let (bytes, response) = try await session.bytes(for: urlRequest(request))
+    guard response.expectedContentLength <= Int64(request.maximumResponseBytes) else {
+      throw SDKError(code: .resourceLimitExceeded, message: "WebDAV response exceeds byte budget")
+    }
+    var data = Data()
+    for try await byte in bytes {
+      guard data.count < request.maximumResponseBytes else {
+        throw SDKError(code: .resourceLimitExceeded, message: "WebDAV response exceeds byte budget")
+      }
+      data.append(byte)
+    }
     return try httpResponse(response, body: data)
   }
 
   private func makeSession() -> URLSession {
     URLSession(
-      configuration: .ephemeral, delegate: WebDAVNoRedirectDelegate.shared, delegateQueue: nil)
+      configuration: configuration, delegate: WebDAVNoRedirectDelegate.shared, delegateQueue: nil)
   }
 
   private func urlRequest(_ request: WebDAVHTTPRequest) -> URLRequest {
@@ -342,6 +375,8 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
   private let transport: any WebDAVTransport
   private var directoryPages: [String: DirectoryPageState] = [:]
   private var disconnected = false
+  private var activeDirectoryRequests = 0
+  private static let maximumRetainedDirectories = 4
 
   fileprivate init(
     configuration: WebDAVMediaSourceConfiguration,
@@ -383,6 +418,11 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
       directoryPages.removeValue(forKey: cursor)
       return try page(state, limit: request.limit)
     }
+    guard directoryPages.count + activeDirectoryRequests < Self.maximumRetainedDirectories else {
+      throw SDKError(code: .resourceLimitExceeded, message: "WebDAV directory budget exhausted")
+    }
+    activeDirectoryRequests += 1
+    defer { activeDirectoryRequests -= 1 }
     let data = try await sendPROPFIND(url: url(for: request.directory), depth: "1")
     let listing = try WebDAVDirectoryListing.parse(
       data, directory: request.directory, baseURL: configuration.baseURL,
@@ -433,7 +473,8 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
       request(
         method: "GET",
         url: try url(for: locator),
-        headers: ["Range": "bytes=\(range.offset)-\(upperBound)"]
+        headers: ["Range": "bytes=\(range.offset)-\(upperBound)"],
+        maximumResponseBytes: range.length
       )
     )
     try validateStatus(response.statusCode, allowsMultiStatus: false, allowsPartialContent: true)
@@ -463,6 +504,9 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     )
     let response = try await transport.send(request)
     try validateStatus(response.statusCode, allowsMultiStatus: true, allowsPartialContent: false)
+    guard response.body.count <= request.maximumResponseBytes else {
+      throw SDKError(code: .resourceLimitExceeded, message: "WebDAV response exceeds byte budget")
+    }
     return response.body
   }
 
@@ -470,13 +514,16 @@ public actor WebDAVMediaSourceSession: MediaSourceSession {
     method: String,
     url: URL,
     headers: [String: String],
-    body: Data? = nil
+    body: Data? = nil,
+    maximumResponseBytes: Int = 32 * 1_024 * 1_024
   ) -> WebDAVHTTPRequest {
     var headers = headers
     if let credential = configuration.credential {
       headers["Authorization"] = credential.authorizationValue
     }
-    return WebDAVHTTPRequest(method: method, url: url, headers: headers, body: body)
+    return WebDAVHTTPRequest(
+      method: method, url: url, headers: headers, body: body,
+      maximumResponseBytes: maximumResponseBytes)
   }
 
   private func validateStatus(

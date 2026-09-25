@@ -182,7 +182,7 @@ public struct MediaFilenameAnalysis: Codable, Equatable, Sendable {
 
 /// The initial filename parser. Its behavior is intentionally covered by fixtures before it grows.
 public struct MediaFilenameParser: Sendable {
-  public static let version = 3
+  public static let version = 4
 
   public init() {}
 
@@ -422,19 +422,38 @@ public struct MediaFilenameParser: Sendable {
   }
 
   private func normalizedTitleAndYear(_ input: String) -> (String, Int?) {
-    let match = firstMatch(
-      pattern: #"(?:^|[\s._(\[])((?:19|20)\d{2})(?=$|[\s._)\]-])"#,
-      in: input
-    )
-    let year = match.flatMap { integerCapture($0, index: 1, in: input) }
-    let titleInput = match.map { String(input[..<$0.range.lowerBound]) } ?? input
-    return (normalizeTitle(titleInput), year)
+    // A year-shaped first token may be the entire title (1917, 2012, 2001).
+    // Only a later year with a nonempty title prefix is a release-year delimiter.
+    let cleaned = input.replacingOccurrences(
+      of: #"(?i)[\[\{(](tmdb|imdb|tvdb)[-:= ]+[a-z0-9]+[\]\})]"#,
+      with: " ", options: .regularExpression)
+    let expression = try? NSRegularExpression(
+      pattern: #"(?:^|[\s._(\[])((?:19|20)\d{2})(?=$|[\s._)\]-])"#)
+    let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
+    let matches = expression?.matches(in: cleaned, range: range) ?? []
+    for match in matches {
+      guard let full = Range(match.range, in: cleaned),
+        let number = Range(match.range(at: 1), in: cleaned)
+      else { continue }
+      let title = normalizeTitle(String(cleaned[..<full.lowerBound]))
+      if !title.isEmpty { return (title, Int(cleaned[number])) }
+    }
+    return (normalizeTitle(cleaned), nil)
   }
 
   private func normalizeTitle(_ input: String) -> String {
-    input
-      .replacingOccurrences(of: #"[._]+"#, with: " ", options: .regularExpression)
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    let words = input.replacingOccurrences(of: #"[._]+"#, with: " ", options: .regularExpression)
+      .split(whereSeparator: { $0.isWhitespace }).map(String.init)
+    let ambiguousWords: Set<String> = [
+      "web", "dv", "proper", "extended", "theatrical", "criterion", "imax", "sample",
+    ]
+    let end =
+      words.firstIndex(where: {
+        let token = $0.trimmingCharacters(in: .punctuationCharacters)
+        return !ambiguousWords.contains(token.lowercased()) && isNoiseToken(token)
+      })
+      ?? words.endIndex
+    return words[..<end].joined(separator: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "-()[]")))
   }
 

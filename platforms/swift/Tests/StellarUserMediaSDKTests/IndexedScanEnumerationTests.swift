@@ -78,9 +78,13 @@ struct IndexedScanEnumerationTests {
           runUID: "limited-\(run)", sourceUID: "limited", mode: .full, roots: [root]),
         using: LimitedDirectoryFixture(truncated: truncated), sink: sink)
       #expect(result.checkpoint.hasTruncatedDirectories == truncated)
+      #expect(result.checkpoint.outcome == (truncated ? .partial : .complete))
+      #expect(result.checkpoint.truncatedDirectories == (truncated ? [root] : []))
       #expect(result.completion.reconcileMissingEligible == !truncated)
       let stored = try #require(try await sink.loadCheckpoint(runUID: "limited-\(run)"))
       #expect(stored.hasTruncatedDirectories == truncated)
+      #expect(stored.outcome == result.checkpoint.outcome)
+      #expect(stored.truncatedDirectories == result.checkpoint.truncatedDirectories)
     }
     let counts = try await database.read { database in
       let total = try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM media_file")

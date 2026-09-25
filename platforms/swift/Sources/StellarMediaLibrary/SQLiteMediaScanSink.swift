@@ -47,7 +47,8 @@ public struct SQLiteMediaScanSink: MediaScanSink, MediaScanEnumerationIndex, Sen
         discoveredEntryCount: batch.checkpoint.discoveredEntryCount,
         pendingPageCount: batch.checkpoint.pendingPageCount,
         processedPageCount: batch.checkpoint.processedPageCount,
-        errorCode: batch.checkpoint.lastErrorCode?.rawValue,
+        errorCode: batch.checkpoint.outcome == .partial
+          ? "scan_partial" : batch.checkpoint.lastErrorCode?.rawValue,
         enumerationState: try batch.enumerationState.map(Self.persistenceState),
         pageTransitions: try batch.pageTransitions.map(Self.persistenceTransition)
       )

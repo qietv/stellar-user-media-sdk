@@ -41,7 +41,17 @@ public struct MediaMatchQuery: Codable, Equatable, Sendable {
   public let year: Int?
   public let season: Int?
   public let episode: Int?
+  public let episodeEnd: Int?
   public let externalIDs: [LocalMetadataExternalID]
+
+  public init(
+    kind: ParsedMediaKind, title: String? = nil, year: Int? = nil,
+    season: Int? = nil, episode: Int? = nil, externalIDs: [LocalMetadataExternalID] = []
+  ) throws {
+    try self.init(
+      kind: kind, title: title, year: year, season: season, episode: episode,
+      externalIDs: externalIDs, episodeEnd: nil)
+  }
 
   public init(
     kind: ParsedMediaKind,
@@ -49,7 +59,8 @@ public struct MediaMatchQuery: Codable, Equatable, Sendable {
     year: Int? = nil,
     season: Int? = nil,
     episode: Int? = nil,
-    externalIDs: [LocalMetadataExternalID] = []
+    externalIDs: [LocalMetadataExternalID] = [],
+    episodeEnd: Int?
   ) throws {
     let normalizedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
     guard kind == .movie || kind == .episode,
@@ -58,6 +69,7 @@ public struct MediaMatchQuery: Codable, Equatable, Sendable {
       year.map({ (1000...9999).contains($0) }) ?? true,
       season.map({ $0 >= 0 }) ?? true,
       episode.map({ $0 >= 0 }) ?? true,
+      episodeEnd.map({ end in episode.map { end >= $0 && end - $0 < 100 } ?? false }) ?? true,
       kind != .episode || (season != nil && episode != nil)
     else {
       throw SDKError(code: .parseFailure, message: "metadata match query is incomplete")
@@ -67,6 +79,7 @@ public struct MediaMatchQuery: Codable, Equatable, Sendable {
     self.year = year
     self.season = season
     self.episode = episode
+    self.episodeEnd = episodeEnd
     self.externalIDs = externalIDs
   }
 
@@ -80,7 +93,8 @@ public struct MediaMatchQuery: Codable, Equatable, Sendable {
         season: container.decodeIfPresent(Int.self, forKey: .season),
         episode: container.decodeIfPresent(Int.self, forKey: .episode),
         externalIDs: container.decodeIfPresent([LocalMetadataExternalID].self, forKey: .externalIDs)
-          ?? []
+          ?? [],
+        episodeEnd: container.decodeIfPresent(Int.self, forKey: .episodeEnd)
       )
     } catch let error as SDKError {
       throw DecodingError.dataCorrupted(
@@ -96,6 +110,7 @@ public struct MediaMatchQuery: Codable, Equatable, Sendable {
     try container.encodeIfPresent(year, forKey: .year)
     try container.encodeIfPresent(season, forKey: .season)
     try container.encodeIfPresent(episode, forKey: .episode)
+    try container.encodeIfPresent(episodeEnd, forKey: .episodeEnd)
     try container.encode(externalIDs, forKey: .externalIDs)
   }
 
@@ -105,6 +120,7 @@ public struct MediaMatchQuery: Codable, Equatable, Sendable {
     case year
     case season
     case episode
+    case episodeEnd = "episode_end"
     case externalIDs = "external_ids"
   }
 }
@@ -134,8 +150,28 @@ public struct MediaMatchQueryBuilder: Sendable {
       year: localEvidence?.year ?? filename.year,
       season: localEvidence?.season ?? filename.season,
       episode: localEvidence?.episode ?? filename.episode,
-      externalIDs: localEvidence?.externalIDs ?? []
+      externalIDs: localEvidence?.externalIDs ?? [],
+      episodeEnd: filename.episodeEnd
     )
+  }
+
+  public func build(
+    analysis: MediaFilenameAnalysis,
+    localMetadata: LocalMetadataDocument? = nil
+  ) throws -> MediaMatchQuery {
+    let query = try build(filename: analysis.parsed, localMetadata: localMetadata)
+    let namespace = query.kind == .movie ? "movie" : "series"
+    var identifiers = query.externalIDs
+    for hint in analysis.evidence.providerHints
+    where !identifiers.contains(where: { $0.provider == hint.provider && $0.namespace == namespace }
+    ) {
+      identifiers.append(
+        try LocalMetadataExternalID(
+          provider: hint.provider, namespace: namespace, value: hint.value))
+    }
+    return try MediaMatchQuery(
+      kind: query.kind, title: query.title, year: query.year, season: query.season,
+      episode: query.episode, externalIDs: identifiers, episodeEnd: query.episodeEnd)
   }
 
   private func resolvedKind(
@@ -289,6 +325,8 @@ extension MediaMatchDecision: Codable {
 public enum MediaMatchSignal: String, Sendable {
   case kindMismatch = "kind_mismatch"
   case exactExternalID = "exact_external_id"
+  case conflictingExternalID = "conflicting_external_id"
+  case ambiguousCandidates = "ambiguous_candidates"
   case titleExact = "title_exact"
   case titleAliasExact = "title_alias_exact"
   case yearExact = "year_exact"
@@ -373,7 +411,7 @@ public struct MediaMetadataCandidateScorer: Sendable {
     query: MediaMatchQuery,
     candidates: [MediaMetadataCandidate]
   ) -> [ScoredMediaMetadataCandidate] {
-    candidates.map { score(query: query, candidate: $0) }
+    var ranked = candidates.map { score(query: query, candidate: $0) }
       .sorted { lhs, rhs in
         if lhs.score != rhs.score { return lhs.score > rhs.score }
         if lhs.candidate.popularity != rhs.candidate.popularity {
@@ -384,6 +422,22 @@ public struct MediaMetadataCandidateScorer: Sendable {
         }
         return lhs.candidate.candidateID < rhs.candidate.candidateID
       }
+    // Popularity orders the review list; it is not disambiguating identity evidence.
+    if let best = ranked.first(where: { $0.decision != .rejected }), best.decision == .automatic,
+      ranked.contains(where: {
+        $0.decision != .rejected && best.score - $0.score < 0.08 - 0.000_001
+          && ($0.candidate.provider != best.candidate.provider
+            || $0.candidate.candidateID != best.candidate.candidateID)
+      })
+    {
+      ranked = ranked.map { scored in
+        guard scored.decision == .automatic else { return scored }
+        return ScoredMediaMetadataCandidate(
+          candidate: scored.candidate, score: scored.score,
+          decision: .review, signals: scored.signals + [.ambiguousCandidates])
+      }
+    }
+    return ranked
   }
 
   private func score(
@@ -405,7 +459,23 @@ public struct MediaMetadataCandidateScorer: Sendable {
       return rejected(candidate, signal: .episodeMissing)
     }
 
-    if hasExactExternalID(query.externalIDs, candidate.externalIDs) {
+    let namespace = candidate.kind.rawValue
+    let candidateIDs =
+      candidate.externalIDs
+      + ((try? LocalMetadataExternalID(
+        provider: candidate.provider, namespace: namespace, value: candidate.candidateID)).map {
+          [$0]
+        } ?? [])
+    if query.externalIDs.contains(where: { expected in
+      candidateIDs.contains { actual in
+        expected.provider.lowercased() == actual.provider.lowercased()
+          && expected.namespace.lowercased() == actual.namespace.lowercased()
+          && expected.value != actual.value
+      }
+    }) {
+      return rejected(candidate, signal: .conflictingExternalID)
+    }
+    if hasExactExternalID(query.externalIDs, candidateIDs) {
       return ScoredMediaMetadataCandidate(
         candidate: candidate,
         score: 1,

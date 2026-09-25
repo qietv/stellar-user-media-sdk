@@ -9,13 +9,20 @@ let package = Package(
   targets: [
     .target(
       name: "DemoMetadata",
-      dependencies: [.product(name: "StellarUserMediaSDK", package: "swift")],
+      dependencies: [
+        .product(name: "StellarUserMediaSDK", package: "swift"),
+        .product(name: "StellarSMB2", package: "swift"),
+        .product(name: "StellarDiscMedia", package: "swift"),
+      ],
       path: "StellarOAuthDemo",
-      exclude: ["ContentView.swift", "MediaLibraryModel.swift", "MediaDetailsModel.swift",
+      exclude: [
+        "ContentView.swift", "MediaDetailsModel.swift",
         "MediaDetailsView.swift", "PeopleDetailsView.swift", "SeriesBrowserView.swift",
-        "OAuthDemoModel.swift", "PosterWallView.swift", "SMBScanView.swift", "SMBPasswordField.swift", "StellarOAuthDemoApp.swift",
-        "StellarOAuthDemo.entitlements", "StellarOAuthDemo.debug.entitlements"],
-      sources: ["MediaInfoModels.swift", "TestMediaInfoClient.swift"]
+        "OAuthDemoModel.swift", "PosterWallView.swift", "SMBScanView.swift",
+        "SMBPasswordField.swift", "StellarOAuthDemoApp.swift",
+        "StellarOAuthDemo.entitlements", "StellarOAuthDemo.debug.entitlements",
+      ],
+      sources: ["MediaInfoModels.swift", "TestMediaInfoClient.swift", "MediaLibraryModel.swift"]
     ),
     .testTarget(name: "DemoMetadataTests", dependencies: ["DemoMetadata"], path: "Tests"),
   ],

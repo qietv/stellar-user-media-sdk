@@ -8,6 +8,20 @@ import Testing
 
 @Suite("WebDAV media source contracts")
 struct WebDAVMediaSourceContractTests {
+  @Test(
+    "Streaming transport enforces body limits with and without Content-Length",
+    arguments: [false, true])
+  func streamingByteBudget(declaredLength: Bool) async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [BudgetWebDAVProtocol.self]
+    let transport = URLSessionWebDAVTransport(configuration: configuration)
+    let url = URL(string: "https://budget.test/" + (declaredLength ? "declared" : "chunked"))!
+    await expectSDKError(.resourceLimitExceeded) {
+      _ = try await transport.send(
+        WebDAVHTTPRequest(method: "PROPFIND", url: url, maximumResponseBytes: 1_024))
+    }
+  }
+
   @Test("WebDAV connector validates, paginates, stats, and range-reads")
   func connectorOperations() async throws {
     let transport = FixtureWebDAVTransport()
@@ -172,7 +186,7 @@ struct WebDAVMediaSourceContractTests {
     #expect(listing.isTruncated)
   }
 
-  @Test("WebDAV returns at most 655,360 children across all logical pages")
+  @Test("Large PROPFIND responses hit the byte budget before object materialization")
   func productionDirectoryLimit() async throws {
     let executor = MemoryWebDAVExecutor(count: 655_361)
     let configuration = try WebDAVMediaSourceConfiguration(
@@ -181,21 +195,10 @@ struct WebDAVMediaSourceContractTests {
       configuration: configuration, transport: URLSessionWebDAVTransport(executor: executor)
     ).connect()
     let root = try RemoteLocator(sourceUID: configuration.sourceUID, path: RemotePath())
-    var cursor: String?
-    var count = 0
-    var lastName: String?
-    repeat {
-      let page = try await session.listDirectory(
-        RemoteDirectoryPageRequest(directory: root, cursor: cursor, limit: 10_000))
-      #expect(page.isTruncated)
-      if count == 0 { #expect(page.items.first?.locator.path.name == "Video-655360.mkv") }
-      count += page.items.count
-      lastName = page.items.last?.locator.path.name
-      cursor = page.nextCursor
-    } while cursor != nil
-    #expect(count == 655_360)
-    #expect(lastName == "Video-1.mkv")
-    #expect(await executor.requestCount == 2)
+    await expectSDKError(.resourceLimitExceeded) {
+      _ = try await session.listDirectory(
+        RemoteDirectoryPageRequest(directory: root, limit: 10_000))
+    }
     await session.disconnect()
   }
 
@@ -662,4 +665,18 @@ private actor MemoryWebDAVExecutor: WebDAVRequestExecutor {
     data.append(Data("</d:multistatus>".utf8))
     return WebDAVHTTPResponse(statusCode: 207, body: data)
   }
+}
+
+private final class BudgetWebDAVProtocol: URLProtocol, @unchecked Sendable {
+  override class func canInit(with request: URLRequest) -> Bool { true }
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+  override func startLoading() {
+    let headers = request.url?.lastPathComponent == "declared" ? ["Content-Length": "8192"] : [:]
+    let response = HTTPURLResponse(
+      url: request.url!, statusCode: 207, httpVersion: "HTTP/1.1", headerFields: headers)!
+    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+    client?.urlProtocol(self, didLoad: Data(repeating: 65, count: 8_192))
+    client?.urlProtocolDidFinishLoading(self)
+  }
+  override func stopLoading() {}
 }

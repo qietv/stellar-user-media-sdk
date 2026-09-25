@@ -460,14 +460,14 @@ public struct TMDBMetadataProvider: MediaMetadataProviding {
         let details = try await movieDetails(id: id)
         return [try makeCandidate(details: details, attachedIDs: [identifier])]
       case .episode:
-        guard let season = query.season, let episode = query.episode else { return [] }
-        _ = try await episodeDetails(seriesID: id, season: season, episode: episode)
+        let coordinates = try await verifiedEpisodes(seriesID: id, query: query)
+        guard !coordinates.isEmpty else { return [] }
         let details = try await seriesDetails(id: id)
         return [
           try makeCandidate(
             details: details,
             attachedIDs: [identifier],
-            availableEpisodes: [try MediaEpisodeCoordinate(season: season, episode: episode)]
+            availableEpisodes: coordinates
           )
         ]
       case .series, .season, .extra, .unknown:
@@ -505,28 +505,33 @@ public struct TMDBMetadataProvider: MediaMetadataProviding {
       )
       for result in response.tvEpisodeResults.prefix(configuration.maximumSearchResults)
       where result.seasonNumber == query.season && result.episodeNumber == query.episode {
+        let coordinates: [MediaEpisodeCoordinate]
+        if let end = query.episodeEnd, end > (query.episode ?? 0) {
+          guard let seriesID = result.showID else { continue }
+          coordinates = try await verifiedEpisodes(seriesID: seriesID, query: query)
+          guard !coordinates.isEmpty else { continue }
+        } else {
+          coordinates = [coordinate]
+        }
         candidates.append(
           try makeCandidate(
             raw: result,
             kind: .episode,
             attachedIDs: [identifier],
-            availableEpisodes: [coordinate]
+            availableEpisodes: coordinates
           )
         )
       }
       let remaining = max(0, configuration.maximumSearchResults - candidates.count)
       for result in response.tvResults.prefix(remaining) {
-        if try await episodeExists(
-          seriesID: result.id,
-          season: query.season ?? 0,
-          episode: query.episode ?? 0
-        ) {
+        let coordinates = try await verifiedEpisodes(seriesID: result.id, query: query)
+        if !coordinates.isEmpty {
           candidates.append(
             try makeCandidate(
               raw: result,
               kind: .series,
               attachedIDs: [identifier],
-              availableEpisodes: [coordinate]
+              availableEpisodes: coordinates
             )
           )
         }
@@ -563,22 +568,15 @@ public struct TMDBMetadataProvider: MediaMetadataProviding {
     if query.kind == .movie {
       return try results.map { try makeCandidate(raw: $0, kind: .movie) }
     }
-    let coordinate = try MediaEpisodeCoordinate(
-      season: query.season ?? 0,
-      episode: query.episode ?? 0
-    )
     var candidates: [MediaMetadataCandidate] = []
     for result in results {
-      if try await episodeExists(
-        seriesID: result.id,
-        season: query.season ?? 0,
-        episode: query.episode ?? 0
-      ) {
+      let coordinates = try await verifiedEpisodes(seriesID: result.id, query: query)
+      if !coordinates.isEmpty {
         candidates.append(
           try makeCandidate(
             raw: result,
             kind: .series,
-            availableEpisodes: [coordinate]
+            availableEpisodes: coordinates
           )
         )
       }
@@ -586,16 +584,25 @@ public struct TMDBMetadataProvider: MediaMetadataProviding {
     return candidates
   }
 
-  private func episodeExists(seriesID: Int64, season: Int, episode: Int) async throws -> Bool {
-    do {
-      let _: TMDBRawMedia = try await get(
-        path: ["tv", String(seriesID), "season", String(season), "episode", String(episode)],
-        query: [URLQueryItem(name: "language", value: configuration.language)]
-      )
-      return true
-    } catch let error as SDKError where error.code == .metadataNotFound {
-      return false
+  private func verifiedEpisodes(seriesID: Int64, query: MediaMatchQuery) async throws
+    -> [MediaEpisodeCoordinate]
+  {
+    guard let season = query.season, let start = query.episode else { return [] }
+    var coordinates: [MediaEpisodeCoordinate] = []
+    for episode in start...(query.episodeEnd ?? start) {
+      do {
+        let raw: TMDBRawMedia = try await get(
+          path: ["tv", String(seriesID), "season", String(season), "episode", String(episode)],
+          query: [URLQueryItem(name: "language", value: configuration.language)])
+        guard raw.id > 0, raw.seasonNumber == season, raw.episodeNumber == episode,
+          raw.showID == nil || raw.showID == seriesID
+        else {
+          throw SDKError(code: .parseFailure, message: "TMDB episode coordinate does not match")
+        }
+        coordinates.append(try MediaEpisodeCoordinate(season: season, episode: episode))
+      } catch let error as SDKError where error.code == .metadataNotFound { return [] }
     }
+    return coordinates
   }
 
   private func makeCandidate(

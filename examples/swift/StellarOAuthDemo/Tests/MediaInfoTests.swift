@@ -6,6 +6,24 @@ import Testing
 
 @Suite("Detail metadata contracts", .serialized)
 struct MediaInfoTests {
+  @Test func resolvedCandidateNeverCopiesTheQuery() throws {
+    let resolved = ResolvedPosterMetadata(
+      rootObjectID: "wrong", kind: .movie,
+      title: "Different Movie", originalTitle: nil, overview: nil, year: 2020)
+    let query = try MediaMatchQuery(kind: .movie, title: "Requested Movie", year: 2020)
+    let candidate = try resolved.makeCandidate(for: query)
+    #expect(candidate.title == "Different Movie")
+    #expect(candidate.aliases.isEmpty)
+    #expect(
+      MediaMetadataCandidateScorer().rank(query: query, candidates: [candidate]).first?.decision
+        == .unmatched)
+    let series = ResolvedPosterMetadata(
+      rootObjectID: "show", kind: .series,
+      title: "Show", originalTitle: nil, overview: nil, year: 2020)
+    let episode = try MediaMatchQuery(kind: .episode, title: "Show", season: 1, episode: 2)
+    #expect(try series.makeCandidate(for: episode).availableEpisodes.isEmpty)
+  }
+
   @Test func nullableMediaAndPersonFields() throws {
     let movie: MediaInfoEntity = try decode(
       """

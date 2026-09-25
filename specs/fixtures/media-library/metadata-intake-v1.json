@@ -4,7 +4,7 @@
     {
       "input": "Movie.Title.2024.2160p.WEB-DL.x265.DV.en-US.{tmdb-12345}-GROUP.mkv",
       "expected": {
-        "parser_version": 3,
+        "parser_version": 4,
         "parsed": {
           "kind": "movie",
           "title": "Movie Title",

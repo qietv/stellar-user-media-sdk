@@ -7,6 +7,7 @@ public enum SDKErrorCode: String, CaseIterable, Sendable {
   case forbidden
   case networkUnavailable = "network_unavailable"
   case rateLimited = "rate_limited"
+  case resourceLimitExceeded = "resource_limit_exceeded"
   case remoteUnavailable = "remote_unavailable"
   case credentialRequired = "credential_required"
   case credentialProtectionUnsupported = "credential_protection_unsupported"

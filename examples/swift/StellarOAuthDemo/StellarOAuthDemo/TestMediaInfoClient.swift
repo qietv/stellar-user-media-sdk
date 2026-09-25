@@ -156,32 +156,24 @@ actor TestMediaInfoClient {
     guard let selected = resolution.selected else { return nil }
     if selected.objectKind == "episode" {
       guard let seriesID = selected.seriesID else { return nil }
-      let fallback = ResolvedPosterMetadata(
-        rootObjectID: seriesID,
-        kind: .series,
-        title: resolution.primaryCandidate?.title ?? selected.title,
-        originalTitle: nil,
-        overview: nil,
-        year: resolution.primaryCandidate?.year
-      )
-      do {
-        let resolvedEntity: MediaInfoEntity = try await get(
-          pathComponents: ["entities", seriesID],
-          queryItems: [URLQueryItem(name: "locale", value: "zh-CN")],
-          locale: "zh-CN"
-        )
-        return ResolvedPosterMetadata(
-          rootObjectID: seriesID,
-          kind: .series,
-          title: resolvedEntity.title ?? fallback.title,
-          originalTitle: resolvedEntity.originalTitle,
-          overview: resolvedEntity.overview,
-          year: Self.year(from: resolvedEntity.firstAirDate) ?? fallback.year
-        )
-      } catch {
-        if Self.isCancellation(error) { throw error }
-        return fallback
+      let resolvedEntity = try await entity(id: seriesID)
+      let episodeEntity = try await entity(id: selected.objectID)
+      guard resolvedEntity.objectKind == "series", episodeEntity.objectKind == "episode",
+        episodeEntity.seriesID == seriesID
+      else {
+        throw SDKError(code: .parseFailure, message: "Resolved episode identity is inconsistent")
       }
+      let coordinates: [MediaEpisodeCoordinate]
+      if let season = episodeEntity.seasonNumber, let episode = episodeEntity.episodeNumber {
+        coordinates = [try MediaEpisodeCoordinate(season: season, episode: episode)]
+      } else {
+        coordinates = []
+      }
+      guard let title = resolvedEntity.title, !title.isEmpty else { return nil }
+      return ResolvedPosterMetadata(
+        rootObjectID: seriesID, kind: .series, title: title,
+        originalTitle: resolvedEntity.originalTitle, overview: resolvedEntity.overview,
+        year: Self.year(from: resolvedEntity.firstAirDate), availableEpisodes: coordinates)
     }
 
     return ResolvedPosterMetadata(
@@ -733,21 +725,17 @@ struct ResolvedPosterMetadata: Sendable {
   let overview: String?
   let year: Int?
 
-  func makeCandidate(for query: MediaMatchQuery) throws -> MediaMetadataCandidate {
+  var availableEpisodes: [MediaEpisodeCoordinate] = []
+
+  func makeCandidate(for _: MediaMatchQuery) throws -> MediaMetadataCandidate {
     let parsedKind: ParsedMediaKind = kind == .movie ? .movie : .series
-    let availableEpisodes: [MediaEpisodeCoordinate]
-    if query.kind == .episode, let season = query.season, let episode = query.episode {
-      availableEpisodes = [try MediaEpisodeCoordinate(season: season, episode: episode)]
-    } else {
-      availableEpisodes = []
-    }
     return try MediaMetadataCandidate(
       provider: Self.provider,
       candidateID: rootObjectID,
       kind: parsedKind,
-      title: query.title ?? title,
+      title: title,
       originalTitle: originalTitle,
-      aliases: title == query.title ? [] : [title],
+      aliases: [],
       year: year,
       availableEpisodes: availableEpisodes,
       popularity: 1

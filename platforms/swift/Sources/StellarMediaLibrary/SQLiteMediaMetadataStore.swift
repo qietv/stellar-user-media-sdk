@@ -71,7 +71,30 @@ public struct SQLiteMediaMetadataStore: Sendable {
     self.store = store
   }
 
+  /// Commits caller-supplied current data. Capture a revision or claim a lease before
+  /// asynchronous source reads, then use the corresponding overload instead.
   public func persist(_ batch: MediaMetadataIntakeBatch) async throws {
+    let target = try await store.metadataRefreshTarget(
+      sourceUID: batch.sourceUID, mediaRelativePath: batch.mediaRelativePath)
+    try await persist(batch, lease: nil, expectedRevision: target)
+  }
+
+  /// Background intake must supply the parse lease acquired before reading the source.
+  public func persist(_ batch: MediaMetadataIntakeBatch, lease: LibraryScanWorkLease) async throws {
+    try await persist(batch, lease: lease, expectedRevision: nil)
+  }
+
+  /// Commits source reads against the identity/revision captured before asynchronous I/O.
+  public func persist(
+    _ batch: MediaMetadataIntakeBatch, expectedRevision: LibraryMetadataRefreshTarget
+  ) async throws {
+    try await persist(batch, lease: nil, expectedRevision: expectedRevision)
+  }
+
+  private func persist(
+    _ batch: MediaMetadataIntakeBatch, lease: LibraryScanWorkLease?,
+    expectedRevision: LibraryMetadataRefreshTarget?
+  ) async throws {
     do {
       let parse = try makeParseRecord(batch.filename)
       let sidecars = try batch.sidecars.map(makeSidecarRecord)
@@ -83,12 +106,26 @@ public struct SQLiteMediaMetadataStore: Sendable {
         sidecars: sidecars,
         technicalProbe: probe
       )
-      try await store.commitMetadataIntake(persistence)
+      try await store.commitMetadataIntake(
+        persistence, lease: lease, expectedRevision: expectedRevision)
     } catch let error as SDKError {
       throw error
     } catch {
       throw SDKError(code: .storageFailure, message: "metadata intake normalization failed")
     }
+  }
+
+  /// Compares a complete, bounded sidecar intake to persisted dependencies and queues only
+  /// changed files. The revision captured before source I/O is checked in the write transaction.
+  @discardableResult
+  public func refreshIfChanged(
+    _ batch: MediaMetadataIntakeBatch, target: LibraryMetadataRefreshTarget
+  ) async throws -> Bool {
+    let persistence = try LibraryMetadataIntakeBatch(
+      sourceUID: batch.sourceUID, mediaRelativePath: batch.mediaRelativePath,
+      parseResult: makeParseRecord(batch.filename), sidecars: batch.sidecars.map(makeSidecarRecord),
+      technicalProbe: nil)
+    return try await store.invalidateMetadataIfChanged(persistence, target: target)
   }
 
   /// Persists one optional technical probe and completes its claimed queue item atomically.

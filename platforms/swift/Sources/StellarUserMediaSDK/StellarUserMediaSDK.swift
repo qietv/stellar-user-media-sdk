@@ -481,3 +481,10 @@ public enum StellarUserMediaSDK: Sendable {
   /// The semantic version of the first development package.
   public static let version = "0.1.0-dev"
 }
+
+/// Coverage completeness of a terminal scan.
+public typealias MediaScanOutcome = StellarMediaLibrary.MediaScanOutcome
+/// A captured identity and material revision for metadata dependency refresh.
+public typealias LibraryMetadataRefreshTarget = StellarStorage.LibraryMetadataRefreshTarget
+/// Authoritative local movie/episode evidence usable without an online service.
+public typealias LocalMetadataMatchEvidence = StellarMediaLibrary.LocalMetadataMatchEvidence

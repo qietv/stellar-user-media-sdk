@@ -55,6 +55,9 @@ package struct LibraryFileBindingRequest: Sendable {
   package let rootEntity: LibraryMatchRootEntityRecord
   package let seasonNumber: Int?
   package let episodeNumber: Int?
+  package let episodeEnd: Int?
+  package let lease: LibraryScanWorkLease?
+  package let expectedRevision: LibraryMetadataRefreshTarget?
   package let matchMethod: String
   package let confidence: Double
   package let matchedQueryJSON: String
@@ -71,7 +74,10 @@ package struct LibraryFileBindingRequest: Sendable {
     confidence: Double,
     matchedQueryJSON: String,
     locked: Bool,
-    canReplaceLockedBinding: Bool
+    canReplaceLockedBinding: Bool,
+    episodeEnd: Int? = nil,
+    lease: LibraryScanWorkLease? = nil,
+    expectedRevision: LibraryMetadataRefreshTarget? = nil
   ) throws {
     let methods = [
       "manual", "sidecar_id", "filename_id", "provider_search", "media_server", "inherited",
@@ -93,6 +99,9 @@ package struct LibraryFileBindingRequest: Sendable {
     self.rootEntity = rootEntity
     self.seasonNumber = seasonNumber
     self.episodeNumber = episodeNumber
+    self.episodeEnd = episodeEnd
+    self.lease = lease
+    self.expectedRevision = expectedRevision
     self.matchMethod = matchMethod
     self.confidence = confidence
     self.matchedQueryJSON = matchedQueryJSON
@@ -253,118 +262,168 @@ extension LibraryStore {
   package func commitMatchBinding(_ request: LibraryFileBindingRequest) async throws
     -> LibraryMatchCommitResult
   {
-    let now = clock.nowMilliseconds()
+    let clock = self.clock
+    let uuidGenerator = self.uuidGenerator
+    do {
+      return try await database.write { database in
+        try Self.commitMatchBinding(
+          request, now: clock.nowMilliseconds(),
+          uuidGenerator: uuidGenerator, database: database)
+      }
+    } catch let error as SDKError { throw error } catch {
+      throw SDKError(code: .storageFailure, message: "file binding transaction failed")
+    }
+  }
+
+  package static func commitMatchBinding(
+    _ request: LibraryFileBindingRequest, now: Int64,
+    uuidGenerator: any SDKUUIDGenerating, database: Database
+  ) throws -> LibraryMatchCommitResult {
     let generatedRootUID = uuidGenerator.makeUUID().uuidString.lowercased()
     let generatedSeasonUID = uuidGenerator.makeUUID().uuidString.lowercased()
     let generatedEpisodeUID = uuidGenerator.makeUUID().uuidString.lowercased()
-    do {
-      return try await database.write { database in
-        guard
-          let file = try Row.fetchOne(
-            database,
-            sql: """
-              SELECT f.id, f.uid
-              FROM media_file f
-              JOIN library_source s ON s.id = f.source_id
-              WHERE s.uid = ? AND f.relative_path = ? AND f.deleted_at_ms IS NULL
-              """,
-            arguments: [request.sourceUID, request.mediaRelativePath]
-          )
-        else {
-          throw SDKError(code: .metadataNotFound, message: "scanned media file was not found")
-        }
-        let mediaFileID: Int64 = file["id"]
-        let fileUID: String = file["uid"]
-        if !request.canReplaceLockedBinding,
-          let locked = try Self.readIdentityBinding(
-            mediaFileID: mediaFileID,
-            fileUID: fileUID,
-            onlyLocked: true,
-            database: database
-          )
-        {
-          return .lockedBindingPreserved(locked)
-        }
+    guard
+      let file = try Row.fetchOne(
+        database,
+        sql: """
+          SELECT f.id, f.uid
+          FROM media_file f
+          JOIN library_source s ON s.id = f.source_id
+          WHERE s.uid = ? AND f.relative_path = ? AND f.deleted_at_ms IS NULL
+          """,
+        arguments: [request.sourceUID, request.mediaRelativePath]
+      )
+    else {
+      throw SDKError(code: .metadataNotFound, message: "scanned media file was not found")
+    }
+    let mediaFileID: Int64 = file["id"]
+    if let expected = request.expectedRevision {
+      guard try Self.requireMetadataRefreshTarget(expected, database: database) == mediaFileID
+      else {
+        throw SDKError(code: .conflict, message: "binding material revision changed")
+      }
+    }
+    if let lease = request.lease {
+      guard lease.stage == .parse, lease.file.sourceUID == request.sourceUID,
+        lease.file.relativePath == request.mediaRelativePath
+      else {
+        throw SDKError(code: .conflict, message: "binding lease target changed")
+      }
+      try Self.requireActiveScanWorkLease(
+        lease, expectedMediaFileID: mediaFileID,
+        now: now, database: database)
+    }
+    let fileUID: String = file["uid"]
+    if !request.canReplaceLockedBinding,
+      let locked = try Self.readIdentityBinding(
+        mediaFileID: mediaFileID,
+        fileUID: fileUID,
+        onlyLocked: true,
+        database: database
+      )
+    {
+      return .lockedBindingPreserved(locked)
+    }
 
-        let rootEntityID = try Self.resolveRootEntity(
-          request.rootEntity,
-          generatedUID: generatedRootUID,
-          now: now,
-          database: database
-        )
-        let entityID: Int64
-        if let seasonNumber = request.seasonNumber,
-          let episodeNumber = request.episodeNumber
-        {
-          let seasonID = try Self.resolveSeason(
-            parentID: rootEntityID,
-            seasonNumber: seasonNumber,
-            generatedUID: generatedSeasonUID,
-            now: now,
-            database: database
-          )
-          entityID = try Self.resolveEpisode(
-            parentID: seasonID,
-            episodeNumber: episodeNumber,
-            generatedUID: generatedEpisodeUID,
-            now: now,
-            database: database
-          )
-        } else {
-          entityID = rootEntityID
-        }
+    let rootEntityID = try Self.resolveRootEntity(
+      request.rootEntity,
+      generatedUID: generatedRootUID,
+      now: now,
+      database: database
+    )
+    let entityID: Int64
+    if let seasonNumber = request.seasonNumber,
+      let episodeNumber = request.episodeNumber
+    {
+      let seasonID = try Self.resolveSeason(
+        parentID: rootEntityID,
+        seasonNumber: seasonNumber,
+        generatedUID: generatedSeasonUID,
+        now: now,
+        database: database
+      )
+      entityID = try Self.resolveEpisode(
+        parentID: seasonID,
+        episodeNumber: episodeNumber,
+        generatedUID: generatedEpisodeUID,
+        now: now,
+        database: database
+      )
+    } else {
+      entityID = rootEntityID
+    }
 
-        let otherBindingCount =
-          try Int.fetchOne(
-            database,
-            sql: "SELECT COUNT(*) FROM file_binding WHERE entity_id = ? AND media_file_id <> ?",
-            arguments: [entityID, mediaFileID]
-          ) ?? 0
-        let bindingRole = otherBindingCount == 0 ? "primary" : "version"
+    let otherBindingCount =
+      try Int.fetchOne(
+        database,
+        sql: "SELECT COUNT(*) FROM file_binding WHERE entity_id = ? AND media_file_id <> ?",
+        arguments: [entityID, mediaFileID]
+      ) ?? 0
+    let bindingRole = otherBindingCount == 0 ? "primary" : "version"
+    try database.execute(
+      sql: """
+        DELETE FROM file_binding
+        WHERE media_file_id = ? AND binding_role IN ('primary', 'version', 'contained')
+        """,
+      arguments: [mediaFileID]
+    )
+    try database.execute(
+      sql: """
+        INSERT INTO file_binding(
+          media_file_id, entity_id, binding_role, match_method, confidence,
+          matched_query, locked, decided_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(media_file_id, entity_id) DO UPDATE SET
+          binding_role = excluded.binding_role,
+          match_method = excluded.match_method,
+          confidence = excluded.confidence,
+          matched_query = excluded.matched_query,
+          locked = excluded.locked,
+          decided_at_ms = excluded.decided_at_ms
+        """,
+      arguments: [
+        mediaFileID, entityID, bindingRole, request.matchMethod, request.confidence,
+        request.matchedQueryJSON, request.locked ? 1 : 0, now,
+      ]
+    )
+    if let start = request.episodeNumber, let end = request.episodeEnd, end > start,
+      let season = request.seasonNumber
+    {
+      guard end - start < 100 else {
+        throw SDKError(code: .invalidConfiguration, message: "episode range is too large")
+      }
+      let seasonID = try Self.resolveSeason(
+        parentID: rootEntityID, seasonNumber: season,
+        generatedUID: generatedSeasonUID, now: now, database: database)
+      for number in (start + 1)...end {
+        let containedID = try Self.resolveEpisode(
+          parentID: seasonID, episodeNumber: number,
+          generatedUID: uuidGenerator.makeUUID().uuidString.lowercased(), now: now,
+          database: database)
         try database.execute(
           sql: """
-            DELETE FROM file_binding
-            WHERE media_file_id = ? AND binding_role IN ('primary', 'version')
-            """,
-          arguments: [mediaFileID]
-        )
-        try database.execute(
-          sql: """
-            INSERT INTO file_binding(
-              media_file_id, entity_id, binding_role, match_method, confidence,
-              matched_query, locked, decided_at_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(media_file_id, entity_id) DO UPDATE SET
-              binding_role = excluded.binding_role,
-              match_method = excluded.match_method,
-              confidence = excluded.confidence,
-              matched_query = excluded.matched_query,
-              locked = excluded.locked,
-              decided_at_ms = excluded.decided_at_ms
+            INSERT INTO file_binding(media_file_id, entity_id, binding_role, match_method,
+              confidence, matched_query, locked, decided_at_ms)
+            VALUES (?, ?, 'contained', ?, ?, ?, ?, ?)
             """,
           arguments: [
-            mediaFileID, entityID, bindingRole, request.matchMethod, request.confidence,
+            mediaFileID, containedID, request.matchMethod, request.confidence,
             request.matchedQueryJSON, request.locked ? 1 : 0, now,
-          ]
-        )
-        try Self.reactivateEntityHierarchy(entityID: entityID, now: now, database: database)
-        guard
-          let snapshot = try Self.readIdentityBinding(
-            mediaFileID: mediaFileID,
-            fileUID: fileUID,
-            onlyLocked: false,
-            database: database
-          )
-        else {
-          throw SDKError(code: .storageFailure, message: "file binding was not persisted")
-        }
-        return .committed(snapshot)
+          ])
       }
-    } catch let error as SDKError {
-      throw error
-    } catch {
-      throw SDKError(code: .storageFailure, message: "file binding transaction failed")
     }
+    try Self.reactivateEntityHierarchy(entityID: entityID, now: now, database: database)
+    guard
+      let snapshot = try Self.readIdentityBinding(
+        mediaFileID: mediaFileID,
+        fileUID: fileUID,
+        onlyLocked: false,
+        database: database
+      )
+    else {
+      throw SDKError(code: .storageFailure, message: "file binding was not persisted")
+    }
+    return .committed(snapshot)
   }
 
   package func commitExtraBinding(_ request: LibraryExtraBindingRequest) async throws

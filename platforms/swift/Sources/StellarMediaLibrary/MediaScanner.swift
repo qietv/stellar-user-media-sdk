@@ -145,6 +145,11 @@ public struct MediaScanRootIdentity: Codable, Equatable, Sendable {
   }
 }
 
+/// Coverage result, separate from the scan state machine's terminal phase.
+public enum MediaScanOutcome: String, Codable, Sendable {
+  case complete, partial, failed, cancelled
+}
+
 /// A durable checkpoint committed after every successfully validated directory page.
 public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
   public let schemaVersion: Int
@@ -167,6 +172,16 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
   public let lastErrorCode: SDKErrorCode?
   /// A directory limit was reached; observed entries may publish but missing reconciliation is disabled.
   public let hasTruncatedDirectories: Bool
+  /// First 32 truncated directories for diagnostics; the flag covers any additional ones.
+  public let truncatedDirectories: [RemoteLocator]
+  public var outcome: MediaScanOutcome? {
+    switch phase {
+    case .completed: hasTruncatedDirectories ? .partial : .complete
+    case .failed: .failed
+    case .cancelled: .cancelled
+    default: nil
+    }
+  }
 
   /// Creates the initial queued checkpoint for a scan request.
   public init(request: MediaScanRequest) throws {
@@ -193,7 +208,8 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
     discoveredEntryCount: Int64,
     processedPageCount: Int64,
     lastErrorCode: SDKErrorCode?,
-    hasTruncatedDirectories: Bool = false
+    hasTruncatedDirectories: Bool = false,
+    truncatedDirectories: [RemoteLocator] = []
   ) {
     self.schemaVersion = schemaVersion
     self.request = request
@@ -209,6 +225,7 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
     self.processedPageCount = processedPageCount
     self.lastErrorCode = lastErrorCode
     self.hasTruncatedDirectories = hasTruncatedDirectories
+    self.truncatedDirectories = Array(truncatedDirectories.prefix(32))
   }
 
   public init(from decoder: Decoder) throws {
@@ -264,7 +281,9 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
       processedPageCount: processedPageCount,
       lastErrorCode: lastErrorCode,
       hasTruncatedDirectories: try container.decodeIfPresent(
-        Bool.self, forKey: .hasTruncatedDirectories) ?? false
+        Bool.self, forKey: .hasTruncatedDirectories) ?? false,
+      truncatedDirectories: try container.decodeIfPresent(
+        [RemoteLocator].self, forKey: .truncatedDirectories) ?? []
     )
   }
 
@@ -279,6 +298,7 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
     case processedPageCount = "processed_page_count"
     case lastErrorCode = "last_error_code"
     case hasTruncatedDirectories = "has_truncated_directories"
+    case truncatedDirectories = "truncated_directories"
   }
 
   fileprivate func updating(
@@ -289,7 +309,8 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
     discoveredEntryCount: Int64? = nil,
     processedPageCount: Int64? = nil,
     lastErrorCode: SDKErrorCode?? = nil,
-    hasTruncatedDirectories: Bool? = nil
+    hasTruncatedDirectories: Bool? = nil,
+    truncatedDirectory: RemoteLocator? = nil
   ) -> MediaScanCheckpoint {
     MediaScanCheckpoint(
       schemaVersion: 2,
@@ -301,7 +322,11 @@ public struct MediaScanCheckpoint: Codable, Equatable, Sendable {
       discoveredEntryCount: discoveredEntryCount ?? self.discoveredEntryCount,
       processedPageCount: processedPageCount ?? self.processedPageCount,
       lastErrorCode: lastErrorCode ?? self.lastErrorCode,
-      hasTruncatedDirectories: hasTruncatedDirectories ?? self.hasTruncatedDirectories
+      hasTruncatedDirectories: hasTruncatedDirectories ?? self.hasTruncatedDirectories,
+      truncatedDirectories: truncatedDirectories
+        + (truncatedDirectory.map {
+          truncatedDirectories.contains($0) ? [] : [$0]
+        } ?? [])
     )
   }
 }
@@ -1182,7 +1207,8 @@ public struct MediaScanner: Sendable {
         pendingPageCount: workingState.pendingPageCount,
         discoveredEntryCount: discoveredCount,
         processedPageCount: checkpoint.processedPageCount + 1,
-        hasTruncatedDirectories: checkpoint.hasTruncatedDirectories || response.page.isTruncated
+        hasTruncatedDirectories: checkpoint.hasTruncatedDirectories || response.page.isTruncated,
+        truncatedDirectory: response.page.isTruncated ? response.cursor.directory : nil
       ),
       transition: MediaScanPageTransition(
         completedPage: response.cursor,

@@ -34,9 +34,11 @@ struct SMBScanView: View {
             )
             .font(.subheadline.weight(.medium))
             if model.canEditSource {
-              Text("Enter your username and password to resume, or edit the source. Saved progress is kept.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+              Text(
+                "Enter your username and password to resume, or edit the source. Saved progress is kept."
+              )
+              .font(.caption)
+              .foregroundStyle(.secondary)
               Button("Edit source") { model.editSource() }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("smb.editSource")
@@ -183,7 +185,7 @@ struct SMBScanView: View {
     switch model.scanState {
     case .completed: .green
     case .failed: .red
-    case .preparing, .scanning, .enriching, .pausing: .orange
+    case .preparing, .scanning, .enriching, .pausing, .partial: .orange
     case .paused: .blue
     case .idle: .secondary
     }
@@ -192,7 +194,7 @@ struct SMBScanView: View {
   private var stateIcon: String {
     switch model.scanState {
     case .completed: "checkmark.circle.fill"
-    case .failed: "exclamationmark.triangle.fill"
+    case .failed, .partial: "exclamationmark.triangle.fill"
     case .paused: "pause.circle.fill"
     case .preparing, .scanning, .enriching, .pausing: "arrow.trianglehead.2.clockwise"
     case .idle: "circle.dashed"

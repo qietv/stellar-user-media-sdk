@@ -1348,7 +1348,10 @@ public struct LibraryStore: Sendable {
 
         let terminal = ["completed", "failed", "cancelled"].contains(batch.state)
         let effectiveErrorCode = batch.errorCode ?? reconciliationWarningCode
-        let effectiveErrorSummary = reconciliationWarningSummary
+        let effectiveErrorSummary =
+          batch.errorCode == "scan_partial"
+          ? "Directory enumeration was truncated; see checkpoint truncated_directories."
+          : reconciliationWarningSummary
         try database.execute(
           sql: """
             UPDATE scan_run SET
@@ -1379,7 +1382,7 @@ public struct LibraryStore: Sendable {
                 UPDATE library_source SET
                   last_scan_at_ms = ?,
                   last_successful_scan_at_ms = CASE
-                    WHEN ? = 1 OR ? = 0 THEN ? ELSE last_successful_scan_at_ms END,
+                    WHEN (? = 1 OR ? = 0) AND ? IS NULL THEN ? ELSE last_successful_scan_at_ms END,
                   offline_since_ms = NULL,
                   last_error_code = ?,
                   updated_at_ms = ?
@@ -1387,7 +1390,7 @@ public struct LibraryStore: Sendable {
                 """,
               arguments: [
                 now, actualReconcileMissing ? 1 : 0, batch.reconcileMissingEligible ? 1 : 0,
-                now, reconciliationWarningCode, now, sourceID,
+                effectiveErrorCode, now, effectiveErrorCode, now, sourceID,
               ]
             )
           }
@@ -1429,6 +1432,12 @@ public struct LibraryStore: Sendable {
             arguments: [marksOffline ? 1 : 0, now, batch.errorCode, now, sourceID]
           )
         }
+        if ["failed", "cancelled"].contains(batch.state), batch.mode != "repair" {
+          try database.execute(
+            sql: "UPDATE library_source SET last_scan_at_ms = ? WHERE id = ?",
+            arguments: [now, sourceID])
+        }
+
       }
     } catch let error as SDKError {
       throw error
@@ -2417,24 +2426,27 @@ public struct LibraryStore: Sendable {
     )
   }
 
-  private func commitRemoteMetadata(
+  package func commitRemoteMetadata(
     _ metadata: LibraryRemoteMetadata,
     sourceUID: String,
     relativePath: String,
     completing stage: LibraryScanQueueStage,
     lease: LibraryScanWorkLease?,
-    enqueueArtwork: Bool
+    enqueueArtwork: Bool,
+    bindingRequest: LibraryFileBindingRequest? = nil
   ) async throws -> String {
     let path = try RemotePath(relativePath)
     guard !sourceUID.isEmpty, !sourceUID.contains("\0"), !path.isRoot else {
       throw SDKError(code: .invalidConfiguration, message: "remote metadata target is invalid")
     }
-    let now = clock.nowMilliseconds()
+    let clock = self.clock
+    let uuidGenerator = self.uuidGenerator
     let artworkUID = metadata.posterURL.map { _ in
       uuidGenerator.makeUUID().uuidString.lowercased()
     }
     do {
       return try await database.write { database in
+        let now = clock.nowMilliseconds()
         guard
           let file = try Row.fetchOne(
             database,
@@ -2465,6 +2477,20 @@ public struct LibraryStore: Sendable {
             now: now,
             database: database
           )
+        }
+        if let bindingRequest {
+          guard let lease, bindingRequest.lease == lease,
+            bindingRequest.sourceUID == sourceUID,
+            bindingRequest.mediaRelativePath == path.relativePath
+          else {
+            throw SDKError(code: .conflict, message: "atomic binding target changed")
+          }
+          let result = try Self.commitMatchBinding(
+            bindingRequest, now: now,
+            uuidGenerator: uuidGenerator, database: database)
+          if case .lockedBindingPreserved = result {
+            throw SDKError(code: .conflict, message: "binding was locked during metadata work")
+          }
         }
         guard
           let entity = try Row.fetchOne(
@@ -2610,7 +2636,12 @@ public struct LibraryStore: Sendable {
                 FROM scan_queue
                 WHERE id = ? AND stage = 'parse' AND state = 'running'
                   AND claimed_by = ? AND claim_token = ? AND input_revision = ?
-                ON CONFLICT(run_id, media_file_id, stage) DO NOTHING
+                ON CONFLICT(run_id, media_file_id, stage) DO UPDATE SET
+                  state = 'queued', input_revision = excluded.input_revision, attempts = 0,
+                  claimed_by = NULL, claim_token = NULL, lease_until_ms = NULL,
+                  heartbeat_at_ms = NULL, next_attempt_at_ms = NULL,
+                  error_code = NULL, error_message = NULL, updated_at_ms = excluded.updated_at_ms
+                WHERE scan_queue.input_revision <> excluded.input_revision
                 """,
               arguments: [
                 now, lease.queueID, lease.workerID, lease.claimToken, lease.inputRevision,
@@ -3169,11 +3200,15 @@ public struct LibraryStore: Sendable {
   }
 
   /// Atomically replaces filename, sidecar, and any newly successful probe results.
-  package func commitMetadataIntake(_ batch: LibraryMetadataIntakeBatch) async throws {
-    let now = clock.nowMilliseconds()
+  package func commitMetadataIntake(
+    _ batch: LibraryMetadataIntakeBatch, lease: LibraryScanWorkLease? = nil,
+    expectedRevision: LibraryMetadataRefreshTarget? = nil
+  ) async throws {
+    let clock = self.clock
     let generatedUIDs = batch.sidecars.map { _ in uuidGenerator.makeUUID().uuidString.lowercased() }
     do {
       try await database.write { database in
+        let now = clock.nowMilliseconds()
         guard
           let mediaFileID = try Int64.fetchOne(
             database,
@@ -3187,6 +3222,25 @@ public struct LibraryStore: Sendable {
           )
         else {
           throw SDKError(code: .metadataNotFound, message: "scanned media file was not found")
+        }
+
+        if let expectedRevision {
+          guard
+            try Self.requireMetadataRefreshTarget(expectedRevision, database: database)
+              == mediaFileID
+          else {
+            throw SDKError(code: .conflict, message: "metadata intake revision changed")
+          }
+        }
+        if let lease {
+          guard lease.stage == .parse, lease.file.sourceUID == batch.sourceUID,
+            lease.file.relativePath == batch.mediaRelativePath
+          else {
+            throw SDKError(code: .conflict, message: "metadata intake lease target changed")
+          }
+          try Self.requireActiveScanWorkLease(
+            lease, expectedMediaFileID: mediaFileID,
+            now: now, database: database)
         }
 
         let parse = batch.parseResult

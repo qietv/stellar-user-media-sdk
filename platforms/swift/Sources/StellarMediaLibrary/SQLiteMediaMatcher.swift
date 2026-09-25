@@ -134,12 +134,14 @@ public struct SQLiteMediaMatcher: Sendable {
         candidates: []
       )
     }
+    let expectedRevision = try await libraryStore.metadataRefreshTarget(
+      sourceUID: sourceUID, mediaRelativePath: mediaRelativePath)
     let candidates = try await provider.search(query)
     return try await evaluate(
       query: query,
       candidates: candidates,
       sourceUID: sourceUID,
-      mediaRelativePath: mediaRelativePath
+      mediaRelativePath: mediaRelativePath, lease: nil, expectedRevision: expectedRevision
     )
   }
 
@@ -150,6 +152,38 @@ public struct SQLiteMediaMatcher: Sendable {
     sourceUID: String,
     mediaRelativePath: String
   ) async throws -> MediaMatchPersistenceResult {
+    try await evaluate(
+      query: query, candidates: candidates, sourceUID: sourceUID,
+      mediaRelativePath: mediaRelativePath, lease: nil)
+  }
+
+  /// Validates the worker lease inside each binding transaction. With metadata supplied,
+  /// binding, metadata, artwork enqueue and lease completion form one atomic transaction.
+  public func evaluate(
+    query: MediaMatchQuery,
+    candidates: [MediaMetadataCandidate],
+    sourceUID: String,
+    mediaRelativePath: String,
+    lease: LibraryScanWorkLease?,
+    metadata: LibraryRemoteMetadata? = nil,
+    enqueueArtwork: Bool = false,
+    method: MediaMatchMethod = .providerSearch,
+    expectedRevision: LibraryMetadataRefreshTarget? = nil
+  ) async throws -> MediaMatchPersistenceResult {
+    guard metadata == nil || lease != nil else {
+      throw SDKError(code: .invalidConfiguration, message: "atomic metadata requires a work lease")
+    }
+    let revision: LibraryMetadataRefreshTarget?
+    if lease == nil {
+      if let expectedRevision {
+        revision = expectedRevision
+      } else {
+        revision = try await libraryStore.metadataRefreshTarget(
+          sourceUID: sourceUID, mediaRelativePath: mediaRelativePath)
+      }
+    } else {
+      revision = nil
+    }
     let fileUID = try await libraryStore.mediaFileUID(
       sourceUID: sourceUID,
       mediaRelativePath: mediaRelativePath
@@ -191,11 +225,23 @@ public struct SQLiteMediaMatcher: Sendable {
         scoredCandidate: best,
         sourceUID: sourceUID,
         mediaRelativePath: mediaRelativePath,
-        method: .providerSearch,
+        method: method,
         locked: false,
-        canReplaceLockedBinding: false
+        canReplaceLockedBinding: false,
+        lease: lease,
+        expectedRevision: revision
       )
-      let result = try await libraryStore.commitMatchBinding(request)
+      let result: LibraryMatchCommitResult
+      if let metadata, let lease {
+        _ = try await libraryStore.commitRemoteMetadata(
+          metadata,
+          sourceUID: sourceUID, relativePath: mediaRelativePath, completing: lease.stage,
+          lease: lease, enqueueArtwork: enqueueArtwork, bindingRequest: request)
+        // The transaction returned successfully; do not re-read a concurrently changed binding.
+        let binding = try await binding(sourceUID: sourceUID, mediaRelativePath: mediaRelativePath)
+        return MediaMatchPersistenceResult(state: .automaticBound, binding: binding, candidates: [])
+      }
+      result = try await libraryStore.commitMatchBinding(request)
       try await metadataCacheStore.replaceMatchCandidates(fileUID: fileUID, candidates: [])
       switch result {
       case .committed(let snapshot):
@@ -370,7 +416,9 @@ public struct SQLiteMediaMatcher: Sendable {
     mediaRelativePath: String,
     method: MediaMatchMethod,
     locked: Bool,
-    canReplaceLockedBinding: Bool
+    canReplaceLockedBinding: Bool,
+    lease: LibraryScanWorkLease? = nil,
+    expectedRevision: LibraryMetadataRefreshTarget? = nil
   ) throws -> LibraryFileBindingRequest {
     let candidate = scoredCandidate.candidate
     let rootKind: ParsedMediaKind
@@ -384,8 +432,8 @@ public struct SQLiteMediaMatcher: Sendable {
       rootTitle = candidate.title
       rootOriginalTitle = candidate.originalTitle
       rootYear = candidate.year
-      identifiers = (query.externalIDs + candidate.externalIDs).filter {
-        $0.namespace.lowercased() == "movie"
+      identifiers = candidate.externalIDs.filter {
+        $0.namespace.lowercased() == "movie" || $0.namespace.lowercased() == "title"
       }
       identifiers.append(
         try LocalMetadataExternalID(
@@ -400,7 +448,7 @@ public struct SQLiteMediaMatcher: Sendable {
       rootTitle = candidate.title
       rootOriginalTitle = candidate.originalTitle
       rootYear = candidate.year
-      identifiers = (query.externalIDs + candidate.externalIDs).filter {
+      identifiers = candidate.externalIDs.filter {
         $0.namespace.lowercased() == "series"
       }
       identifiers.append(
@@ -416,7 +464,7 @@ public struct SQLiteMediaMatcher: Sendable {
       rootTitle = query.title ?? candidate.title
       rootOriginalTitle = nil
       rootYear = query.year
-      identifiers = (query.externalIDs + candidate.externalIDs).filter {
+      identifiers = candidate.externalIDs.filter {
         $0.namespace.lowercased() == "series"
       }
     default:
@@ -445,7 +493,10 @@ public struct SQLiteMediaMatcher: Sendable {
       confidence: scoredCandidate.score,
       matchedQueryJSON: matchedQueryJSON,
       locked: locked,
-      canReplaceLockedBinding: canReplaceLockedBinding
+      canReplaceLockedBinding: canReplaceLockedBinding,
+      episodeEnd: query.episodeEnd,
+      lease: lease,
+      expectedRevision: expectedRevision
     )
   }
 
@@ -487,7 +538,14 @@ public struct SQLiteMediaMatcher: Sendable {
     query: MediaMatchQuery,
     candidate: MediaMetadataCandidate
   ) -> Bool {
-    switch (query.kind, candidate.kind) {
+    if query.kind == .episode, let season = query.season, let start = query.episode {
+      guard
+        (start...(query.episodeEnd ?? start)).allSatisfy({ episode in
+          candidate.availableEpisodes.contains { $0.season == season && $0.episode == episode }
+        })
+      else { return false }
+    }
+    return switch (query.kind, candidate.kind) {
     case (.movie, .movie), (.episode, .series):
       true
     case (.episode, .episode):

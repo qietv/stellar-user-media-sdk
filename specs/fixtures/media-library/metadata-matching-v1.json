@@ -200,6 +200,54 @@
           "signals": ["kind_mismatch"]
         }
       ]
+    },
+    {
+      "name": "same_title_year_requires_review",
+      "query": {
+        "kind": "movie",
+        "title": "Example",
+        "year": 2024
+      },
+      "candidates": [
+        {
+          "provider": "tmdb",
+          "candidate_id": "1",
+          "kind": "movie",
+          "title": "Example",
+          "year": 2024,
+          "popularity": 100
+        },
+        {
+          "provider": "tmdb",
+          "candidate_id": "2",
+          "kind": "movie",
+          "title": "Example",
+          "year": 2024,
+          "popularity": 10
+        }
+      ],
+      "expected": [
+        {
+          "candidate_id": "1",
+          "score": 0.88,
+          "decision": "review",
+          "signals": [
+            "title_exact",
+            "year_exact",
+            "ambiguous_candidates"
+          ]
+        },
+        {
+          "candidate_id": "2",
+          "score": 0.88,
+          "decision": "review",
+          "signals": [
+            "title_exact",
+            "year_exact",
+            "ambiguous_candidates"
+          ]
+        }
+      ]
     }
   ]
 }
